@@ -7,7 +7,7 @@ extern crate arch_boot;
 
 pub mod io;
 pub mod sync;
-pub mod thread;
+pub mod task;
 pub mod env;
 pub mod os;
 pub mod time;
