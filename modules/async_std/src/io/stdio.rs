@@ -6,7 +6,7 @@
 //! 
 use async_io::{AsyncRead, AsyncWrite, BufReader, Write};
 use sync::Mutex;
-use core::{pin::Pin, task::{Context, Poll}};
+use core::{future::Future, pin::Pin, task::{Context, Poll}};
 use super::{Result, ax_console_read_byte, ax_console_write_bytes};
 use lazy_init::LazyInit;
 
@@ -62,7 +62,7 @@ impl AsyncRead for Stdin {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize>> {
-        let mut lock = futures_core::ready!(self.inner.poll_lock(cx));
+        let mut lock = futures_core::ready!(Pin::new(&mut self.inner.lock()).poll(cx));
         let read_len = futures_core::ready!(AsyncRead::read(Pin::new(&mut *lock), cx, buf))?;
         if buf.is_empty() || read_len > 0 {
             Poll::Ready(Ok(read_len))
@@ -86,17 +86,17 @@ impl AsyncWrite for Stdout {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<async_io::Result<usize>> {
-        let mut locked_inner = futures_core::ready!(self.inner.poll_lock(cx));
+        let mut locked_inner = futures_core::ready!(Pin::new(&mut self.inner.lock()).poll(cx));
         AsyncWrite::write(Pin::new(&mut *locked_inner), cx, buf)
     }
 
     fn flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<async_io::Result<()>> {
-        let mut locked_inner = futures_core::ready!(self.inner.poll_lock(cx));
+        let mut locked_inner = futures_core::ready!(Pin::new(&mut self.inner.lock()).poll(cx));
         AsyncWrite::flush(Pin::new(&mut *locked_inner), cx)
     }
 
     fn close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<async_io::Result<()>> {
-        let mut locked_inner = futures_core::ready!(self.inner.poll_lock(cx));
+        let mut locked_inner = futures_core::ready!(Pin::new(&mut self.inner.lock()).poll(cx));
         AsyncWrite::close(Pin::new(&mut *locked_inner), cx)
     }
 }

@@ -5,7 +5,7 @@ edition = "2021"
 
 [features]
 
-monolithic = ["feat/monolithic"]
+monolithic = ["feat/monolithic", "multitask"]
 
 img = ["feat/img"]
 
@@ -13,10 +13,10 @@ img = ["feat/img"]
 smp = ["feat/smp"]
 
 # Interrupts
-irq = ["async_api/irq", "feat/irq"]
+irq = ["aos_api/irq", "feat/irq"]
 
 # Memory
-alloc = ["async_api/alloc", "feat/alloc"]
+alloc = ["aos_api/alloc", "feat/alloc"]
 alloc-tlsf = ["feat/alloc-tlsf"]
 alloc-slab = ["feat/alloc-slab"]
 alloc-buddy = ["feat/alloc-buddy"]
@@ -24,23 +24,23 @@ alloc-buddy = ["feat/alloc-buddy"]
 # tls = ["feat/tls"]
 
 # Multi-threading and scheduler
-multitask = ["async_api/multitask", "feat/multitask"]
+multitask = ["aos_api/multitask", "feat/multitask"]
 sched_fifo = ["feat/sched_fifo"]
 sched_rr = ["feat/sched_rr"]
 sched_cfs = ["feat/sched_cfs"]
 
 # File system
-fs = ["async_api/fs", "feat/fs"]
-# myfs = ["async_api/myfs", "feat/myfs"]
+fs = ["aos_api/fs", "feat/fs"]
+# myfs = ["aos_api/myfs", "feat/myfs"]
 fatfs = ["feat/fatfs"]
 # lwext4_rust = ["feat/lwext4_rust", "fs"]
 
 # # Networking
-# net = ["async_api/net", "feat/net"]
+# net = ["aos_api/net", "feat/net"]
 # dns = []
 
 # # Display
-# display = ["async_api/display", "feat/display"]
+# display = ["aos_api/display", "feat/display"]
 
 # # Device drivers
 # bus-mmio = ["feat/bus-mmio"]
@@ -69,9 +69,9 @@ spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
 
 arch_boot = { path = "../arch_boot" }
 feat = { path = "../feat", package = "feat" }
-async_api = { path = "../async_api" }
+aos_api = { path = "../aos_api" }
 async_utils = { path = "../async_utils"}
 async_io = { path = "../async_io"}
 sync = { path = "../sync" }
-axhal = { path = "../async_axhal", package = "async_axhal"}
+axhal = { git = "https://github.com/Starry-OS/axhal.git" }
 trampoline = { path = "../trampoline" }

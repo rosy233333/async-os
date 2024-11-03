@@ -1,6 +1,3 @@
 //! OS-specific functionality.
 
-/// ArceOS-specific definitions.
-pub mod arceos {
-    pub use async_api as api;
-}
+pub use aos_api as api;

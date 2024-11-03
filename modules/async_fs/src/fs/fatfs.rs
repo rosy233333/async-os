@@ -1,10 +1,11 @@
 
 use alloc::sync::Arc;
 use core::cell::UnsafeCell;
+use core::future::Future;
 
 use async_vfs::{VfsDirEntry, VfsError, VfsNodePerm, VfsResult};
 use async_vfs::{VfsNodeAttr, VfsNodeOps, VfsNodeRef, VfsNodeType, VfsOps};
-use async_sync::Mutex;
+use sync::Mutex;
 use fatfs::{Dir, File, LossyOemCpConverter, NullTimeProvider, Read, Seek, SeekFrom, Write};
 use core::{pin::Pin, task::{Context, Poll}};
 
@@ -68,7 +69,7 @@ impl VfsNodeOps for FileWrapper<'static> {
     async_vfs::impl_vfs_non_dir_default! {}
 
     fn get_attr(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<VfsResult<VfsNodeAttr>> {
-        self.0.poll_lock(cx).map(|mut file| {
+        Pin::new(&mut self.0.lock()).poll(cx).map(|mut file| {
             let size = file.seek(SeekFrom::End(0)).map_err(as_vfs_err)?;
             let blocks = (size + BLOCK_SIZE as u64 - 1) / BLOCK_SIZE as u64;
             // FAT fs doesn't support permissions, we just set everything to 755
@@ -78,7 +79,7 @@ impl VfsNodeOps for FileWrapper<'static> {
     }
 
     fn read_at(self: Pin<&Self>, cx: &mut Context<'_>, offset: u64, buf: &mut [u8]) -> Poll<VfsResult<usize>> {
-        self.0.poll_lock(cx).map(|mut file| {
+        Pin::new(&mut self.0.lock()).poll(cx).map(|mut file| {
             file.seek(SeekFrom::Start(offset)).map_err(as_vfs_err)?; // TODO: more efficient
             let buf_len = buf.len();
             let mut now_offset = 0;
@@ -107,7 +108,7 @@ impl VfsNodeOps for FileWrapper<'static> {
         offset: u64, 
         buf: &[u8]
     ) -> Poll<VfsResult<usize>> {
-        self.0.poll_lock(cx).map(|mut file| {
+        Pin::new(&mut self.0.lock()).poll(cx).map(|mut file| {
             file.seek(SeekFrom::Start(offset)).map_err(as_vfs_err)?; // TODO: more efficient
             let buf_len = buf.len();
             let mut now_offset = 0;
@@ -130,7 +131,7 @@ impl VfsNodeOps for FileWrapper<'static> {
     }
 
     fn truncate(self: Pin<&Self>, cx: &mut Context<'_>, size: u64) -> Poll<VfsResult> {
-        self.0.poll_lock(cx).map(|mut file| {
+        Pin::new(&mut self.0.lock()).poll(cx).map(|mut file| {
             file.seek(SeekFrom::Start(size)).map_err(as_vfs_err)?; // TODO: more efficient
             file.truncate().map_err(as_vfs_err)
         })

@@ -1,7 +1,7 @@
 use async_io::{AsyncRead, AsyncSeek, AsyncWrite, Result, SeekFrom};
 use core::fmt;
 
-use async_api::fs as api;
+use aos_api::fs as api;
 
 /// A structure representing a type of file with accessors for each file type.
 /// It is returned by [`Metadata::file_type`] method.

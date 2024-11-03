@@ -19,7 +19,7 @@ axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 
 runtime = { path = "../runtime" }
 trampoline = { path = "../trampoline" }
-axhal = { path = "../async_axhal", package = "async_axhal" }
+axhal = { git = "https://github.com/Starry-OS/axhal.git" }
 
 [build-dependencies]
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }

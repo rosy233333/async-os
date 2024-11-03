@@ -61,12 +61,12 @@ pub async fn create_dir_all(path: &str) -> io::Result<()> {
 
 /// Removes an empty directory.
 pub async fn remove_dir(path: &str) -> io::Result<()> {
-    async_api::fs::ax_remove_dir(path).await
+    aos_api::fs::ax_remove_dir(path).await
 }
 
 /// Removes a file from the filesystem.
 pub async fn remove_file(path: &str) -> io::Result<()> {
-    async_api::fs::ax_remove_file(path).await
+    aos_api::fs::ax_remove_file(path).await
 }
 
 /// Rename a file or directory to a new name.
@@ -74,5 +74,5 @@ pub async fn remove_file(path: &str) -> io::Result<()> {
 ///
 /// This only works then the new path is in the same mounted fs.
 pub async fn rename(old: &str, new: &str) -> io::Result<()> {
-    async_api::fs::ax_rename(old, new).await
+    aos_api::fs::ax_rename(old, new).await
 }

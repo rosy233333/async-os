@@ -5,8 +5,9 @@ extern crate alloc;
 use crate::io;
 use alloc::{string::String, sync::Arc};
 use core::{cell::UnsafeCell, future::Future, num::NonZeroU64};
-
-use async_api::task::{self as api, AxTaskHandle};
+use core::task::{Poll, Context};
+use core::pin::Pin;
+use aos_api::task::{self as api, TaskHandle, JoinFuture};
 use axerrno::ax_err_type;
 
 /// A unique identifier for a running thread.
@@ -102,7 +103,7 @@ impl Builder {
             0
         };
 
-        let task = api::ax_spawn(main, name);
+        let task = api::spawn(main, name);
         Ok(JoinHandle {
             thread: Thread::from_id(task.id()),
             native: task,
@@ -113,7 +114,7 @@ impl Builder {
 
 /// Gets a handle to the thread that invokes it.
 pub fn current() -> Thread {
-    let id = api::ax_current_task_id();
+    let id = api::current_task_id();
     Thread::from_id(id)
 }
 
@@ -146,7 +147,7 @@ unsafe impl<T> Sync for Packet<T> {}
 /// means that there is no longer any handle to the thread and no way to `join`
 /// on it.
 pub struct JoinHandle<T> {
-    native: AxTaskHandle,
+    native: TaskHandle,
     thread: Thread,
     packet: Arc<Packet<T>>,
 }
@@ -165,22 +166,18 @@ impl<T> JoinHandle<T> {
     /// This function will return immediately if the associated thread has
     /// already finished.
     pub fn join(self) -> JoinFutureHandle<T> {
-        let inner = api::ax_wait_for_exit(self.native);
+        let inner = api::wait_for_exit(self.native);
         JoinFutureHandle::new(inner, self.packet)
     }
 }
 
-use core::task::{Poll, Context};
-use core::pin::Pin;
-use async_api::task::AxJoinFuture;
-
 pub struct JoinFutureHandle<T> {
-    inner: AxJoinFuture,
+    inner: JoinFuture,
     packet: Arc<Packet<T>>,
 }
 
 impl<T> JoinFutureHandle<T> {
-    fn new(inner: AxJoinFuture, packet: Arc<Packet<T>>) -> Self {
+    fn new(inner: JoinFuture, packet: Arc<Packet<T>>) -> Self {
         Self { inner, packet }
     }
 }

@@ -14,7 +14,7 @@ riscv = "0.10"
 page_table_entry = { git = "https://github.com/Starry-OS/page_table_entry.git" }
 elf_parser = { git = "https://github.com/Starry-OS/elf_parser.git" }
 
-axhal = { path = "../async_axhal", package = "async_axhal", features = ["paging"] }
+axhal = { git = "https://github.com/Starry-OS/axhal.git", features = ["paging"] }
 async_fs = { path = "../async_fs" }
 async_io = { path = "../async_io" }
-async_sync = { path = "../async_sync" }
+sync = { path = "../sync" }

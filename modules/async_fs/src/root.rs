@@ -9,7 +9,7 @@ use alloc::{
 };
 use axerrno::{ax_err, AxError, AxResult};
 use async_vfs::{AsyncVfsNodeOps, AsyncVfsOps, VfsNodeAttr, VfsNodeOps, VfsNodeRef, VfsNodeType, VfsOps, VfsResult};
-use async_sync::Mutex;
+use sync::Mutex;
 use lazy_init::LazyInit;
 use core::pin::Pin;
 use core::task::{Context, Poll};

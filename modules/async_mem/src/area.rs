@@ -6,7 +6,7 @@ use axhal::{
     paging::{MappingFlags, PageSize, PageTable},
 };
 use async_io::{Seek, SeekFrom};
-use async_sync::Mutex;
+use sync::Mutex;
 use core::ptr::copy_nonoverlapping;
 
 use crate::MemBackend;

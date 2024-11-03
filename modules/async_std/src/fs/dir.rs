@@ -7,7 +7,7 @@ use super::FileType;
 use crate::io::Result;
 use async_io::AsyncStream;
 
-use async_api::fs as api;
+use aos_api::fs as api;
 
 /// Iterator over the entries in a directory.
 pub struct ReadDir<'a> {

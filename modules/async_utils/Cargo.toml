@@ -6,8 +6,6 @@ edition = "2021"
 [dependencies]
 async_main = { path = "./async_main" }
 afit = { path = "./afit" }
-sync = { path = "../sync"}
 
 [dev-dependencies]
 async-trait = "0.1.83"
-sync = { path = "../sync"}
