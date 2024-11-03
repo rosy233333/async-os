@@ -10,6 +10,8 @@
 4. [ ] Supervisor -> Hypervisor
 5. [ ] Hypervisor -> Hypervisor
 6. [ ] Hypervisor -> Machine
+可能存在从低特权级跨越多个特权级：例如从 user -> hypervisor
+
 
 关于控制流的描述，[fast-trap](https://github.com/YdrMaster/fast-trap/blob/main/README.md) 中的描述已经非常请清晰明了，这里不做过多陈述。在这里，我们将发生 Trap 时刻的全套通用寄存器称为 **Trap 上下文**。由于 Trap 时，只存在一个突发寄存器（scratch）可以使用，因此设计主要围绕着 scratch 寄存器展开。
 
