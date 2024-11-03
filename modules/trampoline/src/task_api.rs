@@ -1,7 +1,5 @@
 use core::{future::poll_fn, task::Poll, time::Duration};
-use alloc::sync::Arc;
 use axhal::time::{TimeValue, current_time};
-use kernel_guard::BaseGuard;
 pub use executor::*;
 use syscall::trap::{handle_page_fault, MappingFlags};
 use riscv::register::scause::{Trap, Exception};
@@ -10,6 +8,8 @@ pub fn turn_to_kernel_executor() {
     CurrentExecutor::clean_current();
     unsafe { CurrentExecutor::init_current(KERNEL_EXECUTOR.clone()) };
 }
+#[cfg(feature = "thread")]
+use kernel_guard::BaseGuard;
 
 #[cfg(feature = "preempt")]
 /// Checks if the current task should be preempted.
@@ -181,6 +181,7 @@ impl task_api::TaskApi for TaskApiImpl {
     
 }
 
+#[cfg(feature = "thread")]
 pub fn thread_yield() {
     error!("thread_yield");
     let _guard = kernel_guard::NoPreemptIrqSave::acquire();
@@ -190,6 +191,7 @@ pub fn thread_yield() {
     error!("thread_yield end");
 }
 
+#[cfg(feature = "thread")]
 pub fn thread_blocked() {
     let _guard = kernel_guard::NoPreemptIrqSave::acquire();
     let curr = current_task();
@@ -198,6 +200,7 @@ pub fn thread_blocked() {
     TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
 }
 
+#[cfg(feature = "thread")]
 pub fn thread_sleep(deadline: TimeValue) {
     let waker = current_task().waker();
     task_api::set_alarm_wakeup(deadline, waker.clone());
@@ -206,6 +209,7 @@ pub fn thread_sleep(deadline: TimeValue) {
     task_api::cancel_alarm(&waker);
 }
 
+#[cfg(feature = "thread")]
 pub fn thread_exit() {
     let _guard = kernel_guard::NoPreemptIrqSave::acquire();
     let curr = current_task();
@@ -213,16 +217,18 @@ pub fn thread_exit() {
     TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
 }
 
+#[cfg(feature = "thread")]
 pub fn thread_join(_task: &TaskRef) {
     unimplemented!("thread_join");
 }
 
+#[cfg(feature = "thread")]
 pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
     let curr = current_task();
     curr.set_stack_ctx(tf as *const _, ctx_type);
     let raw_task_ptr = CurrentTask::clean_current_without_drop();
     if curr.state() == TaskState::Runable {
-        wakeup_task(unsafe { Arc::from_raw(raw_task_ptr) });
+        wakeup_task(unsafe { TaskRef::from_raw(raw_task_ptr) });
     }
     log::warn!("here");
     let new_kstack_top = taskctx::current_stack_top();
@@ -238,6 +244,7 @@ pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
     }
 }
 
+#[cfg(feature = "thread")]
 pub fn restore_from_stack_ctx(task: &TaskRef) {
     if let Some(StackCtx {
         kstack,
