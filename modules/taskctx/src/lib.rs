@@ -24,8 +24,9 @@ pub type TaskRef = Arc<Task>;
 pub use task::{TaskInner, TaskId, TaskState};
 pub use scheduler::BaseScheduler;
 pub use kstack::*;
-#[cfg(feature = "preempt")]
-pub use task::PreemptCtx;
+
+#[cfg(feature = "thread")]
+pub use task::{StackCtx, CtxType};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "sched_rr")] {
@@ -47,6 +48,7 @@ cfg_if::cfg_if! {
 
 /// 这里不对任务的状态进行修改，在调用 waker.wake() 之前对任务状态进行修改
 pub fn wakeup_task(task: TaskRef) {
+    task.set_state(TaskState::Runable);
     // log::debug!("wakeup task {}, count {}", task.id_name(), Arc::strong_count(&task));
     task.clone()
         .scheduler.lock()

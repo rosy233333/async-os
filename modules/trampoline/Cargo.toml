@@ -6,15 +6,17 @@ edition = "2021"
 [features]
 default = ["multitask"]
 
+thread = ["taskctx/thread", "sync/thread", "executor/thread", "task_api/thread"]
+
 multitask = []
 
 monolithic = []
 
-irq = ["sync/irq", "executor/irq", "async_axhal/irq"]
+irq = ["sync/irq", "executor/irq", "axhal/irq"]
 
 smp = ["spinlock/smp"]
 
-preempt = ["irq", "percpu/preempt", "kernel_guard/preempt", "executor/preempt"]
+preempt = ["irq", "percpu/preempt", "kernel_guard/preempt", "executor/preempt", "taskctx/preempt"]
 
 sched_fifo = ["multitask", "executor/sched_fifo"]
 sched_rr = ["multitask", "executor/sched_rr", "preempt"]
@@ -30,11 +32,13 @@ axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git"}
 futures-core = { version = "0.3.30", default-features = false, features = ["alloc"] }
 spin = "0.9"
+crate_interface = "0.1"
 
+task_api = { path = "../task_api" }
 sync = { path = "../sync" }
 taskctx = { path = "../taskctx" }
 executor = { path = "../executor" }
-async_axhal = { path = "../async_axhal" }
+axhal = { git = "https://github.com/Starry-OS/axhal.git" }
 syscall = { path = "../syscall" }
 async_mem = { path = "../async_mem" }
 async_fs = { path = "../async_fs" }

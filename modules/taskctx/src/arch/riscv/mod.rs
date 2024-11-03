@@ -211,23 +211,25 @@ impl TrapFrame {
     /// 只在内核中发生抢占时，恢复被打断的内核执行流时使用，不会在返回用户态时使用
     /// 不需要恢复 gp、tp 等寄存器
     #[naked]
-    pub unsafe extern "C" fn preempt_return(&self) {
-        core::arch::asm!(
-            r#"
-            mv      sp, a0
-            .short  0x2432                      // fld fs0,264(sp)
-            .short  0x24d2                      // fld fs1,272(sp)
+    pub extern "C" fn preempt_return(&self) {
+        unsafe {
+            core::arch::asm!(
+                r#"
+                mv      sp, a0
+                .short  0x2432                      // fld fs0,264(sp)
+                .short  0x24d2                      // fld fs1,272(sp)
 
-            LDR     t0, sp, 31
-            LDR     t1, sp, 32
-            csrw    sepc, t0
-            csrw    sstatus, t1
-            POP_GENERAL_REGS
-            LDR     sp, sp, 1
-            sret
-            "#,
-            options(noreturn)
-        );
+                LDR     t0, sp, 31
+                LDR     t1, sp, 32
+                csrw    sepc, t0
+                csrw    sstatus, t1
+                POP_GENERAL_REGS
+                LDR     sp, sp, 1
+                sret
+                "#,
+                options(noreturn)
+            );
+        }
     }
 
     /// 用于返回用户态执行流
@@ -260,3 +262,66 @@ impl TrapFrame {
     }
 }
 
+#[cfg(feature = "thread")]
+impl TrapFrame {
+    #[naked]
+    pub extern "C" fn thread_ctx(set_tf_fn: usize, ctx_type: crate::CtxType) -> &'static Self {
+        unsafe {
+            core::arch::asm!(
+                "
+                addi    sp, sp, -{trap_frame_size}
+                STR     ra, sp, 0
+                STR     sp, sp, 1
+                STR     s0, sp, 7
+                STR     s1, sp, 8
+                STR     s2, sp, 17
+                STR     s3, sp, 18
+                STR     s4, sp, 19
+                STR     s5, sp, 20
+                STR     s6, sp, 21
+                STR     s7, sp, 22
+                STR     s8, sp, 23
+                STR     s9, sp, 24
+                STR     s10, sp, 25
+                STR     s11, sp, 26
+                mv      ra, a0
+                mv      a0, sp
+                ret
+                ",
+                trap_frame_size = const core::mem::size_of::<TrapFrame>(),
+                options(noreturn)
+            )
+        }
+    }
+
+    #[naked]
+    pub extern "C" fn thread_return(&self) {
+        unsafe {
+            core::arch::asm!(
+                "
+                mv      sp, a0
+                LDR     ra, sp, 0
+                LDR     s0, sp, 7
+                LDR     s1, sp, 8
+                LDR     s2, sp, 17
+                LDR     s3, sp, 18
+                LDR     s4, sp, 19
+                LDR     s5, sp, 20
+                LDR     s6, sp, 21
+                LDR     s7, sp, 22
+                LDR     s8, sp, 23
+                LDR     s9, sp, 24
+                LDR     s10, sp, 25
+                LDR     s11, sp, 26
+
+                // 恢复 sp
+                LDR     sp, sp, 1
+                addi    sp, sp, {trap_frame_size}
+                ret
+                ",
+                trap_frame_size = const core::mem::size_of::<TrapFrame>(),
+                options(noreturn)
+            )
+        }
+    }
+}

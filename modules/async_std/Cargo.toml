@@ -5,6 +5,8 @@ edition = "2021"
 
 [features]
 
+thread = ["trampoline/thread"]
+
 monolithic = ["feat/monolithic", "multitask"]
 
 img = ["feat/img"]

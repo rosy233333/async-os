@@ -1,11 +1,12 @@
-use core::{future::poll_fn, task::Poll};
-
+use core::{future::poll_fn, task::Poll, time::Duration};
+use alloc::sync::Arc;
+use axhal::time::{TimeValue, current_time};
+use kernel_guard::BaseGuard;
 pub use executor::*;
 use syscall::trap::{handle_page_fault, MappingFlags};
-use taskctx::TrapStatus;
 use riscv::register::scause::{Trap, Exception};
 #[cfg(feature = "preempt")]
-use crate::{trampoline, TrapFrame};
+use {crate::TrapFrame, taskctx::CtxType};
 
 pub fn turn_to_kernel_executor() {
     CurrentExecutor::clean_current();
@@ -16,7 +17,7 @@ pub fn turn_to_kernel_executor() {
 /// Checks if the current task should be preempted.
 /// This api called after handle irq,it may be on a
 /// disable_preempt ctx
-pub fn current_check_preempt_pending(tf: &TrapFrame) {
+pub fn current_check_preempt_pending(tf: &mut TrapFrame) {
     if let Some(curr) = current_task_may_uninit() {
         // if task is already exited or blocking,
         // no need preempt, they are rescheduling
@@ -54,37 +55,9 @@ pub async fn current_check_user_preempt_pending(_tf: &TrapFrame) {
 }
 
 #[cfg(feature = "preempt")]
-pub fn preempt(task: &TaskRef, tf: &TrapFrame) {
+pub fn preempt(task: &TaskRef, tf: &mut TrapFrame) {
     task.set_preempt_pending(false);
-    task.set_preempt_ctx(tf);
-    let new_kstack_top = taskctx::current_stack_top();
-    taskctx::CurrentTask::clean_current_without_drop();
-    let waker = taskctx::waker_from_task(task);
-    waker.wake();
-    unsafe {
-        core::arch::asm!(
-            "li a1, 0",
-            "li a2, 0",
-            "mv sp, {new_kstack_top}",
-            "j  {trampoline}",
-            new_kstack_top = in(reg) new_kstack_top,
-            trampoline = sym trampoline,
-        )
-    }
-}
-
-#[cfg(feature = "preempt")]
-pub fn restore_from_preempt_ctx(task: &TaskRef) {
-    let mut preempt_ctx_lock = task.preempt_ctx_lock();
-    if let Some(preempt_ctx) = preempt_ctx_lock.take() {
-        // debug!("restore from preempt");
-        let taskctx::PreemptCtx { kstack, trap_frame } = preempt_ctx;
-        taskctx::put_prev_stack(kstack);
-        drop(preempt_ctx_lock);
-        unsafe { 
-            (*trap_frame).preempt_return()
-        };
-    }
+    crate::thread_api::set_task_tf(tf, CtxType::Interrupt);
 }
 
 pub async fn wait(task: &TaskRef) -> Option<i32> {
@@ -110,7 +83,7 @@ pub async fn user_task_top() -> i32 {
                     crate::handle_user_irq(tf.get_scause_code(), &mut tf).await;
                 },
                 Trap::Exception(Exception::UserEnvCall) => {
-                    async_axhal::arch::enable_irqs();
+                    axhal::arch::enable_irqs();
                     tf.sepc += 4;
                     let result = syscall::trap::handle_syscall(
                         tf.regs.a7,
@@ -128,7 +101,7 @@ pub async fn user_task_top() -> i32 {
                     } else {
                         tf.regs.a0 = result as usize;
                     }
-                    async_axhal::arch::disable_irqs();
+                    axhal::arch::disable_irqs();
                 }
                 Trap::Exception(Exception::InstructionPageFault) => {
                     handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::EXECUTE).await;
@@ -163,3 +136,122 @@ pub async fn user_task_top() -> i32 {
     }
 }
 
+struct TaskApiImpl;
+
+#[crate_interface::impl_interface]
+impl task_api::TaskApi for TaskApiImpl {
+
+    fn current_task() -> CurrentTask {
+        current_task()
+    }
+
+    fn yield_now() -> YieldFuture {
+        #[cfg(feature = "thread")]
+        thread_yield();
+        YieldFuture::new()
+    }
+
+    fn block_current() -> BlockFuture {
+        #[cfg(feature = "thread")]
+        thread_blocked();
+        BlockFuture::new()
+    }
+
+    fn exit_current() -> ExitFuture {
+        #[cfg(feature = "thread")]
+        thread_exit();
+        ExitFuture::new()
+    }
+
+    fn sleep(dur: Duration) -> SleepFuture {
+        #[cfg(feature = "thread")]
+        thread_sleep(dur + current_time());
+        SleepFuture::new(current_time() + dur)
+    }
+
+    fn sleep_until(deadline: TimeValue) -> SleepFuture {
+        #[cfg(feature = "thread")]
+        thread_sleep(deadline);
+        SleepFuture::new(deadline)
+    }
+
+    fn join(task: &TaskRef) -> JoinFuture {
+        #[cfg(feature = "thread")]
+        thread_join(&task);
+        JoinFuture::new(task.clone())
+    }
+    
+}
+
+pub fn thread_yield() {
+    error!("thread_yield");
+    let _guard = kernel_guard::NoPreemptIrqSave::acquire();
+    let curr = current_task();
+    curr.set_state(TaskState::Runable);
+    TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
+    error!("thread_yield end");
+}
+
+pub fn thread_blocked() {
+    let _guard = kernel_guard::NoPreemptIrqSave::acquire();
+    let curr = current_task();
+    // log::warn!("here");
+    curr.set_state(TaskState::Blocked);
+    TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
+}
+
+pub fn thread_sleep(deadline: TimeValue) {
+    let waker = current_task().waker();
+    task_api::set_alarm_wakeup(deadline, waker.clone());
+    log::debug!("here");
+    thread_blocked();
+    task_api::cancel_alarm(&waker);
+}
+
+pub fn thread_exit() {
+    let _guard = kernel_guard::NoPreemptIrqSave::acquire();
+    let curr = current_task();
+    curr.set_state(TaskState::Exited);
+    TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
+}
+
+pub fn thread_join(_task: &TaskRef) {
+    unimplemented!("thread_join");
+}
+
+pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
+    let curr = current_task();
+    curr.set_stack_ctx(tf as *const _, ctx_type);
+    let raw_task_ptr = CurrentTask::clean_current_without_drop();
+    if curr.state() == TaskState::Runable {
+        wakeup_task(unsafe { Arc::from_raw(raw_task_ptr) });
+    }
+    log::warn!("here");
+    let new_kstack_top = taskctx::current_stack_top();
+    unsafe {
+        core::arch::asm!(
+            "li a1, 0",
+            "li a2, 0",
+            "mv sp, {new_kstack_top}",
+            "j  {trampoline}",
+            new_kstack_top = in(reg) new_kstack_top,
+            trampoline = sym crate::trampoline,
+        )
+    }
+}
+
+pub fn restore_from_stack_ctx(task: &TaskRef) {
+    if let Some(StackCtx {
+        kstack,
+        trap_frame,
+        ctx_type
+    }) = task.get_stack_ctx() {
+        error!("restore_from_stack_ctx");
+        taskctx::put_prev_stack(kstack);
+        match ctx_type {
+            CtxType::Thread => unsafe { &*trap_frame }.thread_return(), 
+            #[cfg(feature = "preempt")]
+            CtxType::Interrupt => unsafe { &*trap_frame }.preempt_return(), 
+        }
+    }
+}

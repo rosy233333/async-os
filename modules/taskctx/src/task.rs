@@ -3,11 +3,9 @@ use core::{cell::UnsafeCell, fmt, future::Future, pin::Pin, sync::atomic::{Atomi
 use spinlock::SpinNoIrq;
 use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, sync::Arc};
 #[cfg(feature = "preempt")]
-use {
-    core::sync::atomic::{AtomicUsize, AtomicBool},
-    crate::TaskStack,
-    spinlock::SpinNoIrqGuard
-};
+use core::sync::atomic::AtomicUsize;
+#[cfg(feature = "thread")]
+use crate::TaskStack;
 
 /// A unique identifier for a thread.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -46,7 +44,7 @@ pub enum TaskState {
 
 pub struct TaskInner {
     fut: UnsafeCell<Pin<Box<dyn Future<Output = i32> + 'static>>>,
-    utrap_frame: UnsafeCell<Option<TrapFrame>>,
+    utrap_frame: UnsafeCell<Option<Box<TrapFrame>>>,
 
     // executor: SpinNoIrq<Arc<Executor>>,
     pub(crate) wait_wakers: UnsafeCell<VecDeque<Waker>>,
@@ -78,33 +76,13 @@ pub struct TaskInner {
     ///
     /// Only when the count is zero, the task can be preempted.
     preempt_disable_count: AtomicUsize,
-    #[cfg(feature = "preempt")]
-    /// 在内核中发生抢占时的抢占上下文
-    preempt_ctx: SpinNoIrq<Option<PreemptCtx>>,
+    /// 在内核中发生抢占或者使用线程接口时的上下文
+    #[cfg(feature = "thread")]
+    stack_ctx: UnsafeCell<Option<StackCtx>>,
     
     /// 是否是所属进程下的主线程
     is_leader: AtomicBool,
     process_id: AtomicU64,
-}
-
-#[cfg(feature = "preempt")]
-pub struct PreemptCtx {
-    pub kstack: TaskStack,
-    pub trap_frame: *const TrapFrame,
-}
-
-#[cfg(feature = "preempt")]
-impl PreemptCtx {
-    pub(crate) fn new(kstack: TaskStack, trap_frame: *const TrapFrame) -> Self {
-        let kstack_top = kstack.top().as_usize();
-        let kstack_bottom = kstack.down().as_usize();
-        assert!((trap_frame as usize) >= kstack_bottom);
-        assert!((trap_frame as usize) < kstack_top, "{:#X} - [{:#X}, {:#X})", (trap_frame as usize), kstack_bottom, kstack_top);
-        Self {
-            kstack,
-            trap_frame,
-        }
-    }
 }
 
 unsafe impl Send for TaskInner {}
@@ -136,10 +114,10 @@ impl TaskInner {
             need_resched: AtomicBool::new(false),
             #[cfg(feature = "preempt")]
             preempt_disable_count: AtomicUsize::new(0),
-            #[cfg(feature = "preempt")]
-            preempt_ctx: SpinNoIrq::new(None),
             is_leader: AtomicBool::new(false),
             process_id: AtomicU64::new(process_id),
+            #[cfg(feature = "thread")]
+            stack_ctx: UnsafeCell::new(None)
         };
         t
     }
@@ -149,8 +127,7 @@ impl TaskInner {
         process_id: u64,
         scheduler: Arc<SpinNoIrq<Scheduler>>,
         fut: Pin<Box<dyn Future<Output = i32> + 'static>>,
-        utrap_frame: TrapFrame
-        // task_type: TaskType,
+        utrap_frame: Box<TrapFrame>
     ) -> Self {
         let is_init = &name == "main";
         let t = Self {
@@ -170,10 +147,10 @@ impl TaskInner {
             need_resched: AtomicBool::new(false),
             #[cfg(feature = "preempt")]
             preempt_disable_count: AtomicUsize::new(0),
-            #[cfg(feature = "preempt")]
-            preempt_ctx: SpinNoIrq::new(None),
             is_leader: AtomicBool::new(false),
             process_id: AtomicU64::new(process_id),
+            #[cfg(feature = "thread")]
+            stack_ctx: UnsafeCell::new(None)
         };
         t
     }
@@ -321,7 +298,9 @@ impl TaskInner {
     }
 
     pub fn utrap_frame(&self) -> Option<&mut TrapFrame> {
-        unsafe {&mut *self.utrap_frame.get() }.as_mut()
+        unsafe {&mut *self.utrap_frame.get() }
+        .as_mut()
+        .map(|tf| tf.as_mut())
     }
 }
 
@@ -452,19 +431,6 @@ impl TaskInner {
     pub fn preempt_num(&self) -> usize {
         self.preempt_disable_count.load(Ordering::Acquire)
     }
-
-    pub fn set_preempt_ctx(&self, tf: &TrapFrame) {
-        let mut sp: usize;
-        unsafe { core::arch::asm!("mv {}, sp", out(reg) sp); }
-        log::warn!("current sp: {:#x?}", sp);
-        let preempt_ctx = PreemptCtx::new(crate::pick_current_stack(), tf);
-        assert!(self.preempt_ctx.lock().is_none());
-        self.preempt_ctx.lock().replace(preempt_ctx);
-    }
-
-    pub fn preempt_ctx_lock(&self) -> SpinNoIrqGuard<'_, Option<PreemptCtx>> {
-        self.preempt_ctx.lock()
-    }
 }
 
 impl fmt::Debug for TaskInner {
@@ -479,5 +445,38 @@ impl fmt::Debug for TaskInner {
 impl Drop for TaskInner {
     fn drop(&mut self) {
         log::debug!("task drop: {}", self.id_name());
+    }
+}
+
+#[cfg(feature = "thread")]
+#[repr(usize)]
+pub enum CtxType {
+    /// 其中的 usize 是中断状态，在使用线程接口让权时，将当前的中断状态保存至此，并且关闭中断
+    /// 在线程恢复执行后，需要恢复原来的中断状态
+    Thread = 0,
+    #[cfg(feature = "preempt")]
+    Interrupt
+}
+
+#[cfg(feature = "thread")]
+pub struct StackCtx {
+    pub kstack: TaskStack,
+    pub trap_frame: *const TrapFrame,
+    pub ctx_type: CtxType,
+}
+
+#[cfg(feature = "thread")]
+/// 线程的接口需要根据任务的状态来进行不同的操作
+impl TaskInner {
+    pub fn set_stack_ctx(&self, trap_frame: *const TrapFrame, ctx_type: CtxType) {
+        let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
+        assert!(stack_ctx.is_none(), "cannot use thread api to do task switch");
+        let kstack = crate::pick_current_stack();
+        stack_ctx.replace(StackCtx { kstack, trap_frame, ctx_type });
+    }
+
+    pub fn get_stack_ctx(&self) -> Option<StackCtx> {
+        let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
+        stack_ctx.take()
     }
 }

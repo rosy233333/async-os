@@ -11,8 +11,9 @@ use core::cell::UnsafeCell;
 use core::fmt;
 use core::ops::{Deref, DerefMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
-use crate::WaitQueue;
+use task_api::current_task;
 use core::{future::Future, pin::Pin, task::{Context, Poll}};
+use crate::WaitQueue;
 
 /// A mutual exclusion primitive useful for protecting shared data, similar to
 /// [`std::sync::Mutex`](https://doc.rust-lang.org/std/sync/struct.Mutex.html).
@@ -26,43 +27,22 @@ pub struct Mutex<T: ?Sized> {
     data: UnsafeCell<T>,
 }
 
-/// A guard that provides mutable data access.
-///
-/// When the guard falls out of scope it will release the lock.
-pub struct MutexGuard<'a, T: ?Sized + 'a> {
-    lock: &'a Mutex<T>,
-    data: *mut T,
-}
-
-unsafe impl<'a, T: ?Sized + 'a> Send for MutexGuard<'a, T> {}
-
-pub struct MutexGuardFuture<'a, T: ?Sized + 'a> {
-    lock: &'a Mutex<T>,
-}
-
-unsafe impl<'a, T: ?Sized + 'a> Send for MutexGuardFuture<'a, T> {}
-unsafe impl<'a, T: ?Sized + 'a> Sync for MutexGuardFuture<'a, T> {}
-
-impl<'a, T: ?Sized + 'a> MutexGuardFuture<'a, T> {
-    pub fn new(
-        lock: &'a Mutex<T>,
-    ) -> Self {
-        Self { lock }
-    }
-}
-
-impl<'a, T: ?Sized + 'a> Future for MutexGuardFuture<'a, T> {
-    type Output = MutexGuard<'a, T>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let Self { lock } = self.get_mut();
-        lock.poll_lock(cx)
-    }
-}
-
 // Same unsafe impls as `std::sync::Mutex`
 unsafe impl<T: ?Sized + Send> Sync for Mutex<T> {}
 unsafe impl<T: ?Sized + Send> Send for Mutex<T> {}
+
+/// A guard that provides mutable data access.
+///
+/// When the guard falls out of scope it will release the lock.
+/// 
+/// 这个数据结构可以提供同步和异步的接口，若没有使用 .await，则使用同步的接口
+/// 若使用 .await，则使用异步的接口
+pub struct MutexGuard<'a, T: ?Sized + 'a> {
+    lock: &'a Mutex<T>,
+    data: Option<*mut T>,
+}
+
+unsafe impl<'a, T: ?Sized + 'a> Send for MutexGuard<'a, T> {}
 
 impl<T> Mutex<T> {
     /// Creates a new [`Mutex`] wrapping the supplied data.
@@ -101,38 +81,85 @@ impl<T: ?Sized> Mutex<T> {
     ///
     /// The returned value may be dereferenced for data access
     /// and the lock will be dropped when the guard falls out of scope.
-    pub fn lock(&self) -> MutexGuardFuture<T> {
-        MutexGuardFuture::new(self)
-    }
-
-    /// 这个函数是底层的实现，用于在 Poll 函数中使用，而不是在 async 函数中使用
-    /// 不仅仅是 MutexGuardFuture 中，在其他的使用到了 Mutex 的数据结构中，
-    /// 在为它们实现 Future trait 或者自定义 Poll 函数时，需要使用这个接口
-    pub fn poll_lock<'a>(&'a self, cx: &mut Context<'_>) -> Poll<MutexGuard<'a, T>> {
-        let current_task = cx.waker().as_raw().data() as usize;
-        match self.owner_task.compare_exchange_weak(
-            0,
-            current_task,
-            Ordering::Acquire,
-            Ordering::Relaxed,
-        ) {
-            Ok(_) => Poll::Ready(MutexGuard {
-                lock: self,
-                data: self.data.get(),
-            }),
-            Err(owner_task) => {
-                assert_ne!(
-                    owner_task, current_task,
-                    "Task({:#X}) tried to acquire mutex it already owns.",
-                    owner_task,
-                );
-                // 当前线程让权，并将 cx 注册到等待队列上
-                let a = self.wq.wait_until(cx, || !self.is_locked());
-                // 进入这个分支一定是属于 Poll::Pending 的情况
-                assert_eq!(&a, &Poll::Pending);
-                Poll::Pending
+    pub fn lock(&self) -> MutexGuard<T> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "thread")] {
+                let curr = current_task();
+                let waker = curr.waker();
+                let current_task = waker.as_raw().data() as usize;
+                loop {
+                    match self.owner_task.compare_exchange_weak(
+                        0,
+                        current_task,
+                        Ordering::Acquire,
+                        Ordering::Relaxed,
+                    ) {
+                        Ok(_) => break,
+                        Err(owner_task) => {
+                            assert_ne!(
+                                owner_task, current_task,
+                                "{} tried to acquire mutex it already owns.",
+                                curr.id_name(),
+                            );
+                            self.wq.wait_until(|| !self.is_locked());
+                        }
+                    }
+                }
+                return MutexGuard {
+                    lock: self,
+                    data: Some(self.data.get()),
+                };
+            } else if #[cfg(not(feature = "thread"))] {
+                return MutexGuard {
+                    lock: self,
+                    data: None,
+                }
             }
         }
+    }
+
+    /// Try to lock this [`Mutex`], returning a lock guard if successful.
+    #[inline(always)]
+    pub fn try_lock(&self) -> Option<MutexGuard<T>> {
+        let waker = current_task().waker();
+        let current_task = waker.as_raw().data() as usize;
+        // The reason for using a strong compare_exchange is explained here:
+        // https://github.com/Amanieu/parking_lot/pull/207#issuecomment-575869107
+        if self.owner_task.compare_exchange(
+            0, 
+            current_task, 
+            Ordering::Acquire, 
+            Ordering::Relaxed)
+            .is_ok()
+        {
+            Some(MutexGuard {
+                lock: self,
+                data: Some(self.data.get()),
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Force unlock the [`Mutex`].
+    ///
+    /// # Safety
+    ///
+    /// This is *extremely* unsafe if the lock is not held by the current
+    /// thread. However, this can be useful in some instances for exposing
+    /// the lock to FFI that doesn’t know how to deal with RAII.
+    pub unsafe fn force_unlock(&self) {
+        let curr = current_task();
+        let waker = curr.waker();
+        let current_task = waker.as_raw().data() as usize;
+        let owner_task = self.owner_task.swap(0, Ordering::Release);
+        assert_eq!(
+            owner_task,
+            current_task,
+            "{} tried to release mutex it doesn't own",
+            curr.id_name()
+        );
+        self.wq.notify_one();
     }
 
     /// Returns a mutable reference to the underlying data.
@@ -155,12 +182,14 @@ impl<T: ?Sized + Default> Default for Mutex<T> {
     }
 }
 
-/// 这里的实现是 unsafe 的，不会获取锁，而是直接打印出数据
 impl<T: ?Sized + fmt::Debug> fmt::Debug for Mutex<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Mutex {{ data: ")
-            .and_then(|()| unsafe { self.data.get().as_ref().unwrap().fmt(f) })
-            .and_then(|()| write!(f, "}}"))
+        match self.try_lock() {
+            Some(guard) => write!(f, "Mutex {{ data: ")
+                .and_then(|()| (*guard).fmt(f))
+                .and_then(|()| write!(f, "}}")),
+            None => write!(f, "Mutex {{ <locked> }}"),
+        }
     }
 }
 
@@ -169,7 +198,12 @@ impl<'a, T: ?Sized> Deref for MutexGuard<'a, T> {
     #[inline(always)]
     fn deref(&self) -> &T {
         // We know statically that only we are referencing data
-        unsafe { &*self.data }
+        unsafe {
+            match self.data {
+                Some(data) => &*data,
+                None => panic!("data is none, you should use .await to get the data"),
+            }
+        }
     }
 }
 
@@ -177,7 +211,12 @@ impl<'a, T: ?Sized> DerefMut for MutexGuard<'a, T> {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut T {
         // We know statically that only we are referencing data
-        unsafe { &mut *self.data }
+        unsafe {
+            match self.data {
+                Some(data) => &mut *data,
+                None => panic!("data is none, you should use .await to get the data"),
+            }
+        }
     }
 }
 
@@ -190,7 +229,61 @@ impl<'a, T: ?Sized + fmt::Debug> fmt::Debug for MutexGuard<'a, T> {
 impl<'a, T: ?Sized> Drop for MutexGuard<'a, T> {
     /// The dropping of the [`MutexGuard`] will release the lock it was created from.
     fn drop(&mut self) {
-        self.lock.owner_task.swap(0, Ordering::Release);
-        self.lock.wq.notify_one();
+        if self.data.is_some() {
+            unsafe { self.lock.force_unlock() }
+        }
+    }
+}
+
+/// 这里要实现所有权的转移，否则会导致连续两次 drop，重复释放锁
+impl<'a, T: ?Sized + 'a> Future for MutexGuard<'a, T> {
+    type Output = Self;
+
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let Self { lock, data } = self.get_mut();
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "thread")] {
+                assert!(data.is_some());
+                Poll::Ready(MutexGuard {
+                    lock,
+                    data: data.take(),
+                })
+            } else if #[cfg(not(feature = "thread"))] {
+                if data.is_none() {
+                    let curr = current_task();
+                    let current_task = _cx.waker().as_raw().data() as usize;
+                    match lock.owner_task.compare_exchange_weak(
+                        0,
+                        current_task,
+                        Ordering::Acquire,
+                        Ordering::Relaxed,
+                    ) {
+                        Ok(_) => {
+                            Poll::Ready(MutexGuard {
+                                lock,
+                                data: Some(lock.data.get()),
+                            })
+                        },
+                        Err(owner_task) => {
+                            assert_ne!(
+                                owner_task, current_task,
+                                "{} tried to acquire mutex it already owns.",
+                                curr.id_name(),
+                            );
+                            // 当前线程让权，并将 cx 注册到等待队列上
+                            let a = Pin::new(&mut lock.wq.wait_until(|| !lock.is_locked())).poll(_cx);
+                            // 进入这个分支一定是属于 Poll::Pending 的情况
+                            assert_eq!(&a, &Poll::Pending);
+                            Poll::Pending
+                        }
+                    }
+                } else {
+                    Poll::Ready(MutexGuard {
+                        lock,
+                        data: data.clone(),
+                    })
+                }
+            }
+        }
     }
 }

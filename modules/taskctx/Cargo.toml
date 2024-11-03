@@ -9,7 +9,8 @@ keywords = ["Task Switching"]
 
 [features]
 
-preempt = []
+thread = []
+preempt = ["thread"]
 sched_fifo = []
 sched_rr = ["preempt"]
 sched_cfs = ["preempt"]
@@ -26,7 +27,7 @@ spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
 scheduler = { git = "https://github.com/Starry-OS/scheduler.git" }
 percpu = { git = "https://github.com/Starry-OS/percpu.git" }
 
-async_axhal = { path = "../async_axhal" }
+axhal = { git = "https://github.com/Starry-OS/axhal.git" }
 
 
 [target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]

@@ -25,9 +25,9 @@ pub use taskctx::TrapFrame;
 
 use riscv::register::scause::{self, Trap};
 pub use task_api::*;
-use taskctx::{CurrentTask, TaskState, TrapStatus};
 pub use trap_api::*;
 pub use executor_api::*;
+
 /// 进入 Trampoline 的方式：
 ///   1. 初始化后函数调用：没有 Trap，但存在就绪任务
 ///   2. 内核发生 Trap：存在任务被打断（CurrentTask 不为空），或者没有任务被打断（CurrentTask 为空）
@@ -35,6 +35,8 @@ pub use executor_api::*;
 /// 
 /// 内核发生 Trap 时，将 TrapFrame 保存在内核栈上
 /// 在用户态发生 Trap 时，将 TrapFrame 直接保存在任务控制块中，而不是在内核栈上
+/// 
+/// 只有通过 trap 进入这个入口时，是处于关中断的状态，剩下的任务切换是没有关中断
 #[no_mangle]
 pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
     loop {
@@ -63,12 +65,12 @@ pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
             }) {
                 run_task(task.as_task_ref());
             } else {
-                // warn!("no task, change executor or wfi");
+                axhal::arch::enable_irqs();
                 // 如果当前的 Executor 中没有任务了，则切换回内核的 Executor
                 turn_to_kernel_executor();
                 // 没有就绪任务，等待中断
                 #[cfg(feature = "irq")]
-                async_axhal::arch::wait_for_irqs();
+                axhal::arch::wait_for_irqs();
             }
         }
     }
@@ -77,8 +79,8 @@ pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
 pub fn run_task(task: &TaskRef) {
     let waker = taskctx::waker_from_task(task);
     let cx = &mut Context::from_waker(&waker);
-    #[cfg(feature = "preempt")]
-    restore_from_preempt_ctx(&task);
+    #[cfg(feature = "thread")]
+    restore_from_stack_ctx(&task);
     // warn!("run task {} count {}", task.id_name(), Arc::strong_count(task));
     let res = task.get_fut().as_mut().poll(cx);
     match res {
@@ -89,7 +91,7 @@ pub fn run_task(task: &TaskRef) {
             task.notify_waker_for_exit();
             if task.is_init() {
                 assert!(Arc::strong_count(&task) == 1, "count {}", Arc::strong_count(&task));
-                async_axhal::misc::terminate();
+                axhal::misc::terminate();
             }
             CurrentTask::clean_current();
         },
@@ -99,7 +101,7 @@ pub fn run_task(task: &TaskRef) {
                     tf.kernel_sp = taskctx::current_stack_top();
                     tf.scause = 0;
                     // 这里不能打开中断
-                    async_axhal::arch::disable_irqs();
+                    axhal::arch::disable_irqs();
                     unsafe { tf.user_return(); }
                 }
             }     
@@ -108,4 +110,3 @@ pub fn run_task(task: &TaskRef) {
         }
     }
 }
-

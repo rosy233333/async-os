@@ -18,8 +18,9 @@ use spinlock::{SpinNoIrq, SpinNoIrqOnly};
 use sync::Mutex;
 use taskctx::{Scheduler, TaskId};
 use crate::{
-    current_task, fd_manager::{FdManager, FdTable}, flags::CloneFlags, load_app, stdio::{Stderr, Stdin, Stdout}, yield_now, ExecutorRef, SignalModule
+    current_task, fd_manager::{FdManager, FdTable}, flags::CloneFlags, load_app, stdio::{Stderr, Stdin, Stdout}, ExecutorRef, SignalModule
 };
+use task_api::yield_now;
 
 const FD_LIMIT_ORIGIN: usize = 1025;
 pub const KERNEL_EXECUTOR_ID: u64 = 1;
@@ -63,6 +64,7 @@ pub struct Executor {
     pub signal_modules: Mutex<BTreeMap<u64, SignalModule>>,
     /// 栈大小
     pub stack_size: AtomicU64,
+    pub main_task: Mutex<Option<TaskRef>>,
 }
 
 unsafe impl Sync for Executor {}
@@ -97,6 +99,7 @@ impl Executor {
             file_path: Mutex::new(String::new()),
             signal_modules: Mutex::new(BTreeMap::new()),
             stack_size: AtomicU64::new(axconfig::TASK_STACK_SIZE as _),
+            main_task: Mutex::new(None),
         }
     }
 
@@ -283,6 +286,20 @@ impl Executor {
 }
 
 impl Executor {
+    pub async fn set_main_task(&self, task: TaskRef) {
+        *self.main_task.lock().await = Some(task);
+    }
+
+    pub async fn get_main_task(&self) -> Option<TaskRef> {
+        self.main_task.lock().await.clone()
+    }
+
+    pub async fn exit_main_task(&self) -> Option<TaskRef> {
+        self.main_task.lock().await.take()
+    }
+}
+
+impl Executor {
 
     /// 获取当前进程的工作目录
     pub async fn get_cwd(&self) -> String {
@@ -435,9 +452,9 @@ impl Executor {
                 pid,
                 scheduler, 
                 fut,
-                TrapFrame::init_user_context(
+                Box::new(TrapFrame::init_user_context(
                     entry.into(), user_stack_bottom.into()
-                )
+                ))
             )
         ));
 
@@ -449,6 +466,7 @@ impl Executor {
             .lock().await
             .insert(new_task.id().as_u64(), Arc::clone(&new_task));
         new_task.set_leader(true);
+        new_executor.set_main_task(new_task.clone()).await;
 
         new_executor
             .signal_modules
@@ -542,7 +560,7 @@ impl Executor {
         // );
         let scheduler = self.get_scheduler();
         let fut = UTRAP_HANDLER();
-        let utrap_frame = *current_task().utrap_frame().unwrap();
+        let utrap_frame = Box::new(*current_task().utrap_frame().unwrap());
         let new_task = Arc::new(Task::new(
             TaskInner::new_user(
                 String::from(current_task().name().split('/').last().unwrap()),
@@ -712,6 +730,8 @@ impl Executor {
             PID2PC.lock().await.insert(process_id.as_u64(), Arc::clone(&new_process));
             let scheduler = new_process.get_scheduler();
             new_task.set_scheduler(scheduler);
+            new_task.set_leader(true);
+            new_process.set_main_task(new_task.clone()).await;
             new_process.put_prev_task(new_task.clone(), false);
             // new_process.tasks.lock().push(Arc::clone(&new_task));
             // 若是新建了进程，那么需要把进程的父子关系进行记录
@@ -754,9 +774,9 @@ impl Executor {
             self.get_scheduler().lock().add_task(executor_task);
         };
 
-        if !clone_flags.contains(CloneFlags::CLONE_THREAD) {
-            new_task.set_leader(true);
-        }
+        // if !clone_flags.contains(CloneFlags::CLONE_THREAD) {
+        //     new_task.set_leader(true);
+        // }
         // 复制原有的trap上下文
         // let mut trap_frame = unsafe { *(current_task.get_first_trap_frame()) };
         // let mut trap_frame =
@@ -863,6 +883,7 @@ impl Executor {
         // }
         // 当前任务被设置为主线程
         current_task.set_leader(true);
+        self.set_main_task(current_task.clone()).await;
         // 重置统计时间
         current_task.time_stat_reset(current_time_nanos() as usize);
         current_task.set_name(name.split('/').last().unwrap());

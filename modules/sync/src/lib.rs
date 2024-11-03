@@ -2,21 +2,19 @@
 //! 目前支持的原语：
 //! - [`Mutex`]: A mutual exclusion primitive.
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 #![feature(waker_getters)]
+#![feature(strict_provenance)]
+#![feature(ptr_metadata)]
 
 extern crate alloc;
 
-mod wait_list;
-mod wait_queue;
 mod mutex;
-#[cfg(feature = "irq")]
-mod timers;
-
-pub use wait_queue::WaitQueue;
 pub use mutex::*;
-#[cfg(feature = "irq")]
-pub use timers::{cancel_alarm, check_events, set_alarm_wakeup, init};
+
+mod wait_queue;
+pub use wait_queue::*;
+
 
 
 

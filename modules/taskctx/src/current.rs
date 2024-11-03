@@ -1,4 +1,4 @@
-use core::{mem::ManuallyDrop, ops::Deref};
+use core::{mem::ManuallyDrop, ops::Deref, task::Waker};
 
 use alloc::sync::Arc;
 
@@ -309,8 +309,14 @@ impl CurrentTask {
         unsafe { set_current_task_ptr(0 as *const Task) };
     }
 
-    pub fn clean_current_without_drop() {
+    pub fn clean_current_without_drop() -> *const super::Task {
+        let ptr: *const super::Task = current_task_ptr();
         unsafe { set_current_task_ptr(0 as *const Task) };
+        ptr
+    }
+
+    pub fn waker(&self) -> Waker {
+        crate::waker_from_task(self.as_task_ref())
     }
 
 }
