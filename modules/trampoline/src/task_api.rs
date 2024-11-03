@@ -5,8 +5,6 @@ use kernel_guard::BaseGuard;
 pub use executor::*;
 use syscall::trap::{handle_page_fault, MappingFlags};
 use riscv::register::scause::{Trap, Exception};
-#[cfg(feature = "preempt")]
-use {crate::TrapFrame, taskctx::CtxType};
 
 pub fn turn_to_kernel_executor() {
     CurrentExecutor::clean_current();
@@ -57,7 +55,7 @@ pub async fn current_check_user_preempt_pending(_tf: &TrapFrame) {
 #[cfg(feature = "preempt")]
 pub fn preempt(task: &TaskRef, tf: &mut TrapFrame) {
     task.set_preempt_pending(false);
-    crate::thread_api::set_task_tf(tf, CtxType::Interrupt);
+    set_task_tf(tf, CtxType::Interrupt);
 }
 
 pub async fn wait(task: &TaskRef) -> Option<i32> {
