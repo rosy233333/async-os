@@ -43,7 +43,7 @@ async-trait = "0.1.83"
 
 
 async_fs = { path = "../async_fs" }
-async_axhal = { path = "../async_axhal" }
+axhal = { git = "https://github.com/Starry-OS/axhal.git" }
 executor = { path = "../executor" }
 sync = { path = "../sync", package = "sync" }
 async_mem = { path = "../async_mem" }

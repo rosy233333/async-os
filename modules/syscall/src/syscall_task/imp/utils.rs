@@ -1,6 +1,6 @@
 use core::{slice::from_raw_parts_mut, time::Duration};
 
-use async_axhal::time::{current_time, current_time_nanos, nanos_to_ticks, NANOS_PER_SEC, NANOS_PER_MICROS};
+use axhal::time::{current_time, current_time_nanos, nanos_to_ticks, NANOS_PER_SEC, NANOS_PER_MICROS};
 
 use executor::{current_executor, current_task};
 use rand::{rngs::SmallRng, Fill, SeedableRng};

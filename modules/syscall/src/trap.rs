@@ -1,6 +1,5 @@
 //! Define the trap handler for the whole kernel
-use async_axhal::time::current_time_nanos;
-pub use async_axhal::{mem::VirtAddr, paging::MappingFlags};
+pub use axhal::{mem::VirtAddr, paging::MappingFlags, time::current_time_nanos};
 use executor::{current_executor, current_task};
 
 use super::syscall::syscall;
@@ -62,7 +61,7 @@ pub async fn handle_page_fault(addr: VirtAddr, flags: MappingFlags) {
         .lock().await.
         handle_page_fault(addr, flags).await
         .is_ok() {
-        async_axhal::arch::flush_tlb(None);
+        axhal::arch::flush_tlb(None);
     }
     time_stat_from_kernel_to_user();
 }

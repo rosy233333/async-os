@@ -2,7 +2,7 @@ use crate::{syscall_fs::FileDesc, MMAPFlags, MREMAPFlags, SyscallError, SyscallR
 extern crate alloc;
 
 use axerrno::AxError;
-use async_axhal::{arch::flush_tlb, mem::VirtAddr, paging::MappingFlags};
+use axhal::{arch::flush_tlb, mem::VirtAddr, paging::MappingFlags};
 use axlog::info;
 use async_mem::MemorySet;
 

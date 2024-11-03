@@ -21,7 +21,7 @@ multitask = ["trampoline/multitask"]
 fs = ["axdriver", "async_fs"]
 # net = ["axdriver", "axnet"]
 # display = ["axdriver", "axdisplay"]
-img = ["axdriver/img", "paging", "axhal/img"]
+img = ["axdriver/img", "paging", "axhal/monolithic"]
 
 [dependencies]
 cfg-if = "1.0"
@@ -37,7 +37,7 @@ kernel_guard = { git = "https://github.com/Starry-OS/kernel_guard.git", optional
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git", optional = true }
 
 
-axhal = { path = "../async_axhal", package = "async_axhal" }
+axhal = { git = "https://github.com/Starry-OS/axhal.git" }
 async_utils = { path = "../async_utils"}
 async_fs = { path = "../async_fs", optional = true }
 trampoline = { path = "../trampoline" }

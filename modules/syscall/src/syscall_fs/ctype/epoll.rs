@@ -1,4 +1,4 @@
-use async_axhal::time::current_ticks;
+use axhal::time::current_ticks;
 use bitflags::bitflags;
 extern crate alloc;
 use alloc::{

@@ -1,4 +1,4 @@
-use async_axhal::{
+use axhal::{
     paging::MappingFlags,
     time::{current_time_nanos, nanos_to_ticks, MICROS_PER_SEC, NANOS_PER_MICROS, NANOS_PER_SEC},
 };
