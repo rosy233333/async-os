@@ -1,5 +1,5 @@
 [package]
-name = "async_api"
+name = "aos_api"
 version = "0.1.0"
 edition = "2021"
 
@@ -31,6 +31,8 @@ runtime = { path = "../runtime" }
 feat = { path = "../feat" }
 trampoline = { path = "../trampoline" }
 async_io = { path = "../async_io" }
-axhal = { path = "../async_axhal", package = "async_axhal" }
+axhal = { git = "https://github.com/Starry-OS/axhal.git" }
 sync = { path = "../sync" }
 async_fs = { path = "../async_fs", optional = true }
+
+task_api = { path = "../task_api" }
