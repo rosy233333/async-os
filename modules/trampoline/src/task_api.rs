@@ -222,7 +222,7 @@ pub fn thread_join(_task: &TaskRef) {
     unimplemented!("thread_join");
 }
 
-#[cfg(feature = "thread")]
+#[cfg(any(feature = "thread", feature = "preempt"))]
 pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
     let curr = current_task();
     curr.set_stack_ctx(tf as *const _, ctx_type);
@@ -244,7 +244,7 @@ pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
     }
 }
 
-#[cfg(feature = "thread")]
+#[cfg(any(feature = "thread", feature = "preempt"))]
 pub fn restore_from_stack_ctx(task: &TaskRef) {
     if let Some(StackCtx {
         kstack,
