@@ -1,7 +1,7 @@
 //! 支持信号相关的 syscall
 //! 与信号处理相关的系统调用
 
-// use async_axhal::cpu::this_cpu_id;
+use axhal::cpu::this_cpu_id;
 // use axlog::{debug, info};
 use executor::{current_executor, current_task, yield_now};
 use axsignal::signal_no::SignalNo;
@@ -115,10 +115,10 @@ pub async fn syscall_sigsuspend(args: [usize; 6]) -> SyscallResult {
     Err(SyscallError::EINTR)
 }
 
-// /// Note: It can only be called by the signal processing function during signal processing.
-// pub fn syscall_sigreturn() -> SyscallResult {
-//     Ok(executor::signal::signal_return())
-// }
+/// Note: It can only be called by the signal processing function during signal processing.
+pub async fn syscall_sigreturn() -> SyscallResult {
+    Ok(executor::signal::signal_return().await)
+}
 
 /// # Arguments
 /// * `flag` - SigMaskFlag
@@ -180,65 +180,65 @@ pub async fn syscall_sigprocmask(args: [usize; 6]) -> SyscallResult {
     Ok(0)
 }
 
-// /// 向pid指定的进程发送信号
-// ///
-// /// 由于处理信号的单位在线程上，所以若进程中有多个线程，则会发送给主线程
-// /// # Arguments
-// /// * `pid` - isize
-// /// * `signum` - isize
-// pub fn syscall_kill(args: [usize; 6]) -> SyscallResult {
-//     let pid = args[0] as isize;
-//     let signum = args[1] as isize;
-//     if pid > 0 && signum > 0 {
-//         // 不关心是否成功
-//         let _ = executor::signal::send_signal_to_process(pid, signum, None);
-//         Ok(0)
-//     } else if pid == 0 {
-//         Err(SyscallError::ESRCH)
-//     } else {
-//         Err(SyscallError::EINVAL)
-//     }
-// }
+/// 向pid指定的进程发送信号
+///
+/// 由于处理信号的单位在线程上，所以若进程中有多个线程，则会发送给主线程
+/// # Arguments
+/// * `pid` - isize
+/// * `signum` - isize
+pub async fn syscall_kill(args: [usize; 6]) -> SyscallResult {
+    let pid = args[0] as isize;
+    let signum = args[1] as isize;
+    if pid > 0 && signum > 0 {
+        // 不关心是否成功
+        let _ = executor::signal::send_signal_to_process(pid, signum, None).await;
+        Ok(0)
+    } else if pid == 0 {
+        Err(SyscallError::ESRCH)
+    } else {
+        Err(SyscallError::EINVAL)
+    }
+}
 
-// /// 向tid指定的线程发送信号
-// /// # Arguments
-// /// * `tid` - isize
-// /// * `signum` - isize
-// pub fn syscall_tkill(args: [usize; 6]) -> SyscallResult {
-//     let tid = args[0] as isize;
-//     let signum = args[1] as isize;
-//     debug!(
-//         "cpu: {}, send singal: {} to: {}",
-//         this_cpu_id(),
-//         signum,
-//         tid
-//     );
-//     if tid > 0 && signum > 0 {
-//         let _ = axprocess::signal::send_signal_to_thread(tid, signum);
-//         Ok(0)
-//     } else {
-//         Err(SyscallError::EINVAL)
-//     }
-// }
+/// 向tid指定的线程发送信号
+/// # Arguments
+/// * `tid` - isize
+/// * `signum` - isize
+pub async fn syscall_tkill(args: [usize; 6]) -> SyscallResult {
+    let tid = args[0] as isize;
+    let signum = args[1] as isize;
+    debug!(
+        "cpu: {}, send singal: {} to: {}",
+        this_cpu_id(),
+        signum,
+        tid
+    );
+    if tid > 0 && signum > 0 {
+        let _ = executor::signal::send_signal_to_thread(tid, signum).await;
+        Ok(0)
+    } else {
+        Err(SyscallError::EINVAL)
+    }
+}
 
-// /// 向tid指定的线程组发送信号
-// pub fn syscall_tgkill(args: [usize; 6]) -> SyscallResult {
-//     let tgid = args[0] as isize;
-//     let tid = args[1] as isize;
-//     let signum = args[2] as isize;
-//     debug!(
-//         "cpu: {}, send singal: {} to: {}",
-//         this_cpu_id(),
-//         signum,
-//         tid
-//     );
-//     if tgid > 0 && tid > 0 && signum > 0 {
-//         let _ = axprocess::signal::send_signal_to_thread(tid, signum);
-//         Ok(0)
-//     } else {
-//         Err(SyscallError::EINVAL)
-//     }
-// }
+/// 向tid指定的线程组发送信号
+pub async fn syscall_tgkill(args: [usize; 6]) -> SyscallResult {
+    let tgid = args[0] as isize;
+    let tid = args[1] as isize;
+    let signum = args[2] as isize;
+    debug!(
+        "cpu: {}, send singal: {} to: {}",
+        this_cpu_id(),
+        signum,
+        tid
+    );
+    if tgid > 0 && tid > 0 && signum > 0 {
+        let _ = executor::signal::send_signal_to_thread(tid, signum).await;
+        Ok(0)
+    } else {
+        Err(SyscallError::EINVAL)
+    }
+}
 
 /// Set and get the alternate signal stack
 pub async fn syscall_sigaltstack(args: [usize; 6]) -> SyscallResult {

@@ -1,13 +1,13 @@
 use core::{sync::atomic::AtomicI32, time::Duration};
 
 use alloc::{string::{String, ToString}, sync::Arc, vec::Vec};
-use async_axhal::time::current_time;
+use axhal::time::current_time;
 use async_fs::api::OpenFlags;
-use axsignal::signal_no::SignalNo;
+use axsignal::{info::SigInfo, signal_no::SignalNo};
 // use async_fs::api::OpenFlags;
 // use axhal::time::current_time;
 use executor::{
-    current_executor, current_task, flags::{CloneFlags, WaitStatus}, link::{raw_ptr_to_ref_str, AT_FDCWD}, sleep, wait_pid, yield_now, Executor, SignalModule, PID2PC 
+    current_executor, current_task, flags::{CloneFlags, WaitStatus}, link::{raw_ptr_to_ref_str, AT_FDCWD}, send_signal_to_process, sleep, wait_pid, yield_now, Executor, SignalModule, PID2PC 
     // flags::{CloneFlags, WaitStatus}, link::{raw_ptr_to_ref_str, AT_FDCWD}
     // set_child_tid,
     // signal::send_signal_to_process,
@@ -19,7 +19,7 @@ use executor::{BaseScheduler, TaskId};
 // use core::{future::poll_fn, sync::atomic::AtomicI32};
 // use core::time::Duration;
 use crate::{
-    syscall_fs::{ctype::pidfd::new_pidfd, imp::solve_path}, CloneArgs, RLimit, SyscallError, SyscallResult, TimeSecs, WaitFlags,
+    syscall_fs::{ctype::pidfd::{new_pidfd, PidFd}, imp::solve_path}, CloneArgs, RLimit, SyscallError, SyscallResult, TimeSecs, WaitFlags,
     RLIMIT_AS, RLIMIT_NOFILE, RLIMIT_STACK,
 };
 use axlog::info;
@@ -305,7 +305,6 @@ pub async fn syscall_wait4(args: [usize; 6]) -> SyscallResult {
     let option = WaitFlags::from_bits(args[2] as u32).unwrap();
     loop {
         let answer = unsafe { wait_pid(pid, exit_code_ptr).await };
-        debug!("wait_pid answer {:?}", answer);
         match answer {
             Ok(pid) => {
                 return Ok(pid as isize);
@@ -673,48 +672,49 @@ pub async fn syscall_prctl(args: [usize; 6]) -> SyscallResult {
     }
 }
 
-// /// Sendthe signal sig to the target process referred to by pidfd
-// pub fn syscall_pidfd_send_signal(args: [usize; 6]) -> SyscallResult {
-//     let fd = args[0] as usize;
-//     let signum = args[1] as i32;
-//     axlog::warn!("Ignore the info arguments");
+/// Sendthe signal sig to the target process referred to by pidfd
+pub async fn syscall_pidfd_send_signal(args: [usize; 6]) -> SyscallResult {
+    let fd = args[0] as usize;
+    let signum = args[1] as i32;
+    axlog::warn!("Ignore the info arguments");
 
-//     let curr_process = current_process();
-//     let fd_table = curr_process.fd_manager.fd_table.lock();
+    let curr_process = current_executor();
+    let fd_table = curr_process.fd_manager.fd_table.lock().await;
 
-//     let pidfd_file = match fd_table.get(fd) {
-//         Some(Some(f)) => f.clone(),
-//         _ => return Err(SyscallError::EBADF),
-//     };
+    let pidfd_file = match fd_table.get(fd) {
+        Some(Some(f)) => f.clone(),
+        _ => return Err(SyscallError::EBADF),
+    };
 
-//     let pidfd = pidfd_file
-//         .as_any()
-//         .downcast_ref::<PidFd>()
-//         .ok_or(SyscallError::EBADF)?;
-//     let sig_info_ptr = args[2] as *const SigInfo;
+    let pidfd = pidfd_file
+        .as_any()
+        .downcast_ref::<PidFd>()
+        .ok_or(SyscallError::EBADF)?;
+    let sig_info_ptr = args[2] as *const SigInfo;
 
-//     let sig_info = if sig_info_ptr.is_null() {
-//         SigInfo {
-//             si_code: 0,
-//             si_errno: 0,
-//             si_signo: signum,
-//             pid: curr_process.pid() as i32,
-//             uid: 0,
-//             ..Default::default()
-//         }
-//     } else {
-//         if curr_process
-//             .manual_alloc_type_for_lazy(sig_info_ptr)
-//             .is_err()
-//         {
-//             return Err(SyscallError::EFAULT);
-//         }
-//         unsafe { *sig_info_ptr }
-//     };
+    let sig_info = if sig_info_ptr.is_null() {
+        SigInfo {
+            si_code: 0,
+            si_errno: 0,
+            si_signo: signum,
+            pid: curr_process.pid().as_u64() as i32,
+            uid: 0,
+            ..Default::default()
+        }
+    } else {
+        if curr_process
+            .manual_alloc_type_for_lazy(sig_info_ptr)
+            .await
+            .is_err()
+        {
+            return Err(SyscallError::EFAULT);
+        }
+        unsafe { *sig_info_ptr }
+    };
 
-//     info!("Pid: {} Sig Info: {:?}", pidfd.pid(), sig_info.si_val_int);
+    info!("Pid: {} Sig Info: {:?}", pidfd.pid(), sig_info.si_val_int);
 
-//     send_signal_to_process(pidfd.pid() as isize, signum as isize, Some(sig_info))?;
+    send_signal_to_process(pidfd.pid() as isize, signum as isize, Some(sig_info)).await?;
 
-//     Ok(0)
-// }
+    Ok(0)
+}

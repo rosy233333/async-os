@@ -33,15 +33,15 @@ pub async fn task_syscall(syscall_id: task_syscall_id::TaskSyscallId, args: [usi
 
         SIGACTION => syscall_sigaction(args).await,
 
-        // KILL => syscall_kill(args),
+        KILL => syscall_kill(args).await,
 
-        // TKILL => syscall_tkill(args),
+        TKILL => syscall_tkill(args).await,
 
-        // TGKILL => syscall_tgkill(args),
+        TGKILL => syscall_tgkill(args).await,
 
         SIGPROCMASK => syscall_sigprocmask(args).await,
         SIGALTSTACK => syscall_sigaltstack(args).await,
-        // SIGRETURN => syscall_sigreturn(),
+        SIGRETURN => syscall_sigreturn().await,
         EXIT_GROUP => syscall_exit(args).await,
         SET_TID_ADDRESS => syscall_set_tid_address(args).await,
         PRLIMIT64 => syscall_prlimit64(args),
@@ -73,7 +73,7 @@ pub async fn task_syscall(syscall_id: task_syscall_id::TaskSyscallId, args: [usi
         CLOCK_GETRES => syscall_clock_getres(args).await,
         CLOCK_NANOSLEEP => syscall_clock_nanosleep(args).await,
         PRCTL => syscall_prctl(args).await,
-        // PIDFD_SEND_SIGNAL => syscall_pidfd_send_signal(args),
+        PIDFD_SEND_SIGNAL => syscall_pidfd_send_signal(args).await,
         // syscall below just for x86_64
         #[cfg(target_arch = "x86_64")]
         VFORK => syscall_vfork(),
