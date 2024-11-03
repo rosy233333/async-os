@@ -14,7 +14,7 @@ monolithic = []
 
 irq = ["sync/irq", "executor/irq", "axhal/irq"]
 
-smp = ["spinlock/smp"]
+smp = ["spinlock/smp", "executor/smp"]
 
 preempt = ["irq", "percpu/preempt", "kernel_guard/preempt", "executor/preempt", "taskctx/preempt"]
 

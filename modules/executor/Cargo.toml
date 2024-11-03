@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 thread = ["taskctx/thread", "sync/thread", "task_api/thread"]
 irq = ["sync/irq"]
+smp = ["spinlock/smp"]
 
 preempt = ["irq", "percpu/preempt", "kernel_guard/preempt", "taskctx/preempt"]
 
