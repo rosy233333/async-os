@@ -6,10 +6,10 @@ lto = true
 
 [workspace]
 members = [
-    "apps/helloworld", 
+    "apps/coroutine_test", 
     "apps/user_boot", 
     "apps/fs/shell",
-    "apps/thread_yield",
+    "apps/thread_test",
 
     "evaluation",
 
