@@ -263,11 +263,16 @@ impl Executor {
         self.scheduler.lock().set_priority(task, prio)
     }
 
+    /// TODO：这里需要存在问题，当进程结束时，这个任务也会结束，需要将这个任务删除，目前 wait 等待进程结束时，退出的操作还不正确
+    /// 在这里还需要回收 Executor 的操作
     #[inline]
     pub async fn run(self: Arc<Self>) -> i32 {
         use core::{future::poll_fn, task::Poll};
         let page_table_token = self.memory_set.lock().await.page_table_token();
         poll_fn(|cx| {
+            if self.is_zombie.load(Ordering::Acquire) {
+                return Poll::Ready(0);
+            }
             crate::CurrentExecutor::clean_current();
             unsafe { crate::CurrentExecutor::init_current(self.clone()) };
             if page_table_token != 0 {
@@ -283,6 +288,12 @@ impl Executor {
         }).await
     }
 
+}
+
+impl Drop for Executor {
+    fn drop(&mut self) {
+        log::debug!("drop executor");
+    }
 }
 
 impl Executor {

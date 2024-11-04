@@ -5,6 +5,9 @@ use syscall::trap::{handle_page_fault, MappingFlags};
 use riscv::register::scause::{Trap, Exception};
 
 pub fn turn_to_kernel_executor() {
+    if current_executor().ptr_eq(&KERNEL_EXECUTOR) {
+        return;
+    }
     CurrentExecutor::clean_current();
     unsafe { CurrentExecutor::init_current(KERNEL_EXECUTOR.clone()) };
 }
@@ -21,7 +24,7 @@ pub fn current_check_preempt_pending(tf: &mut TrapFrame) {
         // no need preempt, they are rescheduling
         if curr.get_preempt_pending() && curr.can_preempt() && !curr.is_exited() && !curr.is_blocking()
         {
-            debug!(
+            trace!(
                 "current {} is to be preempted , allow {}",
                 curr.id_name(),
                 curr.can_preempt()
@@ -41,7 +44,7 @@ pub async fn current_check_user_preempt_pending(_tf: &TrapFrame) {
         // no need preempt, they are rescheduling
         if curr.get_preempt_pending() && curr.can_preempt() && !curr.is_exited() && !curr.is_blocking()
         {
-            warn!(
+            trace!(
                 "current {} is to be preempted , allow {}",
                 curr.id_name(),
                 curr.can_preempt()
@@ -230,7 +233,6 @@ pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
     if curr.state() == TaskState::Runable {
         wakeup_task(unsafe { TaskRef::from_raw(raw_task_ptr) });
     }
-    log::warn!("here");
     let new_kstack_top = taskctx::current_stack_top();
     unsafe {
         core::arch::asm!(
@@ -251,7 +253,6 @@ pub fn restore_from_stack_ctx(task: &TaskRef) {
         trap_frame,
         ctx_type
     }) = task.get_stack_ctx() {
-        error!("restore_from_stack_ctx");
         taskctx::put_prev_stack(kstack);
         match ctx_type {
             CtxType::Thread => unsafe { &*trap_frame }.thread_return(), 

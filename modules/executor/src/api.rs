@@ -1,9 +1,9 @@
 use crate::{
-    flags::WaitStatus, CurrentExecutor, Executor, 
-    EXECUTORS, KERNEL_EXECUTOR, KERNEL_EXECUTOR_ID, TID2TASK, UTRAP_HANDLER
+    flags::WaitStatus, send_signal_to_process, send_signal_to_thread, CurrentExecutor, Executor, EXECUTORS, KERNEL_EXECUTOR, KERNEL_EXECUTOR_ID, PID2PC, TID2TASK, UTRAP_HANDLER
 };
-use core::{future::Future, pin::Pin};
+use core::{future::Future, ops::Deref, pin::Pin};
 use alloc::{boxed::Box, string::String, sync::Arc};
+use axsignal::signal_no::SignalNo;
 pub use task_api::*;
 
 // Initializes the executor (for the primary CPU).
@@ -59,13 +59,96 @@ where
 
 pub async fn exit(exit_code: i32) {
     let curr = current_task();
-    TID2TASK.lock().await.remove(&curr.id().as_u64());
-    curr.set_exit_code(exit_code);
-    curr.set_state(TaskState::Exited);
+    let curr_id = curr.id().as_u64();
+
     let current_executor = current_executor();
-    current_executor.exit_main_task().await;
-    current_executor.set_exit_code(exit_code);
-    current_executor.set_zombie(true);
+
+    let exit_signal = current_executor
+        .signal_modules
+        .lock().await
+        .get(&curr_id)
+        .unwrap()
+        .get_exit_signal();
+
+    if exit_signal.is_some() || curr.is_leader() {
+        let parent = current_executor.get_parent();
+        if parent != KERNEL_EXECUTOR_ID {
+            // send exit signal
+            let signal = if exit_signal.is_some() {
+                exit_signal.unwrap()
+            } else {
+                SignalNo::SIGCHLD
+            };
+            send_signal_to_process(parent as isize, signal as isize, None).await.unwrap();
+        }
+    }
+
+    // clear_child_tid 的值不为 0，则将这个用户地址处的值写为0
+    let clear_child_tid = curr.get_clear_child_tid();
+    if clear_child_tid != 0 {
+        // 先确认是否在用户空间
+        if current_executor
+            .manual_alloc_for_lazy(clear_child_tid.into())
+            .await
+            .is_ok()
+        {
+            unsafe {
+                *(clear_child_tid as *mut i32) = 0;
+                // TODO: 
+                // let _ = futex_wake(clear_child_tid.into(), 0, 1);
+            }
+        }
+    }
+    if curr.is_leader() {
+        loop {
+            let mut all_exited = true;
+            // TODO：这里是存在问题的，处于 blocked 状态的任务是无法收到信号的
+            while let Some(task) = current_executor.get_scheduler().lock().pick_next_task() {
+                if !task.is_leader() && task.state() != TaskState::Exited {
+                    all_exited = false;
+                    send_signal_to_thread(task.id().as_u64() as isize, SignalNo::SIGKILL as isize)
+                        .await.unwrap();
+                }
+            }
+            if !all_exited {
+                yield_now().await;
+            } else {
+                break;
+            }
+        }
+        TID2TASK.lock().await.remove(&curr_id);
+        curr.set_exit_code(exit_code);
+        curr.set_state(TaskState::Exited);
+        current_executor.set_exit_code(exit_code);
+        current_executor.set_zombie(true);
+        current_executor.exit_main_task().await;
+        while let Some(task) = current_executor.get_scheduler().lock().pick_next_task() {
+            drop(task);
+        }
+
+        current_executor.fd_manager.fd_table.lock().await.clear();
+
+        current_executor.signal_modules.lock().await.clear();
+
+        let mut pid2pc = PID2PC.lock().await;
+        let kernel_executor = &*KERNEL_EXECUTOR;
+        // 将子进程交给idle进程
+        // process.memory_set = Arc::clone(&kernel_process.memory_set);
+        for child in current_executor.children.lock().await.deref() {
+            child.set_parent(KERNEL_EXECUTOR_ID);
+            kernel_executor.children.lock().await.push(Arc::clone(child));
+        }
+        if let Some(parent_process) = pid2pc.get(&current_executor.get_parent()) {
+            parent_process.set_vfork_block(false).await;
+        }
+        pid2pc.remove(&current_executor.pid().as_u64());
+        drop(pid2pc);
+        drop(current_executor);
+    } else {
+        TID2TASK.lock().await.remove(&curr_id);
+        // 从进程中删除当前线程
+        current_executor.signal_modules.lock().await.remove(&curr_id);
+    }
 }
 
 /// Spawns a new task with the default parameters.
