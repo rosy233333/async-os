@@ -125,6 +125,7 @@ pub async fn user_task_top() -> i32 {
                     );
                 }
             }
+            syscall::trap::handle_signals().await;
             tf.trap_status = TrapStatus::Done;
         } 
         poll_fn(|_cx| {

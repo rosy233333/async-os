@@ -65,3 +65,10 @@ pub async fn handle_page_fault(addr: VirtAddr, flags: MappingFlags) {
     }
     time_stat_from_kernel_to_user();
 }
+
+/// To handle the pending signals for current process
+pub async fn handle_signals() {
+    time_stat_from_user_to_kernel();
+    executor::signal::handle_signals().await;
+    time_stat_from_kernel_to_user();
+}
