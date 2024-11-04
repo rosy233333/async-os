@@ -7,8 +7,8 @@ pub struct JoinFuture {
 }
 
 impl JoinFuture {
-    pub fn new(_task: TaskRef) -> Self {
-        Self { _task, res: None }
+    pub fn new(_task: TaskRef, res: Option<i32>) -> Self {
+        Self { _task, res }
     }
 }
 

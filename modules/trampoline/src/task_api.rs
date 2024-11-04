@@ -179,27 +179,26 @@ impl task_api::TaskApi for TaskApiImpl {
 
     fn join(task: &TaskRef) -> JoinFuture {
         #[cfg(feature = "thread")]
-        thread_join(&task);
-        JoinFuture::new(task.clone())
+        let res = thread_join(task);
+        #[cfg(not(feature = "thread"))]
+        let res = None;
+        JoinFuture::new(task.clone(), res)
     }
     
 }
 
 #[cfg(feature = "thread")]
 pub fn thread_yield() {
-    error!("thread_yield");
     let _guard = kernel_guard::NoPreemptIrqSave::acquire();
     let curr = current_task();
     curr.set_state(TaskState::Runable);
     TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
-    error!("thread_yield end");
 }
 
 #[cfg(feature = "thread")]
 pub fn thread_blocked() {
     let _guard = kernel_guard::NoPreemptIrqSave::acquire();
     let curr = current_task();
-    // log::warn!("here");
     curr.set_state(TaskState::Blocked);
     TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
 }
@@ -208,7 +207,6 @@ pub fn thread_blocked() {
 pub fn thread_sleep(deadline: TimeValue) {
     let waker = current_task().waker();
     task_api::set_alarm_wakeup(deadline, waker.clone());
-    log::debug!("here");
     thread_blocked();
     task_api::cancel_alarm(&waker);
 }
@@ -222,8 +220,14 @@ pub fn thread_exit() {
 }
 
 #[cfg(feature = "thread")]
-pub fn thread_join(_task: &TaskRef) {
-    unimplemented!("thread_join");
+pub fn thread_join(_task: &TaskRef) -> Option<i32> {
+    loop {
+        if _task.state() == TaskState::Exited {
+            return Some(_task.get_exit_code());
+        }
+        _task.join(current_task().waker());
+        thread_blocked();
+    }
 }
 
 #[cfg(any(feature = "thread", feature = "preempt"))]
