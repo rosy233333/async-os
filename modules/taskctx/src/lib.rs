@@ -53,24 +53,25 @@ pub fn wakeup_task(task: TaskRef) {
         .put_prev_task(task, false);
 }
 
+#[cfg(feature = "preempt")]
 use kernel_guard::KernelGuardIf;
 
+#[cfg(feature = "preempt")]
 struct KernelGuardIfImpl;
 
+#[cfg(feature = "preempt")]
 #[crate_interface::impl_interface]
 impl KernelGuardIf for KernelGuardIfImpl {
     fn enable_preempt() {
         // Your implementation here
-        let ptr: *const Task = current::current_task_ptr();
-        if !ptr.is_null() {
-            unsafe { &*ptr }.enable_preempt();
+        if let Some(curr) = CurrentTask::try_get() {
+            curr.enable_preempt();
         }
     }
     fn disable_preempt() {
         // Your implementation here
-        let ptr: *const Task = current::current_task_ptr();
-        if !ptr.is_null() {
-            unsafe { &*ptr }.disable_preempt();
+        if let Some(curr) = CurrentTask::try_get() {
+            curr.disable_preempt();
         }
     }
 }

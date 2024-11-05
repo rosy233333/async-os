@@ -5,7 +5,7 @@ use alloc::collections::BTreeMap;
 use alloc::format;
 // use alloc::format;
 use alloc::string::{String, ToString};
-use async_fs::api::{canonicalize, path_exists, remove_file, FileIOType, AsyncFileIO};
+use async_fs::api::{canonicalize, path_exists, remove_file, AsyncFileIO, FileIOType};
 use axerrno::{AxError, AxResult};
 // use axfs::api::FileIOType;
 use axlog::{debug, info, trace};

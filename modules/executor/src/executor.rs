@@ -22,7 +22,10 @@ use axerrno::{AxError, AxResult};
 use axhal::{mem::VirtAddr, time::current_time_nanos};
 use axsignal::signal_no::SignalNo;
 use core::{
-    cell::UnsafeCell, future::Future, pin::Pin, sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering}
+    cell::UnsafeCell,
+    future::Future,
+    pin::Pin,
+    sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering},
 };
 use lazy_init::LazyInit;
 use spinlock::{SpinNoIrq, SpinNoIrqOnly};
@@ -454,7 +457,7 @@ impl Executor {
             // 标准输入
             Some(Arc::new(Stdin {
                 flags: Mutex::new(OpenFlags::empty()),
-                line: UnsafeCell::new(String::new())
+                line: UnsafeCell::new(String::new()),
             })),
             // 标准输出
             Some(Arc::new(Stdout {
@@ -849,12 +852,6 @@ impl Executor {
             //     "New user stack: sepc:{:X}, stack:{:X}",
             //     trap_frame.sepc, trap_frame.regs.sp
             // );
-        }
-        #[cfg(feature = "future")]
-        {
-            let stack_size = self.get_stack_limit() as usize;
-            new_task.init_user_kstack(stack_size, core::mem::size_of::<TrapFrame>());
-            new_task.set_ctx_type(axtask::ContextType::THREAD);
         }
         // write_trapframe_to_kstack(new_task.get_kernel_stack_top().unwrap(), &trap_frame);
         // Processor::first_add_task(new_task);

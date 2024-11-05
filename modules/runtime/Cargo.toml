@@ -19,6 +19,10 @@ paging = ["axhal/paging", "lazy_init"]
 multitask = ["trampoline/multitask"]
 
 fs = ["axdriver", "async_fs"]
+net = []
+display = []
+
+tls = []
 # net = ["axdriver", "axnet"]
 # display = ["axdriver", "axdisplay"]
 img = ["axdriver/img", "paging", "axhal/monolithic"]

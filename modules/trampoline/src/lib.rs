@@ -1,6 +1,5 @@
 #![no_std]
 #![feature(naked_functions)]
-#![feature(asm_const)]
 #![feature(fn_align)]
 #![feature(stmt_expr_attributes)]
 #![feature(doc_cfg)]

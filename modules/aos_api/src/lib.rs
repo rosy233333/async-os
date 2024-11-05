@@ -12,7 +12,6 @@
     feature = "fs",
     feature = "net",
     feature = "multitask",
-    feature = "dummy-if-not-enabled"
 ))]
 extern crate alloc;
 extern crate runtime;

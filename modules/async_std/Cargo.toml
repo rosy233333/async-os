@@ -37,11 +37,13 @@ fs = ["aos_api/fs", "feat/fs"]
 fatfs = ["feat/fatfs"]
 # lwext4_rust = ["feat/lwext4_rust", "fs"]
 
-# # Networking
+# Networking
+net = []
 # net = ["aos_api/net", "feat/net"]
 # dns = []
 
-# # Display
+# Display
+display = []
 # display = ["aos_api/display", "feat/display"]
 
 # # Device drivers

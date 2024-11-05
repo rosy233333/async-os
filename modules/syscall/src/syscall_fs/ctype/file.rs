@@ -9,7 +9,11 @@ use alloc::vec::Vec;
 use async_fs::api::{File, FileIO, FileIOType, Kstat, OpenFlags, SeekFrom};
 use async_io::{AsyncRead, AsyncSeek, AsyncWrite};
 use axerrno::AxResult;
-use core::{future::Future, pin::Pin, task::{ready, Context, Poll}};
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{ready, Context, Poll},
+};
 
 use axlog::debug;
 
@@ -47,66 +51,75 @@ pub struct FileMetaData {
 
 /// 为FileDesc实现 FileIO trait
 impl FileIO for FileDesc {
-
-    fn read(self:Pin< &Self> ,cx: &mut Context<'_> ,buf: &mut [u8]) -> Poll<AxResult<usize> > {
+    fn read(self: Pin<&Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<AxResult<usize>> {
         let mut file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
         AsyncRead::read(Pin::new(&mut *file), cx, buf)
     }
 
-    fn write(self:Pin< &Self> ,cx: &mut Context<'_> ,buf: &[u8]) -> Poll<AxResult<usize> > {
+    fn write(self: Pin<&Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<AxResult<usize>> {
         let mut file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
-        let old_offset = ready!(AsyncSeek::seek(Pin::new(&mut *file), cx, SeekFrom::Current(0))).unwrap();
+        let old_offset = ready!(AsyncSeek::seek(
+            Pin::new(&mut *file),
+            cx,
+            SeekFrom::Current(0)
+        ))
+        .unwrap();
         // 这里使用了 Box，是否存在不需要进行额外堆分配的操作
-        let size = ready!(Box::pin(file.metadata()).as_mut().poll(cx)).unwrap().size();
+        let size = ready!(Box::pin(file.metadata()).as_mut().poll(cx))
+            .unwrap()
+            .size();
         if old_offset > size {
-            let _ = ready!(AsyncSeek::seek(Pin::new(&mut *file), cx, SeekFrom::Start(size)));
+            let _ = ready!(AsyncSeek::seek(
+                Pin::new(&mut *file),
+                cx,
+                SeekFrom::Start(size)
+            ));
             let temp_buf: Vec<u8> = vec![0u8; (old_offset - size) as usize];
             let _ = ready!(AsyncWrite::write(Pin::new(&mut *file), cx, &temp_buf));
         }
         AsyncWrite::write(Pin::new(&mut *file), cx, buf)
     }
-    
-    fn flush(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<AxResult<()> > {
+
+    fn flush(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<AxResult<()>> {
         let mut file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
         AsyncWrite::flush(Pin::new(&mut *file), cx)
     }
 
-    fn seek(self:Pin< &Self> ,cx: &mut Context<'_> ,pos:SeekFrom) -> Poll<AxResult<u64> > {
+    fn seek(self: Pin<&Self>, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<AxResult<u64>> {
         let mut file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
         AsyncSeek::seek(Pin::new(&mut *file), cx, pos)
     }
 
-    fn readable(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+    fn readable(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool> {
         let file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
         Poll::Ready(file.readable())
     }
 
-    fn writable(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+    fn writable(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool> {
         let file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
         Poll::Ready(file.writable())
     }
 
-    fn executable(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+    fn executable(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool> {
         let file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
         Poll::Ready(file.executable())
     }
 
-    fn get_type(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<FileIOType> {
+    fn get_type(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<FileIOType> {
         Poll::Ready(FileIOType::FileDesc)
     }
 
-
-    fn get_path(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<String> {
+    fn get_path(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<String> {
         Poll::Ready(self.path.clone())
     }
 
-    fn truncate(self:Pin< &Self> ,cx: &mut Context<'_> ,len:usize) -> Poll<AxResult<()> > {
+    fn truncate(self: Pin<&Self>, cx: &mut Context<'_>, len: usize) -> Poll<AxResult<()>> {
         let file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
         let res = Box::pin(file.truncate(len as _)).as_mut().poll(cx);
         res
     }
 
-    fn get_stat(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<AxResult<Kstat> > {
+    fn get_stat(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<AxResult<Kstat>> {
         let fut = async {
             let file = self.file.lock().await;
             let attr = file.get_attr().await?;
@@ -150,17 +163,19 @@ impl FileIO for FileDesc {
         let res = Box::pin(fut).as_mut().poll(cx);
         res
     }
-    
-    fn set_status(self:Pin< &Self> ,cx: &mut Context<'_> ,flags:OpenFlags) -> Poll<bool> {
+
+    fn set_status(self: Pin<&Self>, cx: &mut Context<'_>, flags: OpenFlags) -> Poll<bool> {
         *ready!(Pin::new(&mut self.flags.lock()).poll(cx)) = flags;
         Poll::Ready(true)
     }
 
-    fn get_status(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<OpenFlags> {
-        Pin::new(&mut self.flags.lock()).poll(cx).map(|flags| *flags)
+    fn get_status(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<OpenFlags> {
+        Pin::new(&mut self.flags.lock())
+            .poll(cx)
+            .map(|flags| *flags)
     }
 
-    fn set_close_on_exec(self:Pin< &Self> ,cx: &mut Context<'_> ,is_set:bool) -> Poll<bool> {
+    fn set_close_on_exec(self: Pin<&Self>, cx: &mut Context<'_>, is_set: bool) -> Poll<bool> {
         let mut flags = ready!(Pin::new(&mut self.flags.lock()).poll(cx));
         if is_set {
             // 设置close_on_exec位置
@@ -171,7 +186,7 @@ impl FileIO for FileDesc {
         Poll::Ready(true)
     }
 
-    fn ready_to_read(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+    fn ready_to_read(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool> {
         if ready!(self.readable(cx)) {
             return Poll::Ready(false);
         }
@@ -184,7 +199,7 @@ impl FileIO for FileDesc {
         Poll::Ready(now_pos != len)
     }
 
-    fn ready_to_write(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+    fn ready_to_write(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool> {
         if ready!(self.writable(cx)) {
             return Poll::Ready(false);
         }

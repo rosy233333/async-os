@@ -9,9 +9,9 @@ use kernel_guard::{BaseGuard, NoPreemptIrqSave};
 #[derive(Debug)]
 pub struct SleepFuture {
     #[cfg(feature = "irq")]
-    has_sleep: bool,
+    _has_sleep: bool,
     #[cfg(feature = "irq")]
-    irq_state: <NoPreemptIrqSave as BaseGuard>::State,
+    _irq_state: <NoPreemptIrqSave as BaseGuard>::State,
     deadline: axhal::time::TimeValue,
 }
 
@@ -20,17 +20,17 @@ impl SleepFuture {
         #[cfg(feature = "thread")]
         return Self {
             #[cfg(feature = "irq")]
-            has_sleep: false,
+            _has_sleep: false,
             #[cfg(feature = "irq")]
-            irq_state: (),
+            _irq_state: (),
             deadline,
         };
         #[cfg(not(feature = "thread"))]
         Self {
             #[cfg(feature = "irq")]
-            has_sleep: false,
+            _has_sleep: false,
             #[cfg(feature = "irq")]
-            irq_state: NoPreemptIrqSave::acquire(),
+            _irq_state: NoPreemptIrqSave::acquire(),
             deadline,
         }
     }
@@ -45,13 +45,13 @@ impl Future for SleepFuture {
         #[cfg(not(feature = "thread"))]
         {
             #[cfg(feature = "irq")]
-            if !self.has_sleep {
-                self.get_mut().has_sleep = true;
+            if !self._has_sleep {
+                self.get_mut()._has_sleep = true;
                 crate::set_alarm_wakeup(deadline, _cx.waker().clone());
                 Poll::Pending
             } else {
                 // 恢复中断状态
-                NoPreemptIrqSave::release(self.irq_state);
+                NoPreemptIrqSave::release(self._irq_state);
                 crate::cancel_alarm(_cx.waker());
                 Poll::Ready(axhal::time::current_time() >= deadline)
             }

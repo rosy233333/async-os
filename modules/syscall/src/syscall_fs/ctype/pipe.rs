@@ -6,7 +6,11 @@ use alloc::{
 };
 use axerrno::AxResult;
 use axlog::{info, trace};
-use core::{future::Future, pin::Pin, task::{ready, Context, Poll}};
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{ready, Context, Poll},
+};
 
 use executor::yield_now;
 use sync::Mutex;
@@ -128,8 +132,8 @@ pub async fn make_pipe(flags: OpenFlags) -> (Arc<Pipe>, Arc<Pipe>) {
 }
 
 impl FileIO for Pipe {
-    fn read(self:Pin< &Self> ,cx: &mut Context<'_> ,buf: &mut [u8]) -> Poll<AxResult<usize> > {
-        let fut = async{
+    fn read(self: Pin<&Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<AxResult<usize>> {
+        let fut = async {
             assert!(self.readable);
             let want_to_read = buf.len();
             let mut buf_iter = buf.iter_mut();
@@ -177,7 +181,7 @@ impl FileIO for Pipe {
         res
     }
 
-    fn write(self:Pin< &Self> ,cx: &mut Context<'_> ,buf: &[u8]) -> Poll<AxResult<usize> > {
+    fn write(self: Pin<&Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<AxResult<usize>> {
         let fut = async {
             info!("kernel: Pipe::write");
             assert!(self.writable);
@@ -218,23 +222,23 @@ impl FileIO for Pipe {
         res
     }
 
-    fn executable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+    fn executable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
         Poll::Ready(false)
     }
 
-    fn readable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+    fn readable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
         Poll::Ready(self.readable)
     }
 
-    fn writable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+    fn writable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
         Poll::Ready(self.writable)
     }
 
-    fn get_type(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<FileIOType> {
+    fn get_type(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<FileIOType> {
         Poll::Ready(FileIOType::Pipe)
     }
 
-    fn is_hang_up(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+    fn is_hang_up(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool> {
         if self.readable {
             let ring_buffer = ready!(Pin::new(&mut self.buffer.lock()).poll(cx));
             if ring_buffer.available_read() == 0 && ring_buffer.all_write_ends_closed() {
@@ -248,7 +252,7 @@ impl FileIO for Pipe {
         }
     }
 
-    fn ready_to_read(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+    fn ready_to_read(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
         if !self.readable {
             Poll::Ready(false)
         } else {
@@ -257,7 +261,7 @@ impl FileIO for Pipe {
         }
     }
 
-    fn ready_to_write(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+    fn ready_to_write(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool> {
         if !self.writable {
             Poll::Ready(false)
         } else {
@@ -267,19 +271,21 @@ impl FileIO for Pipe {
     }
 
     /// 获取文件状态
-    fn get_status(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<OpenFlags> {
-        Pin::new(&mut self.flags.lock()).poll(cx).map(|flags| *flags)
+    fn get_status(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<OpenFlags> {
+        Pin::new(&mut self.flags.lock())
+            .poll(cx)
+            .map(|flags| *flags)
     }
 
     /// 设置文件状态
-    fn set_status(self:Pin< &Self> ,cx: &mut Context<'_> ,flags:OpenFlags) -> Poll<bool> {
+    fn set_status(self: Pin<&Self>, cx: &mut Context<'_>, flags: OpenFlags) -> Poll<bool> {
         *ready!(Pin::new(&mut self.flags.lock()).poll(cx)) = flags;
         Poll::Ready(true)
     }
 
     /// 设置 close_on_exec 位
     /// 设置成功返回false
-    fn set_close_on_exec(self:Pin< &Self> ,cx: &mut Context<'_> ,is_set:bool) -> Poll<bool> {
+    fn set_close_on_exec(self: Pin<&Self>, cx: &mut Context<'_>, is_set: bool) -> Poll<bool> {
         let mut flags = ready!(Pin::new(&mut self.flags.lock()).poll(cx));
         if is_set {
             // 设置close_on_exec位置

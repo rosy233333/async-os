@@ -4,8 +4,18 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-fatfs = ["dep:fatfs"]
 default = ["fatfs"]
+
+fatfs = ["dep:fatfs"]
+myfs = []
+ext4_rs = []
+another_ext4 = []
+use-ramdisk = []
+lwext4_rust = []
+devfs = []
+ramfs = []
+procfs = []
+sysfs = []
 
 [dependencies]
 log = "0.4"

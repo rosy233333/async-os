@@ -6,8 +6,12 @@ use alloc::{
     sync::Arc,
     vec::Vec,
 };
-use core::{future::Future, pin::Pin, task::{Context, Poll, ready}};
 use axerrno::{AxError, AxResult};
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{ready, Context, Poll},
+};
 
 use async_fs::api::{AsyncFileIO, FileIO, FileIOType, OpenFlags, SeekFrom};
 
@@ -205,41 +209,40 @@ impl EpollFile {
 
 /// EpollFile也是一种文件，应当为其实现一个file io trait
 impl FileIO for EpollFile {
-    fn read(self:Pin< &Self> ,_cx: &mut Context<'_> ,_buf: &mut [u8]) -> Poll<AxResult<usize> > {
+    fn read(self: Pin<&Self>, _cx: &mut Context<'_>, _buf: &mut [u8]) -> Poll<AxResult<usize>> {
         Poll::Ready(Err(AxError::Unsupported))
     }
 
-    fn write(self:Pin< &Self> ,_cx: &mut Context<'_> ,_buf: &[u8]) -> Poll<AxResult<usize> > {
+    fn write(self: Pin<&Self>, _cx: &mut Context<'_>, _buf: &[u8]) -> Poll<AxResult<usize>> {
         Poll::Ready(Err(AxError::Unsupported))
     }
 
-    fn flush(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<AxResult<()> > {
+    fn flush(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<AxResult<()>> {
         Poll::Ready(Err(AxError::Unsupported))
     }
 
-    fn seek(self:Pin< &Self> ,_cx: &mut Context<'_> ,_pos:SeekFrom) -> Poll<AxResult<u64> > {
+    fn seek(self: Pin<&Self>, _cx: &mut Context<'_>, _pos: SeekFrom) -> Poll<AxResult<u64>> {
         Poll::Ready(Err(AxError::Unsupported))
     }
 
-    fn readable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+    fn readable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
         Poll::Ready(false)
     }
 
-    fn writable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+    fn writable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
         Poll::Ready(false)
     }
 
-    fn executable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+    fn executable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
         Poll::Ready(false)
-    }    
+    }
 
-    
     /// epoll file也是一个文件描述符
-    fn get_type(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<FileIOType> {
+    fn get_type(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<FileIOType> {
         Poll::Ready(FileIOType::FileDesc)
     }
 
-    fn set_close_on_exec(self:Pin< &Self> ,cx: &mut Context<'_> ,is_set:bool) -> Poll<bool> {
+    fn set_close_on_exec(self: Pin<&Self>, cx: &mut Context<'_>, is_set: bool) -> Poll<bool> {
         let mut flags = ready!(Pin::new(&mut self.flags.lock()).poll(cx));
         if is_set {
             *flags |= OpenFlags::CLOEXEC;
@@ -249,11 +252,13 @@ impl FileIO for EpollFile {
         Poll::Ready(true)
     }
 
-    fn get_status(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<OpenFlags> {
-        Pin::new(&mut self.flags.lock()).poll(cx).map(|flags| *flags)
+    fn get_status(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<OpenFlags> {
+        Pin::new(&mut self.flags.lock())
+            .poll(cx)
+            .map(|flags| *flags)
     }
 
-    fn ready_to_read(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+    fn ready_to_read(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
         // // 如果当前epoll事件确实正在等待事件响应，那么可以认为事件准备好read，尽管无法读到实际内容
         // let process = current_executor();
         // let fd_manager = &process.fd_manager;
@@ -281,5 +286,5 @@ impl FileIO for EpollFile {
         //     }
         // }
         Poll::Ready(false)
-    }   
+    }
 }

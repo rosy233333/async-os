@@ -12,7 +12,8 @@ pub(crate) fn build_subtrait(super_trait: &ItemTrait) -> TokenStream {
     // println!("{:?}", subtrait_vis);
     // println!("{:?}", subtrait_unsafety);
     // println!("{:?}", subtrait_ident);
-    let supertrait_items = &super_trait.items
+    let supertrait_items = &super_trait
+        .items
         .iter()
         .filter(|fn_items| {
             // fn_items
@@ -25,10 +26,11 @@ pub(crate) fn build_subtrait(super_trait: &ItemTrait) -> TokenStream {
                     } else {
                         false
                     }
-                },
+                }
                 _ => false,
             }
-    }).collect::<Vec<&TraitItem>>();
+        })
+        .collect::<Vec<&TraitItem>>();
     let mut subtrait_items = Vec::new();
     for trait_item in supertrait_items {
         match trait_item {
@@ -80,7 +82,7 @@ pub(crate) fn build_subtrait(super_trait: &ItemTrait) -> TokenStream {
                     .map(|(_idx, args)| args.clone())
                     .collect::<Vec<FnArg>>();
                 let cx_input = super_inputs.get(1).unwrap();
-                let cx_ident =  match cx_input {
+                let cx_ident = match cx_input {
                     FnArg::Receiver(_receiver) => panic!("Not support self receiver"),
                     FnArg::Typed(pat_type) => match pat_type.pat.as_ref() {
                         syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),

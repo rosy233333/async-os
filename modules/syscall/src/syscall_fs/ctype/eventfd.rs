@@ -2,9 +2,12 @@ use alloc::sync::Arc;
 use async_fs::api::{FileIO, FileIOType, OpenFlags};
 use axerrno::{AxError, AxResult};
 use bitflags::bitflags;
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{ready, Context, Poll},
+};
 use sync::Mutex;
-use core::{future::Future, pin::Pin, task::{ready, Context, Poll}};
-
 
 bitflags! {
     // https://sites.uclouvain.be/SystInfo/usr/include/sys/eventfd.h.html
@@ -40,8 +43,7 @@ impl EventFd {
 }
 
 impl FileIO for EventFd {
-    fn read(self:Pin< &Self> ,cx: &mut Context<'_> ,buf: &mut [u8]) -> Poll<AxResult<usize> > {
-        
+    fn read(self: Pin<&Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<AxResult<usize>> {
         let len: usize = core::mem::size_of::<u64>();
         if buf.len() < len {
             return Poll::Ready(Err(AxError::InvalidInput));
@@ -82,7 +84,7 @@ impl FileIO for EventFd {
         }
     }
 
-    fn write(self:Pin< &Self> ,cx: &mut Context<'_> ,buf: &[u8]) -> Poll<AxResult<usize> > {
+    fn write(self: Pin<&Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<AxResult<usize>> {
         let len: usize = core::mem::size_of::<u64>();
 
         // A write fails with the error EINVAL if the size of the supplied buffer is less than 8 bytes,
@@ -113,33 +115,37 @@ impl FileIO for EventFd {
         }
     }
 
-    fn readable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+    fn readable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
         Poll::Ready(true)
     }
 
-    fn writable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+    fn writable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
         Poll::Ready(true)
     }
 
-    fn executable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+    fn executable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
         Poll::Ready(false)
     }
 
-    fn get_type(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<FileIOType> {
+    fn get_type(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<FileIOType> {
         Poll::Ready(FileIOType::Other)
     }
 
     // The file descriptor is readable if the counter has a value greater than 0
-    fn ready_to_read(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
-        Pin::new(&mut self.value.lock()).poll(cx).map(|value| *value > 0)
+    fn ready_to_read(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool> {
+        Pin::new(&mut self.value.lock())
+            .poll(cx)
+            .map(|value| *value > 0)
     }
 
     // The file descriptor is writable if it is possible to write a value of at least "1" without blocking.
-    fn ready_to_write(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
-        Pin::new(&mut self.value.lock()).poll(cx).map(|value| *value < u64::MAX - 1)
+    fn ready_to_write(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool> {
+        Pin::new(&mut self.value.lock())
+            .poll(cx)
+            .map(|value| *value < u64::MAX - 1)
     }
 
-    fn get_status(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<OpenFlags> {
+    fn get_status(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<OpenFlags> {
         let mut status = OpenFlags::RDWR;
         if self.flags & EventFdFlag::EFD_NONBLOCK.bits() != 0 {
             status |= OpenFlags::NON_BLOCK;

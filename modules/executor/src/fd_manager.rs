@@ -1,9 +1,12 @@
 //! todo 重构fd_table, fd_allocator
-use core::{cell::UnsafeCell, sync::atomic::{AtomicI32, AtomicU64}};
+use core::{
+    cell::UnsafeCell,
+    sync::atomic::{AtomicI32, AtomicU64},
+};
 
 use alloc::string::String;
 use alloc::sync::Arc;
-use async_fs::api::{FileIO, OpenFlags, AsyncFileIO};
+use async_fs::api::{AsyncFileIO, FileIO, OpenFlags};
 
 use alloc::vec::Vec;
 use sync::Mutex;

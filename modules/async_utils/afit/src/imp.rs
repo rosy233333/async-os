@@ -5,7 +5,8 @@ use syn::{FnArg, Ident, ItemTrait, Signature, TraitItem};
 pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
     let trait_ident = &self_trait.ident;
     let supertraits = &self_trait.supertraits;
-    let supertrait_items = &self_trait.items
+    let supertrait_items = &self_trait
+        .items
         .iter()
         .filter(|fn_items| {
             // fn_items
@@ -18,10 +19,11 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
                     } else {
                         false
                     }
-                },
+                }
                 _ => false,
             }
-    }).collect::<Vec<&TraitItem>>();
+        })
+        .collect::<Vec<&TraitItem>>();
 
     let mut impl_pin_items = Vec::new();
     let mut impl_ref_items = Vec::new();
@@ -41,7 +43,7 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
                     quote! {get_ref().as_ref()}
                 };
                 let cx_input = inputs.get(1).unwrap();
-                let cx_ident =  match cx_input {
+                let cx_ident = match cx_input {
                     FnArg::Receiver(_receiver) => panic!("Not support self receiver"),
                     FnArg::Typed(pat_type) => match pat_type.pat.as_ref() {
                         syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),

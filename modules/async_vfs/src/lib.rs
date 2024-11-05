@@ -38,11 +38,10 @@
 extern crate alloc;
 
 mod macros;
-mod structs;
 pub mod path;
+mod structs;
 
 pub use crate::structs::{FileSystemInfo, VfsDirEntry, VfsNodeAttr, VfsNodePerm, VfsNodeType};
-
 
 use alloc::sync::Arc;
 use axerrno::{ax_err, AxError, AxResult};
@@ -102,7 +101,7 @@ pub trait VfsNodeOps: Send + Sync {
 
     /// Do something when the node is closed.
     fn release(&self) -> VfsResult {
-       Ok(())
+        Ok(())
     }
 
     /// Get the attributes of the node.
@@ -154,7 +153,11 @@ pub trait VfsNodeOps: Send + Sync {
     /// Lookup the node with given `path` in the directory.
     ///
     /// Return the node if found.
-    fn poll_lookup(self: Pin<&Self>, _cx: &mut Context<'_>, _path: &str) -> Poll<VfsResult<VfsNodeRef>> {
+    fn poll_lookup(
+        self: Pin<&Self>,
+        _cx: &mut Context<'_>,
+        _path: &str,
+    ) -> Poll<VfsResult<VfsNodeRef>> {
         Poll::Ready(ax_err!(Unsupported))
     }
 

@@ -71,7 +71,9 @@ impl Clone for MemBackend {
             .clone();
 
         Self {
-            file: FileExt { inner: Box::new(file) },
+            file: FileExt {
+                inner: Box::new(file),
+            },
         }
     }
 }
