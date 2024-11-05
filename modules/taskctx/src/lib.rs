@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(asm_const)]
 #![feature(naked_functions)]
 
 extern crate alloc;
@@ -36,9 +35,6 @@ cfg_if::cfg_if! {
     } else if #[cfg(feature = "sched_cfs")] {
         pub type Task = scheduler::CFSTask<TaskInner>;
         pub type Scheduler = scheduler::CFScheduler<TaskInner>;
-    } else if #[cfg(feature = "sched_moic")] {
-        pub type Task = scheduler::MOICTask<TaskInner>;
-        pub type Scheduler = scheduler::MOICScheduler<TaskInner>;
     } else {
         // If no scheduler features are set, use FIFO as the default.
         pub type Task = scheduler::FifoTask<TaskInner>;
@@ -55,4 +51,26 @@ pub fn wakeup_task(task: TaskRef) {
         .lock()
         .lock()
         .put_prev_task(task, false);
+}
+
+use kernel_guard::KernelGuardIf;
+
+struct KernelGuardIfImpl;
+
+#[crate_interface::impl_interface]
+impl KernelGuardIf for KernelGuardIfImpl {
+    fn enable_preempt() {
+        // Your implementation here
+        let ptr: *const Task = current::current_task_ptr();
+        if !ptr.is_null() {
+            unsafe { &*ptr }.enable_preempt();
+        }
+    }
+    fn disable_preempt() {
+        // Your implementation here
+        let ptr: *const Task = current::current_task_ptr();
+        if !ptr.is_null() {
+            unsafe { &*ptr }.disable_preempt();
+        }
+    }
 }

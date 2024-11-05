@@ -215,7 +215,7 @@ impl TrapFrame {
     #[naked]
     pub extern "C" fn preempt_return(&self) {
         unsafe {
-            core::arch::asm!(
+            core::arch::naked_asm!(
                 r#"
                 mv      sp, a0
                 .short  0x2432                      // fld fs0,264(sp)
@@ -229,7 +229,6 @@ impl TrapFrame {
                 LDR     sp, sp, 1
                 sret
                 "#,
-                options(noreturn)
             );
         }
     }
@@ -237,7 +236,7 @@ impl TrapFrame {
     /// 用于返回用户态执行流
     #[naked]
     pub unsafe extern "C" fn user_return(&self) {
-        core::arch::asm!(
+        core::arch::naked_asm!(
             r#"
             mv      sp, a0
             .short  0x2432                      // fld fs0,264(sp)
@@ -259,7 +258,6 @@ impl TrapFrame {
             LDR     sp, sp, 1
             sret
             "#,
-            options(noreturn)
         );
     }
 }
@@ -269,7 +267,7 @@ impl TrapFrame {
     #[naked]
     pub extern "C" fn thread_ctx(set_tf_fn: usize, ctx_type: crate::CtxType) -> &'static Self {
         unsafe {
-            core::arch::asm!(
+            core::arch::naked_asm!(
                 "
                 addi    sp, sp, -{trap_frame_size}
                 STR     ra, sp, 0
@@ -291,7 +289,6 @@ impl TrapFrame {
                 ret
                 ",
                 trap_frame_size = const core::mem::size_of::<TrapFrame>(),
-                options(noreturn)
             )
         }
     }
@@ -299,7 +296,7 @@ impl TrapFrame {
     #[naked]
     pub extern "C" fn thread_return(&self) {
         unsafe {
-            core::arch::asm!(
+            core::arch::naked_asm!(
                 "
                 mv      sp, a0
                 LDR     ra, sp, 0
@@ -322,7 +319,6 @@ impl TrapFrame {
                 ret
                 ",
                 trap_frame_size = const core::mem::size_of::<TrapFrame>(),
-                options(noreturn)
             )
         }
     }

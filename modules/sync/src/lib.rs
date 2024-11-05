@@ -3,8 +3,6 @@
 //! - [`Mutex`]: A mutual exclusion primitive.
 
 #![cfg_attr(not(test), no_std)]
-#![feature(waker_getters)]
-#![feature(strict_provenance)]
 #![feature(ptr_metadata)]
 
 extern crate alloc;

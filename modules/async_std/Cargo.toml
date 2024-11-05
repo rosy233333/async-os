@@ -75,5 +75,5 @@ aos_api = { path = "../aos_api" }
 async_utils = { path = "../async_utils"}
 async_io = { path = "../async_io"}
 sync = { path = "../sync" }
-axhal = { git = "https://github.com/Starry-OS/axhal.git" }
+axhal = { path = "../axhal" }
 trampoline = { path = "../trampoline" }

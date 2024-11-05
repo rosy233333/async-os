@@ -3,6 +3,9 @@ name = "async_io"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+alloc = []
+
 [dependencies]
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 pin-project-lite = "0.2.14"

@@ -18,7 +18,7 @@ spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
 linked_list = { git = "https://github.com/Starry-OS/linked_list.git" }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 timer_list = { git = "https://github.com/Starry-OS/timer_list.git" }
-axhal = { git = "https://github.com/Starry-OS/axhal.git" }
+axhal = { path = "../axhal" }
 task_api = { path = "../task_api" }
 async_utils = { path = "../async_utils" }
 

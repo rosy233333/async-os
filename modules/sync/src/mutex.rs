@@ -90,7 +90,7 @@ impl<T: ?Sized> Mutex<T> {
             if #[cfg(feature = "thread")] {
                 let curr = current_task();
                 let waker = curr.waker();
-                let current_task = waker.as_raw().data() as usize;
+                let current_task = waker.data() as usize;
                 loop {
                     match self.owner_task.compare_exchange_weak(
                         0,
@@ -126,7 +126,7 @@ impl<T: ?Sized> Mutex<T> {
     #[inline(always)]
     pub fn try_lock(&self) -> Option<MutexGuard<T>> {
         let waker = current_task().waker();
-        let current_task = waker.as_raw().data() as usize;
+        let current_task = waker.data() as usize;
         // The reason for using a strong compare_exchange is explained here:
         // https://github.com/Amanieu/parking_lot/pull/207#issuecomment-575869107
         if self
@@ -153,7 +153,7 @@ impl<T: ?Sized> Mutex<T> {
     pub unsafe fn force_unlock(&self) {
         let curr = current_task();
         let waker = curr.waker();
-        let current_task = waker.as_raw().data() as usize;
+        let current_task = waker.data() as usize;
         let owner_task = self.owner_task.swap(0, Ordering::Release);
         assert_eq!(
             owner_task,
@@ -253,7 +253,7 @@ impl<'a, T: ?Sized + 'a> Future for MutexGuard<'a, T> {
             } else if #[cfg(not(feature = "thread"))] {
                 if data.is_none() {
                     let curr = current_task();
-                    let current_task = _cx.waker().as_raw().data() as usize;
+                    let current_task = _cx.waker().data() as usize;
                     match lock.owner_task.compare_exchange_weak(
                         0,
                         current_task,

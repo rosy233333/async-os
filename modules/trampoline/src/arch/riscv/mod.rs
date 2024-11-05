@@ -1,5 +1,4 @@
 use crate::trampoline;
-use core::arch::asm;
 use riscv::register::stvec;
 use taskctx::TrapFrame;
 
@@ -18,7 +17,7 @@ pub fn init_interrupt() {
 #[link_section = ".text"]
 #[repr(align(4))]
 pub unsafe extern "C" fn trap_vector_base() {
-    asm!(
+    core::arch::naked_asm!(
         "
         csrrw   sp, sscratch, sp            // 交换 sp 以及 sscratch 寄存器
         bnez    sp, 1f                      // sscratch 寄存器不为 0，在用户态发生了 Trap
@@ -55,7 +54,6 @@ pub unsafe extern "C" fn trap_vector_base() {
         ",
         trapframe_size = const core::mem::size_of::<TrapFrame>(),
         trampoline = sym trampoline,
-        options(noreturn)
     )
 }
 

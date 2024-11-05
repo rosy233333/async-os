@@ -41,7 +41,7 @@ rand = { version = "0.8.5", default-features = false, features = ["small_rng"] }
 num_enum = { version = "0.5.11", default-features = false }
 
 async_fs = { path = "../async_fs" }
-axhal = { git = "https://github.com/Starry-OS/axhal.git" }
+axhal = { path = "../axhal" }
 executor = { path = "../executor" }
 sync = { path = "../sync", package = "sync" }
 async_mem = { path = "../async_mem" }

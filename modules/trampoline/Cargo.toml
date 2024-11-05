@@ -12,7 +12,7 @@ multitask = []
 
 monolithic = ["taskctx/thread", "irq", "multitask", "preempt"]
 
-irq = ["sync/irq", "executor/irq", "axhal/irq"]
+irq = ["sync/irq", "executor/irq", "axhal/irq", "task_api/irq"]
 
 smp = ["spinlock/smp", "executor/smp"]
 
@@ -26,7 +26,7 @@ sched_cfs = ["multitask", "executor/sched_cfs", "preempt"]
 log = "0.4"
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
-kernel_guard = { git = "https://github.com/Starry-OS/kernel_guard.git" }
+kernel_guard = { path = "../kernel_guard" }
 percpu = { git = "https://github.com/Starry-OS/percpu.git", optional = true }
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git"}
@@ -38,7 +38,7 @@ task_api = { path = "../task_api" }
 sync = { path = "../sync" }
 taskctx = { path = "../taskctx" }
 executor = { path = "../executor" }
-axhal = { git = "https://github.com/Starry-OS/axhal.git" }
+axhal = { path = "../axhal" }
 syscall = { path = "../syscall" }
 async_mem = { path = "../async_mem" }
 async_fs = { path = "../async_fs" }

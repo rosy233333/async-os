@@ -24,14 +24,14 @@ axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
-axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
-axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
+# axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
+# axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
 
 runtime = { path = "../runtime" }
 feat = { path = "../feat" }
 trampoline = { path = "../trampoline" }
 async_io = { path = "../async_io" }
-axhal = { git = "https://github.com/Starry-OS/axhal.git" }
+axhal = { path = "../axhal" }
 sync = { path = "../sync" }
 async_fs = { path = "../async_fs", optional = true }
 

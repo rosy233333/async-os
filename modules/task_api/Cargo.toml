@@ -5,15 +5,16 @@ edition = "2021"
 
 [features]
 thread = []
+irq = []
 
 [dependencies]
 log = "0.4"
 crate_interface = "0.1"
-kernel_guard = "0.1"
 cfg-if = "1.0"
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
 linked_list = { git = "https://github.com/Starry-OS/linked_list.git" }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 timer_list = { git = "https://github.com/Starry-OS/timer_list.git" }
-axhal = { git = "https://github.com/Starry-OS/axhal.git" }
+axhal = { path = "../axhal" }
 taskctx = { path = "../taskctx" }
+kernel_guard = { path = "../kernel_guard" }

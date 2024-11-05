@@ -66,13 +66,13 @@ log-level-trace = ["axlog/log-level-trace"]
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
 axdriver = { git = "https://github.com/Starry-OS/axdriver.git", optional = true }
-axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
-axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
+# axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
+# axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git", optional = true }
 
 runtime = { path = "../runtime" }
 arch_boot = { path = "../arch_boot" }
-axhal = { git = "https://github.com/Starry-OS/axhal.git" }
+axhal = { path = "../axhal" }
 async_fs = { path = "../async_fs", optional = true }
 sync = { path = "../sync", optional = true }
 trampoline = { path = "../trampoline", optional = true }
