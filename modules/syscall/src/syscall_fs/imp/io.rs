@@ -4,7 +4,7 @@ use crate::syscall_fs::solve_path;
 // use crate::syscall_net::Socket;
 use crate::{IoVec, SyscallError, SyscallResult};
 use alloc::{string::ToString, sync::Arc, vec};
-use async_fs::api::{FileIOType, OpenFlags};
+use async_fs::api::{AsyncFileIO, FileIOType, OpenFlags};
 use async_io::SeekFrom;
 use axerrno::AxError;
 use axlog::{debug, info};

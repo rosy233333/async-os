@@ -1,12 +1,12 @@
 extern crate alloc;
 use crate::{SyscallError, SyscallResult};
-use alloc::boxed::Box;
 use alloc::sync::Arc;
 use async_fs::api::{FileIO, OpenFlags};
 use async_io::SeekFrom;
 use axerrno::{AxError, AxResult};
 use executor::{current_executor, Executor, PID2PC};
 use sync::Mutex;
+use core::{future::Future, pin::Pin, task::{ready, Context, Poll}};
 
 pub struct PidFd {
     flags: Mutex<OpenFlags>,
@@ -27,54 +27,54 @@ impl PidFd {
         self.process.pid().as_u64()
     }
 }
-#[async_trait::async_trait]
 impl FileIO for PidFd {
-    async fn read(&self, _buf: &mut [u8]) -> AxResult<usize> {
-        Err(axerrno::AxError::Unsupported)
+    fn read(self:Pin< &Self> ,_cx: &mut Context<'_> ,_buf: &mut [u8]) -> Poll<AxResult<usize> > {
+        Poll::Ready(Err(AxError::Unsupported))
     }
 
-    async fn write(&self, _buf: &[u8]) -> AxResult<usize> {
-        Err(AxError::Unsupported)
+    fn write(self:Pin< &Self> ,_cx: &mut Context<'_> ,_buf: &[u8]) -> Poll<AxResult<usize> > {
+        Poll::Ready(Err(AxError::Unsupported))
     }
 
-    async fn seek(&self, _pos: SeekFrom) -> AxResult<u64> {
-        Err(AxError::Unsupported)
+    fn seek(self:Pin< &Self> ,_cx: &mut Context<'_> ,_pos:SeekFrom) -> Poll<AxResult<u64> > {
+        Poll::Ready(Err(AxError::Unsupported))
     }
 
     /// To check whether the target process is still alive
-    async fn readable(&self) -> bool {
-        self.process.get_zombie()
+    fn readable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(self.process.get_zombie())
     }
 
-    async fn writable(&self) -> bool {
-        false
+    fn writable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn executable(&self) -> bool {
-        false
+    fn executable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn get_type(&self) -> async_fs::api::FileIOType {
-        async_fs::api::FileIOType::Other
+    fn get_type(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<async_fs::api::FileIOType> {
+        Poll::Ready(async_fs::api::FileIOType::Other)
     }
 
-    async fn get_status(&self) -> OpenFlags {
-        self.flags.lock().await.clone()
+    fn get_status(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<OpenFlags> {
+        Pin::new(&mut self.flags.lock()).poll(cx).map(|flags| *flags)
     }
 
-    async fn set_status(&self, flags: OpenFlags) -> bool {
-        *self.flags.lock().await = flags;
-        true
+    fn set_status(self:Pin< &Self> ,cx: &mut Context<'_> ,flags:OpenFlags) -> Poll<bool> {
+        *ready!(Pin::new(&mut self.flags.lock()).poll(cx)) = flags;
+        Poll::Ready(true)
     }
 
-    async fn set_close_on_exec(&self, is_set: bool) -> bool {
+    fn set_close_on_exec(self:Pin< &Self> ,cx: &mut Context<'_> ,is_set:bool) -> Poll<bool> {
+        let mut flags = ready!(Pin::new(&mut self.flags.lock()).poll(cx));
         if is_set {
             // 设置close_on_exec位置
-            *self.flags.lock().await |= OpenFlags::CLOEXEC;
+            *flags |= OpenFlags::CLOEXEC;
         } else {
-            *self.flags.lock().await &= !OpenFlags::CLOEXEC;
+            *flags &= !OpenFlags::CLOEXEC;
         }
-        true
+        Poll::Ready(true)
     }
 }
 

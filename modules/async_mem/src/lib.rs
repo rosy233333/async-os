@@ -5,7 +5,7 @@ mod backend;
 mod shared;
 pub use area::MapArea;
 use axerrno::{AxError, AxResult};
-pub use backend::MemBackend;
+pub use backend::{BackEndFile, MemBackend};
 
 extern crate alloc;
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};

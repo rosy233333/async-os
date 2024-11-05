@@ -5,7 +5,7 @@ use alloc::{
     sync::Arc,
     vec::Vec,
 };
-use async_fs::api::OpenFlags;
+use async_fs::api::{AsAny, OpenFlags};
 use axhal::time::current_time;
 use axsignal::{info::SigInfo, signal_no::SignalNo};
 // use async_fs::api::OpenFlags;

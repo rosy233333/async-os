@@ -6,7 +6,7 @@ use core::{
     task::{Context, Poll},
 };
 
-type BackEndFile = Box<dyn FileExt>;
+pub type BackEndFile = FileExt;
 
 /// File backend for Lazy load `MapArea`. `file` should be a file holding a offset value. Normally,
 /// `MemBackend` won't share a file with other things, so we use a `Box` here.
@@ -64,13 +64,14 @@ impl Clone for MemBackend {
     fn clone(&self) -> Self {
         let file = self
             .file
+            .inner
             .as_any()
             .downcast_ref::<File>()
             .expect("Cloning a MemBackend with a non-file object")
             .clone();
 
         Self {
-            file: Box::new(file),
+            file: FileExt { inner: Box::new(file) },
         }
     }
 }
@@ -81,7 +82,7 @@ impl AsyncSeek for MemBackend {
         cx: &mut Context<'_>,
         pos: SeekFrom,
     ) -> Poll<async_io::Result<u64>> {
-        Pin::new(&mut *self.file).seek(cx, pos)
+        Pin::new(&mut *self.file.inner).seek(cx, pos)
     }
 }
 
@@ -91,6 +92,6 @@ impl AsyncRead for MemBackend {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<async_io::Result<usize>> {
-        Pin::new(&mut *self.file).read(cx, buf)
+        Pin::new(&mut *self.file.inner).read(cx, buf)
     }
 }

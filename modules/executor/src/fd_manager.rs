@@ -1,16 +1,16 @@
 //! todo 重构fd_table, fd_allocator
-use core::sync::atomic::{AtomicI32, AtomicU64};
+use core::{cell::UnsafeCell, sync::atomic::{AtomicI32, AtomicU64}};
 
 use alloc::string::String;
 use alloc::sync::Arc;
-use async_fs::api::{FileIO, OpenFlags};
+use async_fs::api::{FileIO, OpenFlags, AsyncFileIO};
 
 use alloc::vec::Vec;
 use sync::Mutex;
 
 use crate::stdio::{Stdin, Stdout};
 
-pub type FdTable = Arc<Mutex<Vec<Option<Arc<dyn FileIO>>>>>;
+pub type FdTable = Arc<Mutex<Vec<Option<Arc<dyn FileIO + Unpin>>>>>;
 
 pub struct FdManager {
     /// 保存文件描述符的数组
@@ -73,6 +73,7 @@ impl FdManager {
         if fd_table[0].is_none() {
             fd_table[0] = Some(Arc::new(Stdin {
                 flags: Mutex::new(OpenFlags::empty()),
+                line: UnsafeCell::new(String::new()),
             }));
         }
         if fd_table[1].is_none() {

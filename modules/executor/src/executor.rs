@@ -22,9 +22,7 @@ use axerrno::{AxError, AxResult};
 use axhal::{mem::VirtAddr, time::current_time_nanos};
 use axsignal::signal_no::SignalNo;
 use core::{
-    future::Future,
-    pin::Pin,
-    sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering},
+    cell::UnsafeCell, future::Future, pin::Pin, sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering}
 };
 use lazy_init::LazyInit;
 use spinlock::{SpinNoIrq, SpinNoIrqOnly};
@@ -127,6 +125,7 @@ impl Executor {
             // 标准输入
             Some(Arc::new(Stdin {
                 flags: Mutex::new(OpenFlags::empty()),
+                line: UnsafeCell::new(String::new()),
             })),
             // 标准输出
             Some(Arc::new(Stdout {
@@ -369,7 +368,7 @@ impl Executor {
     }
 
     /// 为进程分配一个文件描述符
-    pub fn alloc_fd(&self, fd_table: &mut Vec<Option<Arc<dyn FileIO>>>) -> AxResult<usize> {
+    pub fn alloc_fd(&self, fd_table: &mut Vec<Option<Arc<dyn FileIO + Unpin>>>) -> AxResult<usize> {
         for (i, fd) in fd_table.iter().enumerate() {
             if fd.is_none() {
                 return Ok(i);
@@ -455,6 +454,7 @@ impl Executor {
             // 标准输入
             Some(Arc::new(Stdin {
                 flags: Mutex::new(OpenFlags::empty()),
+                line: UnsafeCell::new(String::new())
             })),
             // 标准输出
             Some(Arc::new(Stdout {

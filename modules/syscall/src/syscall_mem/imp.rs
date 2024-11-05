@@ -1,7 +1,8 @@
 use crate::{syscall_fs::FileDesc, MMAPFlags, MREMAPFlags, SyscallError, SyscallResult, MMAPPROT};
 extern crate alloc;
 
-use async_mem::MemorySet;
+use async_fs::api::AsAny;
+use async_mem::{BackEndFile, MemorySet};
 use axerrno::AxError;
 use axhal::{arch::flush_tlb, mem::VirtAddr, paging::MappingFlags};
 use axlog::info;
@@ -89,7 +90,8 @@ pub async fn syscall_mmap(args: [usize; 6]) -> SyscallResult {
             None => return Err(SyscallError::EINVAL),
         };
 
-        let backend = MemBackend::new(file, offset as u64).await;
+        let back_end = BackEndFile::new(file);
+        let backend = MemBackend::new(back_end, offset as u64).await;
         process
             .memory_set
             .lock()

@@ -1,19 +1,19 @@
 use async_fs::api::port::{
-    async_trait, ConsoleWinSize, FileIO, FileIOType, OpenFlags, FIOCLEX, TCGETS, TIOCGPGRP,
+    ConsoleWinSize, FileIO, FileIOType, OpenFlags, FIOCLEX, TCGETS, TIOCGPGRP,
     TIOCGWINSZ, TIOCSPGRP,
 };
 use async_io::SeekFrom;
 use axerrno::{AxError, AxResult};
 use axhal::console::{getchar, putchar, write_bytes};
 use axlog::warn;
-use core::task::Poll;
+use core::{cell::UnsafeCell, future::Future, pin::Pin, task::{Context, Poll, ready}};
 use sync::Mutex;
-
 extern crate alloc;
-use alloc::{boxed::Box, string::String};
+use alloc::string::String;
 /// stdin file for getting chars from console
 pub struct Stdin {
     pub flags: Mutex<OpenFlags>,
+    pub line: UnsafeCell<String>,
 }
 
 unsafe impl Send for Stdin {}
@@ -45,12 +45,11 @@ pub const SPACE: u8 = 0x20u8;
 
 pub const BACKSPACE: [u8; 3] = [BS, SPACE, BS];
 
-#[async_trait]
 impl FileIO for Stdin {
-    async fn read(&self, buf: &mut [u8]) -> AxResult<usize> {
+    fn read(self:Pin< &Self> ,cx: &mut Context<'_> ,buf: &mut [u8]) -> Poll<AxResult<usize> > {
         // busybox
         if buf.len() == 1 {
-            core::future::poll_fn(|cx| match getchar() {
+            match getchar() {
                 Some(c) => {
                     unsafe {
                         buf.as_mut_ptr().write_volatile(c);
@@ -61,11 +60,10 @@ impl FileIO for Stdin {
                     cx.waker().wake_by_ref();
                     Poll::Pending
                 }
-            })
-            .await
+            }
         } else {
             // user appilcation
-            let mut line = String::new();
+            let line = unsafe { &mut *self.line.get() };
             loop {
                 let c = getchar();
                 if let Some(c) = c {
@@ -89,56 +87,54 @@ impl FileIO for Stdin {
                         }
                     }
                 } else {
-                    let _ = core::future::poll_fn(|cx| {
-                        cx.waker().wake_by_ref();
-                        Poll::<AxResult<usize>>::Pending
-                    })
-                    .await;
+                    cx.waker().wake_by_ref();
+                    return Poll::Pending;
                 }
             }
             let len = line.len();
             buf[..len].copy_from_slice(line.as_bytes());
-            Ok(len)
+            line.clear();
+            Poll::Ready(Ok(len))
         }
     }
 
-    async fn write(&self, _buf: &[u8]) -> AxResult<usize> {
+    fn write(self:Pin< &Self> ,_cx: &mut Context<'_> ,_buf: &[u8]) -> Poll<AxResult<usize> > {
         panic!("Cannot write to stdin!");
     }
 
-    async fn flush(&self) -> AxResult<()> {
+    fn flush(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<AxResult<()> > {
         panic!("Flushing stdin")
     }
 
     /// whether the file is readable
-    async fn readable(&self) -> bool {
-        true
+    fn readable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(true)
     }
 
     /// whether the file is writable
-    async fn writable(&self) -> bool {
-        false
+    fn writable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
     /// whether the file is executable
-    async fn executable(&self) -> bool {
-        false
+    fn executable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn get_type(&self) -> FileIOType {
-        FileIOType::Stdin
+    fn get_type(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<FileIOType> {
+        Poll::Ready(FileIOType::Stdin)
     }
 
-    async fn ready_to_read(&self) -> bool {
-        true
+    fn ready_to_read(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(true)
     }
 
-    async fn ready_to_write(&self) -> bool {
-        false
+    fn ready_to_write(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn ioctl(&self, request: usize, data: usize) -> AxResult<isize> {
-        match request {
+    fn ioctl(self:Pin< &Self> ,_cx: &mut Context<'_> ,request:usize, data:usize) -> Poll<AxResult<isize> > {
+        Poll::Ready(match request {
             TIOCGWINSZ => {
                 let winsize = data as *mut ConsoleWinSize;
                 unsafe {
@@ -161,102 +157,103 @@ impl FileIO for Stdin {
             }
             FIOCLEX => Ok(0),
             _ => Err(AxError::Unsupported),
-        }
+        })
     }
 
-    async fn set_status(&self, flags: OpenFlags) -> bool {
-        if flags.contains(OpenFlags::CLOEXEC) {
-            *self.flags.lock().await = flags;
+    fn set_status(self:Pin< &Self> ,cx: &mut Context<'_> ,flags:OpenFlags) -> Poll<bool> {
+        Poll::Ready(if flags.contains(OpenFlags::CLOEXEC) {
+            *ready!(Pin::new(&mut self.flags.lock()).poll(cx)) = flags;
             true
         } else {
             false
-        }
+        })
     }
 
-    async fn get_status(&self) -> OpenFlags {
-        *self.flags.lock().await
+    fn get_status(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<OpenFlags> {
+        Pin::new(&mut self.flags.lock()).poll(_cx).map(|flag| *flag)
     }
 
-    async fn set_close_on_exec(&self, is_set: bool) -> bool {
+    fn set_close_on_exec(self:Pin< &Self> ,_cx: &mut Context<'_> ,is_set:bool) -> Poll<bool> {
+        let mut flag = ready!(Pin::new(&mut self.flags.lock()).poll(_cx));
         if is_set {
             // 设置close_on_exec位置
-            *self.flags.lock().await |= OpenFlags::CLOEXEC;
+            *flag |= OpenFlags::CLOEXEC;
         } else {
-            *self.flags.lock().await &= !OpenFlags::CLOEXEC;
+            *flag &= !OpenFlags::CLOEXEC;
         }
-        true
+        Poll::Ready(true)
     }
 }
 
-#[async_trait]
 impl FileIO for Stdout {
-    async fn read(&self, _buf: &mut [u8]) -> AxResult<usize> {
+    fn read(self:Pin< &Self> ,_cx: &mut Context<'_> ,_buf: &mut [u8]) -> Poll<AxResult<usize> > {
         panic!("Cannot read from stdout!");
     }
 
-    async fn write(&self, buf: &[u8]) -> AxResult<usize> {
-        write_bytes(buf);
-        Ok(buf.len())
+    fn write(self:Pin< &Self> ,_cx: &mut Context<'_> ,_buf: &[u8]) -> Poll<AxResult<usize> > {
+        write_bytes(_buf);
+        Poll::Ready(Ok(_buf.len()))
     }
 
-    async fn flush(&self) -> AxResult<()> {
+    fn flush(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<AxResult<()> > {
         // stdout is always flushed
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 
-    async fn seek(&self, _pos: SeekFrom) -> AxResult<u64> {
-        Err(AxError::Unsupported) // 如果没有实现seek, 则返回Unsupported
+    fn seek(self:Pin< &Self> ,_cx: &mut Context<'_> ,_pos:SeekFrom) -> Poll<AxResult<u64> > {
+        Poll::Ready(Err(AxError::Unsupported)) // 如果没有实现seek, 则返回Unsupported
     }
 
-    async fn executable(&self) -> bool {
-        false
+    fn executable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn readable(&self) -> bool {
-        false
+    fn readable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn writable(&self) -> bool {
-        true
+    fn writable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(true)
     }
 
-    async fn get_type(&self) -> FileIOType {
-        FileIOType::Stdout
+    fn get_type(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<FileIOType> {
+        Poll::Ready(FileIOType::Stdout)
     }
 
-    async fn ready_to_read(&self) -> bool {
-        false
+    fn ready_to_read(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn ready_to_write(&self) -> bool {
-        true
+    fn ready_to_write(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(true)
     }
 
-    async fn set_status(&self, flags: OpenFlags) -> bool {
-        if flags.contains(OpenFlags::CLOEXEC) {
-            *self.flags.lock().await = flags;
+    fn set_status(self:Pin< &Self> ,cx: &mut Context<'_> ,flags:OpenFlags) -> Poll<bool> {
+        Poll::Ready(if flags.contains(OpenFlags::CLOEXEC) {
+            *ready!(Pin::new(&mut self.flags.lock()).poll(cx)) = flags;
             true
         } else {
             false
-        }
+        })
     }
 
-    async fn get_status(&self) -> OpenFlags {
-        *self.flags.lock().await
+    fn get_status(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<OpenFlags> {
+        Pin::new(&mut self.flags.lock()).poll(_cx).map(|flags| *flags)
     }
 
-    async fn set_close_on_exec(&self, is_set: bool) -> bool {
+    fn set_close_on_exec(self:Pin< &Self> ,_cx: &mut Context<'_> ,is_set:bool) -> Poll<bool> {
+        let mut flag = ready!(Pin::new(&mut self.flags.lock()).poll(_cx));
         if is_set {
             // 设置close_on_exec位置
-            *self.flags.lock().await |= OpenFlags::CLOEXEC;
+            *flag |= OpenFlags::CLOEXEC;
         } else {
-            *self.flags.lock().await &= !OpenFlags::CLOEXEC;
+            *flag &= !OpenFlags::CLOEXEC;
         }
-        true
+        Poll::Ready(true)
     }
 
-    async fn ioctl(&self, request: usize, data: usize) -> AxResult<isize> {
-        match request {
+    fn ioctl(self:Pin< &Self> ,_cx: &mut Context<'_> ,request:usize,data:usize) -> Poll<AxResult<isize> > {
+        Poll::Ready(match request {
             TIOCGWINSZ => {
                 let winsize = data as *mut ConsoleWinSize;
                 unsafe {
@@ -279,56 +276,55 @@ impl FileIO for Stdout {
             }
             FIOCLEX => Ok(0),
             _ => Err(AxError::Unsupported),
-        }
+        })
     }
 }
 
-#[async_trait]
 impl FileIO for Stderr {
-    async fn read(&self, _buf: &mut [u8]) -> AxResult<usize> {
+    fn read(self:Pin< &Self> ,_cx: &mut Context<'_> ,_buf: &mut [u8]) -> Poll<AxResult<usize> > {
         panic!("Cannot read from stderr!");
     }
 
-    async fn write(&self, buf: &[u8]) -> AxResult<usize> {
-        write_bytes(buf);
-        Ok(buf.len())
+    fn write(self:Pin< &Self> ,_cx: &mut Context<'_> ,_buf: &[u8]) -> Poll<AxResult<usize> > {
+        write_bytes(_buf);
+        Poll::Ready(Ok(_buf.len()))
     }
 
-    async fn flush(&self) -> AxResult<()> {
+    fn flush(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<AxResult<()> > {
         // stderr is always flushed
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 
-    async fn seek(&self, _pos: SeekFrom) -> AxResult<u64> {
-        Err(AxError::Unsupported) // 如果没有实现seek, 则返回Unsupported
+    fn seek(self:Pin< &Self> ,_cx: &mut Context<'_> ,_pos:SeekFrom) -> Poll<AxResult<u64> > {
+        Poll::Ready(Err(AxError::Unsupported)) // 如果没有实现seek, 则返回Unsupported
     }
 
-    async fn executable(&self) -> bool {
-        false
+    fn executable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn readable(&self) -> bool {
-        false
+    fn readable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn writable(&self) -> bool {
-        true
+    fn writable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(true)
     }
 
-    async fn get_type(&self) -> FileIOType {
-        FileIOType::Stderr
+    fn get_type(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<FileIOType> {
+        Poll::Ready(FileIOType::Stderr)
     }
 
-    async fn ready_to_read(&self) -> bool {
-        false
+    fn ready_to_read(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn ready_to_write(&self) -> bool {
-        true
+    fn ready_to_write(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(true)
     }
 
-    async fn ioctl(&self, request: usize, data: usize) -> AxResult<isize> {
-        match request {
+    fn ioctl(self:Pin< &Self> ,_cx: &mut Context<'_> ,request:usize,data:usize) -> Poll<AxResult<isize> > {
+        Poll::Ready(match request {
             TIOCGWINSZ => {
                 let winsize = data as *mut ConsoleWinSize;
                 unsafe {
@@ -351,6 +347,6 @@ impl FileIO for Stderr {
             }
             FIOCLEX => Ok(0),
             _ => Err(AxError::Unsupported),
-        }
+        })
     }
 }

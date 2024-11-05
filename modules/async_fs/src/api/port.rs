@@ -1,11 +1,11 @@
 //! 定义与文件I/O操作相关的trait泛型
 extern crate alloc;
-use core::any::Any;
-
-use alloc::{string::String, boxed::Box};
+use core::{any::Any, pin::Pin, task::{Poll, Context}};
+use alloc::sync::Arc;
+use alloc::{string::String, boxed::Box, vec::Vec};
 use axerrno::{AxError, AxResult};
-use async_io::{AsyncRead, AsyncSeek, AsyncWrite, SeekFrom, Seek, Read, Write};
-pub use async_trait::async_trait;
+use async_io::{AsyncRead, AsyncSeek, AsyncWrite, IoSlice, IoSliceMut, Read, Seek, SeekFrom, Write};
+pub use async_utils::async_trait;
 
 /// 文件系统信息
 #[derive(Debug, Clone, Copy, Default)]
@@ -199,34 +199,110 @@ pub enum FileIOType {
     Other,
 }
 
-/// 用于给虚存空间进行懒分配
-#[async_trait::async_trait]
-pub trait FileExt: AsyncRead + AsyncWrite + AsyncSeek + AsAny + Send + Sync + Unpin {
+// pub struct FileExt {
+//     inner: Box<dyn AsyncRead + AsyncWrite + AsyncSeek + Send + Sync + Unpin>
+// }
+
+pub trait FileExtTrait: FilePremTrait + AsyncRead + AsyncWrite + AsyncSeek + Send + Sync + Unpin + AsAny {}
+
+#[async_trait]
+pub trait FilePremTrait {
     /// whether the file is readable
-    async fn readable(&self) -> bool;
+    fn readable(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool>;
 
     /// whether the file is writable
-    async fn writable(&self) -> bool;
+    fn writable(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool>;
 
     /// whether the file is executable
-    async fn executable(&self) -> bool;
+    fn executable(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool>;
+}
 
-    /// Read from position without changing cursor.
-    async fn read_from_seek(&mut self, pos: SeekFrom, buf: &mut [u8]) -> AxResult<usize> {
+pub struct FileExt {
+    pub inner: Box<dyn FileExtTrait>
+}
+
+impl FileExt {
+    pub fn new(inner: Box<dyn FileExtTrait>) -> Self {
+        Self { inner }
+    }
+    /*********** Permission interfaces ****************/
+    pub async fn readable(&self) -> bool {
+        self.inner.readable().await
+    }
+
+    pub async fn writable(&self) -> bool {
+        self.inner.writable().await
+    }
+
+    pub async fn executable(&self) -> bool {
+        self.inner.executable().await
+    }
+
+    /*********** Read interfaces ****************/
+    pub async fn read(& mut self, buf: & mut [u8]) -> AxResult<usize> {
+        self.inner.read(buf).await
+    }
+
+    pub async fn read_vectored<'a>(
+        &'a mut self,
+        bufs: &'a mut [IoSliceMut<'a>],
+    ) -> AxResult<usize> {
+        self.inner.read_vectored(bufs).await
+    }
+
+    pub async fn read_to_end<'a>(&'a mut self, buf: &'a mut Vec<u8>) -> AxResult<usize> {
+        self.inner.read_to_end(buf).await
+    }
+
+    pub async fn read_to_string<'a>(&'a mut self, buf: &'a mut String) -> AxResult<usize> {
+        self.inner.read_to_string(buf).await
+    }
+
+    pub async fn read_exact<'a>(&'a mut self, buf: &'a mut [u8]) -> AxResult<()> {
+        self.inner.read_exact(buf).await
+    }
+
+    /*********** Seek interfaces ****************/
+    pub async fn write<'a>(&'a mut self, buf: &'a [u8]) -> AxResult<usize> {
+        self.inner.write(buf).await
+    }
+
+    pub async fn flush(&mut self) -> AxResult<()> {
+        self.inner.flush().await
+    }
+
+    pub async fn write_vectored<'a>(&'a mut self, bufs: &'a [IoSlice<'a>]) -> AxResult<usize> {
+        self.inner.write_vectored(bufs).await
+    }
+
+    pub async fn write_all<'a>(&'a mut self, buf: &'a [u8]) -> AxResult<()> {
+        self.inner.write_all(buf).await
+    }
+
+    pub async fn write_fmt<'a>(&'a mut self, fmt: core::fmt::Arguments<'_>) -> AxResult<()> {
+        self.inner.write_fmt(fmt).await
+    }
+
+    /*********** Seek interfaces ****************/
+    pub async fn seek(&mut self, pos: SeekFrom) -> AxResult<u64> {
+        self.inner.seek(pos).await
+    }
+
+    pub async fn read_from_seek(&mut self, pos: SeekFrom, buf: &mut [u8]) -> AxResult<usize> {
         // get old position
-        let old_pos = self
+        let old_pos = self.inner
             .seek(SeekFrom::Current(0))
             .await
             .expect("Error get current pos in file");
 
         // seek to read position
-        let _ = self.seek(pos).await.unwrap();
+        let _ = self.inner.seek(pos).await.unwrap();
 
         // read
         let mut tmp = buf;
         let mut read_len = 0;
         while !tmp.is_empty() {
-            let n = self.read(tmp).await?;
+            let n = self.inner.read(tmp).await?;
             read_len += n;
             let (_, rest) = tmp.split_at_mut(n);
             tmp = rest;
@@ -235,239 +311,469 @@ pub trait FileExt: AsyncRead + AsyncWrite + AsyncSeek + AsAny + Send + Sync + Un
             return Err(AxError::UnexpectedEof);
         }
         // seek back to old_pos
-        let new_pos = self.seek(SeekFrom::Start(old_pos)).await.unwrap();
+        let new_pos = self.inner.seek(SeekFrom::Start(old_pos)).await.unwrap();
 
         assert_eq!(old_pos, new_pos);
 
         Ok(read_len)
     }
 
-    /// Write to position without changing cursor.
-    async fn write_to_seek(&mut self, pos: SeekFrom, buf: &[u8]) -> AxResult<usize> {
+    pub async fn write_to_seek(&mut self, pos: SeekFrom, buf: &[u8]) -> AxResult<usize> {
         // get old position
-        let old_pos = self
+        let old_pos = self.inner
             .seek(SeekFrom::Current(0))
             .await
             .expect("Error get current pos in file");
         // seek to write position
-        let _ = self.seek(pos).await.unwrap();
+        let _ = self.inner.seek(pos).await.unwrap();
 
-        let write_len = self.write(buf).await;
+        let write_len = self.inner.write(buf).await;
 
         // seek back to old_pos
-        let _ = self.seek(SeekFrom::Start(old_pos)).await.unwrap();
+        let _ = self.inner.seek(SeekFrom::Start(old_pos)).await.unwrap();
 
         write_len
     }
 }
 
-/// File I/O trait. 文件I/O操作，用于设置文件描述符，值得注意的是，这里的read/write/seek都是不可变引用
-///
-/// 因为文件描述符读取的时候，是用到内部File成员的读取函数，自身应当为不可变，从而可以被Arc指针调用
-#[async_trait::async_trait]
-pub trait FileIO: AsAny + Send + Sync + Unpin {
-    /// 读取操作
-    async fn read(&self, _buf: &mut [u8]) -> AxResult<usize> {
-        Err(AxError::Unsupported) // 如果没有实现, 则返回Unsupported
-    }
+// /// 用于给虚存空间进行懒分配
+// #[async_trait]
+// pub trait FileExt: AsyncRead + AsyncWrite + AsyncSeek + Send + Sync + Unpin {
+//     /// whether the file is readable
+//     fn readable(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool>;
 
-    /// 写入操作
-    async fn write(&self, _buf: &[u8]) -> AxResult<usize> {
-        Err(AxError::Unsupported) // 如果没有实现, 则返回Unsupported
-    }
+//     /// whether the file is writable
+//     fn writable(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool>;
 
-    /// 刷新操作
-    async fn flush(&self) -> AxResult<()> {
-        Err(AxError::Unsupported) // 如果没有实现, 则返回Unsupported
-    }
+//     /// whether the file is executable
+//     fn executable(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool>;
 
-    /// 移动指针操作
-    async fn seek(&self, _pos: SeekFrom) -> AxResult<u64> {
-        Err(AxError::Unsupported) // 如果没有实现, 则返回Unsupported
-    }
+//     /// Read from position without changing cursor.
+//     // fn read_from_seek(self: Pin<&mut Self>, cx: &mut Context<'_>, pos: SeekFrom, buf: &mut [u8]) -> Poll<AxResult<usize>>;
+//     fn read_from_seek(self: Pin<&mut Self>, cx: &mut Context<'_>, pos: SeekFrom, buf: &mut [u8]) -> Poll<AxResult<usize>> {
+//         let this = self.get_mut();
+//         // get old position
+//         let old_pos = ready!(
+//             Pin::new(this).seek(cx, SeekFrom::Current(0))
+//         ).expect("Error get current pos in file");
 
-    /// whether the file is readable
-    async fn readable(&self) -> bool;
+//         // seek to read position
+//         let _ = ready!(Pin::new(this).seek(cx, pos)).unwrap();
 
-    /// whether the file is writable
-    async fn writable(&self) -> bool;
+//         // read
+//         let mut tmp = buf;
+//         let mut read_len = 0;
+//         while !tmp.is_empty() {
+//             let n = ready!(Pin::new(this).read(cx, tmp))?;
+//             read_len += n;
+//             let (_, rest) = tmp.split_at_mut(n);
+//             tmp = rest;
+//         }
+//         if read_len == 0 {
+//             return Poll::Ready(Err(AxError::UnexpectedEof));
+//         }
+//         // seek back to old_pos
+//         let new_pos = ready!(Pin::new(this).seek(cx, SeekFrom::Start(old_pos))).unwrap();
 
-    /// whether the file is executable
-    async fn executable(&self) -> bool;
+//         assert_eq!(old_pos, new_pos);
 
-    /// 获取类型
-    async fn get_type(&self) -> FileIOType;
+//         Poll::Ready(Ok(read_len))
+//     }
 
-    /// 获取路径
-    async fn get_path(&self) -> String {
-        debug!("Function get_path not implemented");
-        String::from("Function get_path not implemented")
-    }
-    /// 获取文件信息
-    async fn get_stat(&self) -> AxResult<Kstat> {
-        Err(AxError::Unsupported) // 如果没有实现get_stat, 则返回Unsupported
-    }
+//     /// Write to position without changing cursor.
+//     // fn write_to_seek(self: Pin<&mut Self>, cx: &mut Context<'_>, pos: SeekFrom, buf: &[u8]) -> Poll<AxResult<usize>>;
+//     fn write_to_seek(self: Pin<&mut Self>, cx: &mut Context<'_>, pos: SeekFrom, buf: &[u8]) -> Poll<AxResult<usize>> {
+//         // get old position
+//         let old_pos = self
+//             .seek(SeekFrom::Current(0))
+//             .await
+//             .expect("Error get current pos in file");
+//         // seek to write position
+//         let _ = self.seek(pos).await.unwrap();
 
-    /// 截断文件到指定长度
-    async fn truncate(&self, _len: usize) -> AxResult<()> {
-        debug!("Function truncate not implemented");
-        Err(AxError::Unsupported)
-    }
+//         let write_len = self.write(buf).await;
 
-    /// debug
-    async fn print_content(&self) {
-        debug!("Function print_content not implemented");
-    }
+//         // seek back to old_pos
+//         let _ = self.seek(SeekFrom::Start(old_pos)).await.unwrap();
 
-    /// 设置文件状态
-    async fn set_status(&self, _flags: OpenFlags) -> bool {
-        false
-    }
+//         write_len
+//     }
+// }
 
-    /// 获取文件状态
-    async fn get_status(&self) -> OpenFlags {
-        OpenFlags::empty()
-    }
 
-    /// 设置 close_on_exec 位
-    /// 设置成功返回false
-    async fn set_close_on_exec(&self, _is_set: bool) -> bool {
-        false
-    }
+// /// 用于给虚存空间进行懒分配
+// #[async_trait::async_trait]
+// pub trait FileExt: AsyncRead + AsyncWrite + AsyncSeek + AsAny + Send + Sync + Unpin {
+//     /// whether the file is readable
+//     async fn readable(&self) -> bool;
 
-    /// 处于“意外情况”。在 (p)select 和 (p)poll 中会使用到
-    ///
-    /// 当前基本默认为false
-    async fn in_exceptional_conditions(&self) -> bool {
-        false
-    }
+//     /// whether the file is writable
+//     async fn writable(&self) -> bool;
 
-    /// 是否已经终止，对pipe来说相当于另一端已经关闭
-    ///
-    /// 对于其他文件类型来说，是在被close的时候终止，但这个时候已经没有对应的filedesc了，所以自然不会调用这个函数
-    async fn is_hang_up(&self) -> bool {
-        false
-    }
+//     /// whether the file is executable
+//     async fn executable(&self) -> bool;
 
-    /// 已准备好读。对于 pipe 来说，这意味着读端的buffer内有值
-    async fn ready_to_read(&self) -> bool {
-        false
-    }
-    /// 已准备好写。对于 pipe 来说，这意味着写端的buffer未满
-    async fn ready_to_write(&self) -> bool {
-        false
-    }
+//     /// Read from position without changing cursor.
+//     async fn read_from_seek(&mut self, pos: SeekFrom, buf: &mut [u8]) -> AxResult<usize> {
+//         // get old position
+//         let old_pos = self
+//             .seek(SeekFrom::Current(0))
+//             .await
+//             .expect("Error get current pos in file");
 
-    /// To control the file descriptor
-    async fn ioctl(&self, _request: usize, _arg1: usize) -> AxResult<isize> {
-        Err(AxError::Unsupported)
-    }
-}
+//         // seek to read position
+//         let _ = self.seek(pos).await.unwrap();
 
-// pub trait AsyncFileIOExt {
+//         // read
+//         let mut tmp = buf;
+//         let mut read_len = 0;
+//         while !tmp.is_empty() {
+//             let n = self.read(tmp).await?;
+//             read_len += n;
+//             let (_, rest) = tmp.split_at_mut(n);
+//             tmp = rest;
+//         }
+//         if read_len == 0 {
+//             return Err(AxError::UnexpectedEof);
+//         }
+//         // seek back to old_pos
+//         let new_pos = self.seek(SeekFrom::Start(old_pos)).await.unwrap();
+
+//         assert_eq!(old_pos, new_pos);
+
+//         Ok(read_len)
+//     }
+
+//     /// Write to position without changing cursor.
+//     async fn write_to_seek(&mut self, pos: SeekFrom, buf: &[u8]) -> AxResult<usize> {
+//         // get old position
+//         let old_pos = self
+//             .seek(SeekFrom::Current(0))
+//             .await
+//             .expect("Error get current pos in file");
+//         // seek to write position
+//         let _ = self.seek(pos).await.unwrap();
+
+//         let write_len = self.write(buf).await;
+
+//         // seek back to old_pos
+//         let _ = self.seek(SeekFrom::Start(old_pos)).await.unwrap();
+
+//         write_len
+//     }
+// }
+
+// /// File I/O trait. 文件I/O操作，用于设置文件描述符，值得注意的是，这里的read/write/seek都是不可变引用
+// ///
+// /// 因为文件描述符读取的时候，是用到内部File成员的读取函数，自身应当为不可变，从而可以被Arc指针调用
+// pub trait FileIO: AsAny + Send + Sync + Unpin {
 //     /// 读取操作
-//     fn read(self: Pin<&Self>, _cx: &mut Context<'_>, _buf: &mut [u8]) -> Poll<AxResult<usize>> {
-//         Poll::Ready(Err(AxError::Unsupported)) // 如果没有实现, 则返回Unsupported
+//     async fn read(&self, _buf: &mut [u8]) -> AxResult<usize> {
+//         Err(AxError::Unsupported) // 如果没有实现, 则返回Unsupported
 //     }
 
 //     /// 写入操作
-//     fn write(self: Pin<&Self>, _cx: &mut Context<'_>, _buf: &[u8]) -> Poll<AxResult<usize>> {
-//         Poll::Ready(Err(AxError::Unsupported)) // 如果没有实现, 则返回Unsupported
+//     async fn write(&self, _buf: &[u8]) -> AxResult<usize> {
+//         Err(AxError::Unsupported) // 如果没有实现, 则返回Unsupported
 //     }
 
 //     /// 刷新操作
-//     fn flush(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<AxResult<()>> {
-//         Poll::Ready(Err(AxError::Unsupported)) // 如果没有实现, 则返回Unsupported
+//     async fn flush(&self) -> AxResult<()> {
+//         Err(AxError::Unsupported) // 如果没有实现, 则返回Unsupported
 //     }
 
 //     /// 移动指针操作
-//     fn seek(self: Pin<&Self>, _cx: &mut Context<'_>, _pos: SeekFrom) -> Poll<AxResult<u64>> {
-//         Poll::Ready(Err(AxError::Unsupported)) // 如果没有实现, 则返回Unsupported
+//     async fn seek(&self, _pos: SeekFrom) -> AxResult<u64> {
+//         Err(AxError::Unsupported) // 如果没有实现, 则返回Unsupported
 //     }
 
 //     /// whether the file is readable
-//     fn readable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
-//         Poll::Ready(false)
-//     }
+//     async fn readable(&self) -> bool;
 
 //     /// whether the file is writable
-//     fn writable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
-//         Poll::Ready(false)
-//     }
+//     async fn writable(&self) -> bool;
 
 //     /// whether the file is executable
-//     fn executable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
-//         Poll::Ready(false)
-//     }
+//     async fn executable(&self) -> bool;
 
 //     /// 获取类型
-//     fn get_type(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<FileIOType>;
+//     async fn get_type(&self) -> FileIOType;
 
 //     /// 获取路径
-//     fn get_path(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<String> {
+//     async fn get_path(&self) -> String {
 //         debug!("Function get_path not implemented");
-//         Poll::Ready(String::from("Function get_path not implemented"))
+//         String::from("Function get_path not implemented")
 //     }
 //     /// 获取文件信息
-//     fn get_stat(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<AxResult<Kstat>> {
-//         Poll::Ready(Err(AxError::Unsupported)) // 如果没有实现get_stat, 则返回Unsupported
+//     async fn get_stat(&self) -> AxResult<Kstat> {
+//         Err(AxError::Unsupported) // 如果没有实现get_stat, 则返回Unsupported
 //     }
 
 //     /// 截断文件到指定长度
-//     fn truncate(self: Pin<&Self>, _cx: &mut Context<'_>, _len: usize) -> Poll<AxResult<()>> {
+//     async fn truncate(&self, _len: usize) -> AxResult<()> {
 //         debug!("Function truncate not implemented");
-//         Poll::Ready(Err(AxError::Unsupported))
+//         Err(AxError::Unsupported)
 //     }
 
 //     /// debug
-//     fn print_content(self: Pin<&Self>, _cx: &mut Context<'_>) {
+//     async fn print_content(&self) {
 //         debug!("Function print_content not implemented");
 //     }
 
 //     /// 设置文件状态
-//     fn set_status(self: Pin<&Self>, _cx: &mut Context<'_>, _flags: OpenFlags) -> Poll<bool> {
-//         Poll::Ready(false)
+//     async fn set_status(&self, _flags: OpenFlags) -> bool {
+//         false
 //     }
 
 //     /// 获取文件状态
-//     fn get_status(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<OpenFlags> {
-//         Poll::Ready(OpenFlags::empty())
+//     async fn get_status(&self) -> OpenFlags {
+//         OpenFlags::empty()
 //     }
 
 //     /// 设置 close_on_exec 位
 //     /// 设置成功返回false
-//     fn set_close_on_exec(self: Pin<&Self>, _cx: &mut Context<'_>, _is_set: bool) -> Poll<bool> {
-//         Poll::Ready(false)
+//     async fn set_close_on_exec(&self, _is_set: bool) -> bool {
+//         false
 //     }
 
 //     /// 处于“意外情况”。在 (p)select 和 (p)poll 中会使用到
 //     ///
 //     /// 当前基本默认为false
-//     fn in_exceptional_conditions(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
-//         Poll::Ready(false)
+//     async fn in_exceptional_conditions(&self) -> bool {
+//         false
 //     }
 
 //     /// 是否已经终止，对pipe来说相当于另一端已经关闭
 //     ///
 //     /// 对于其他文件类型来说，是在被close的时候终止，但这个时候已经没有对应的filedesc了，所以自然不会调用这个函数
-//     fn is_hang_up(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
-//         Poll::Ready(false)
+//     async fn is_hang_up(&self) -> bool {
+//         false
 //     }
 
 //     /// 已准备好读。对于 pipe 来说，这意味着读端的buffer内有值
-//     fn ready_to_read(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
-//         Poll::Ready(false)
+//     async fn ready_to_read(&self) -> bool {
+//         false
 //     }
 //     /// 已准备好写。对于 pipe 来说，这意味着写端的buffer未满
-//     fn ready_to_write(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
-//         Poll::Ready(false)
+//     async fn ready_to_write(&self) -> bool {
+//         false
 //     }
 
 //     /// To control the file descriptor
-//     fn ioctl(self: Pin<&Self>, _cx: &mut Context<'_>, _request: usize, _arg1: usize) -> Poll<AxResult<isize>> {
-//         Poll::Ready(Err(AxError::Unsupported))
+//     async fn ioctl(&self, _request: usize, _arg1: usize) -> AxResult<isize> {
+//         Err(AxError::Unsupported)
 //     }
 // }
+
+
+// /// File I/O trait. 文件I/O操作，用于设置文件描述符，值得注意的是，这里的read/write/seek都是不可变引用
+// ///
+// /// 因为文件描述符读取的时候，是用到内部File成员的读取函数，自身应当为不可变，从而可以被Arc指针调用
+// #[async_trait::async_trait]
+// pub trait FileIO: AsAny + Send + Sync + Unpin {
+//     /// 读取操作
+//     async fn read(&self, _buf: &mut [u8]) -> AxResult<usize> {
+//         Err(AxError::Unsupported) // 如果没有实现, 则返回Unsupported
+//     }
+
+//     /// 写入操作
+//     async fn write(&self, _buf: &[u8]) -> AxResult<usize> {
+//         Err(AxError::Unsupported) // 如果没有实现, 则返回Unsupported
+//     }
+
+//     /// 刷新操作
+//     async fn flush(&self) -> AxResult<()> {
+//         Err(AxError::Unsupported) // 如果没有实现, 则返回Unsupported
+//     }
+
+//     /// 移动指针操作
+//     async fn seek(&self, _pos: SeekFrom) -> AxResult<u64> {
+//         Err(AxError::Unsupported) // 如果没有实现, 则返回Unsupported
+//     }
+
+//     /// whether the file is readable
+//     async fn readable(&self) -> bool;
+
+//     /// whether the file is writable
+//     async fn writable(&self) -> bool;
+
+//     /// whether the file is executable
+//     async fn executable(&self) -> bool;
+
+//     /// 获取类型
+//     async fn get_type(&self) -> FileIOType;
+
+//     /// 获取路径
+//     async fn get_path(&self) -> String {
+//         debug!("Function get_path not implemented");
+//         String::from("Function get_path not implemented")
+//     }
+//     /// 获取文件信息
+//     async fn get_stat(&self) -> AxResult<Kstat> {
+//         Err(AxError::Unsupported) // 如果没有实现get_stat, 则返回Unsupported
+//     }
+
+//     /// 截断文件到指定长度
+//     async fn truncate(&self, _len: usize) -> AxResult<()> {
+//         debug!("Function truncate not implemented");
+//         Err(AxError::Unsupported)
+//     }
+
+//     /// debug
+//     async fn print_content(&self) {
+//         debug!("Function print_content not implemented");
+//     }
+
+//     /// 设置文件状态
+//     async fn set_status(&self, _flags: OpenFlags) -> bool {
+//         false
+//     }
+
+//     /// 获取文件状态
+//     async fn get_status(&self) -> OpenFlags {
+//         OpenFlags::empty()
+//     }
+
+//     /// 设置 close_on_exec 位
+//     /// 设置成功返回false
+//     async fn set_close_on_exec(&self, _is_set: bool) -> bool {
+//         false
+//     }
+
+//     /// 处于“意外情况”。在 (p)select 和 (p)poll 中会使用到
+//     ///
+//     /// 当前基本默认为false
+//     async fn in_exceptional_conditions(&self) -> bool {
+//         false
+//     }
+
+//     /// 是否已经终止，对pipe来说相当于另一端已经关闭
+//     ///
+//     /// 对于其他文件类型来说，是在被close的时候终止，但这个时候已经没有对应的filedesc了，所以自然不会调用这个函数
+//     async fn is_hang_up(&self) -> bool {
+//         false
+//     }
+
+//     /// 已准备好读。对于 pipe 来说，这意味着读端的buffer内有值
+//     async fn ready_to_read(&self) -> bool {
+//         false
+//     }
+//     /// 已准备好写。对于 pipe 来说，这意味着写端的buffer未满
+//     async fn ready_to_write(&self) -> bool {
+//         false
+//     }
+
+//     /// To control the file descriptor
+//     async fn ioctl(&self, _request: usize, _arg1: usize) -> AxResult<isize> {
+//         Err(AxError::Unsupported)
+//     }
+// }
+
+#[async_trait]
+pub trait FileIO: {
+    /// 读取操作
+    fn read(self: Pin<&Self>, _cx: &mut Context<'_>, _buf: &mut [u8]) -> Poll<AxResult<usize>> {
+        Poll::Ready(Err(AxError::Unsupported)) // 如果没有实现, 则返回Unsupported
+    }
+
+    /// 写入操作
+    fn write(self: Pin<&Self>, _cx: &mut Context<'_>, _buf: &[u8]) -> Poll<AxResult<usize>> {
+        Poll::Ready(Err(AxError::Unsupported)) // 如果没有实现, 则返回Unsupported
+    }
+
+    /// 刷新操作
+    fn flush(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<AxResult<()>> {
+        Poll::Ready(Err(AxError::Unsupported)) // 如果没有实现, 则返回Unsupported
+    }
+
+    /// 移动指针操作
+    fn seek(self: Pin<&Self>, _cx: &mut Context<'_>, _pos: SeekFrom) -> Poll<AxResult<u64>> {
+        Poll::Ready(Err(AxError::Unsupported)) // 如果没有实现, 则返回Unsupported
+    }
+
+    /// whether the file is readable
+    fn readable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
+    }
+
+    /// whether the file is writable
+    fn writable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
+    }
+
+    /// whether the file is executable
+    fn executable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
+    }
+
+    /// 获取类型
+    fn get_type(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<FileIOType>;
+
+    /// 获取路径
+    fn get_path(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<String> {
+        debug!("Function get_path not implemented");
+        Poll::Ready(String::from("Function get_path not implemented"))
+    }
+    /// 获取文件信息
+    fn get_stat(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<AxResult<Kstat>> {
+        Poll::Ready(Err(AxError::Unsupported)) // 如果没有实现get_stat, 则返回Unsupported
+    }
+
+    /// 截断文件到指定长度
+    fn truncate(self: Pin<&Self>, _cx: &mut Context<'_>, _len: usize) -> Poll<AxResult<()>> {
+        debug!("Function truncate not implemented");
+        Poll::Ready(Err(AxError::Unsupported))
+    }
+
+    /// debug
+    fn print_content(self: Pin<&Self>, _cx: &mut Context<'_>) {
+        debug!("Function print_content not implemented");
+    }
+
+    /// 设置文件状态
+    fn set_status(self: Pin<&Self>, _cx: &mut Context<'_>, _flags: OpenFlags) -> Poll<bool> {
+        Poll::Ready(false)
+    }
+
+    /// 获取文件状态
+    fn get_status(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<OpenFlags> {
+        Poll::Ready(OpenFlags::empty())
+    }
+
+    /// 设置 close_on_exec 位
+    /// 设置成功返回false
+    fn set_close_on_exec(self: Pin<&Self>, _cx: &mut Context<'_>, _is_set: bool) -> Poll<bool> {
+        Poll::Ready(false)
+    }
+
+    /// 处于“意外情况”。在 (p)select 和 (p)poll 中会使用到
+    ///
+    /// 当前基本默认为false
+    fn in_exceptional_conditions(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
+    }
+
+    /// 是否已经终止，对pipe来说相当于另一端已经关闭
+    ///
+    /// 对于其他文件类型来说，是在被close的时候终止，但这个时候已经没有对应的filedesc了，所以自然不会调用这个函数
+    fn is_hang_up(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
+    }
+
+    /// 已准备好读。对于 pipe 来说，这意味着读端的buffer内有值
+    fn ready_to_read(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
+    }
+    /// 已准备好写。对于 pipe 来说，这意味着写端的buffer未满
+    fn ready_to_write(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
+    }
+
+    /// To control the file descriptor
+    fn ioctl(self: Pin<&Self>, _cx: &mut Context<'_>, _request: usize, _arg1: usize) -> Poll<AxResult<isize>> {
+        Poll::Ready(Err(AxError::Unsupported))
+    }
+}
 
 // impl<P> AsyncFileIOExt for Pin<P>
 // where

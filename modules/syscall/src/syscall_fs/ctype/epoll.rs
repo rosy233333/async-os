@@ -2,14 +2,14 @@ use axhal::time::current_ticks;
 use bitflags::bitflags;
 extern crate alloc;
 use alloc::{
-    boxed::Box,
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
     vec::Vec,
 };
+use core::{future::Future, pin::Pin, task::{Context, Poll, ready}};
 use axerrno::{AxError, AxResult};
 
-use async_fs::api::{FileIO, FileIOType, OpenFlags, SeekFrom};
+use async_fs::api::{AsyncFileIO, FileIO, FileIOType, OpenFlags, SeekFrom};
 
 use crate::SyscallError;
 use executor::{current_executor, yield_now};
@@ -204,50 +204,57 @@ impl EpollFile {
 }
 
 /// EpollFile也是一种文件，应当为其实现一个file io trait
-#[async_trait::async_trait]
 impl FileIO for EpollFile {
-    async fn read(&self, _buf: &mut [u8]) -> AxResult<usize> {
-        Err(AxError::Unsupported)
+    fn read(self:Pin< &Self> ,_cx: &mut Context<'_> ,_buf: &mut [u8]) -> Poll<AxResult<usize> > {
+        Poll::Ready(Err(AxError::Unsupported))
     }
-    async fn write(&self, _buf: &[u8]) -> AxResult<usize> {
-        Err(AxError::Unsupported)
+
+    fn write(self:Pin< &Self> ,_cx: &mut Context<'_> ,_buf: &[u8]) -> Poll<AxResult<usize> > {
+        Poll::Ready(Err(AxError::Unsupported))
     }
-    async fn flush(&self) -> AxResult {
-        Err(AxError::Unsupported)
+
+    fn flush(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<AxResult<()> > {
+        Poll::Ready(Err(AxError::Unsupported))
     }
-    async fn seek(&self, _pos: SeekFrom) -> AxResult<u64> {
-        Err(AxError::Unsupported)
+
+    fn seek(self:Pin< &Self> ,_cx: &mut Context<'_> ,_pos:SeekFrom) -> Poll<AxResult<u64> > {
+        Poll::Ready(Err(AxError::Unsupported))
     }
-    async fn readable(&self) -> bool {
-        false
+
+    fn readable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
-    async fn writable(&self) -> bool {
-        false
+
+    fn writable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
-    async fn executable(&self) -> bool {
-        false
-    }
+
+    fn executable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
+    }    
+
+    
     /// epoll file也是一个文件描述符
-    async fn get_type(&self) -> FileIOType {
-        FileIOType::FileDesc
+    fn get_type(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<FileIOType> {
+        Poll::Ready(FileIOType::FileDesc)
     }
 
-    async fn set_close_on_exec(&self, is_set: bool) -> bool {
+    fn set_close_on_exec(self:Pin< &Self> ,cx: &mut Context<'_> ,is_set:bool) -> Poll<bool> {
+        let mut flags = ready!(Pin::new(&mut self.flags.lock()).poll(cx));
         if is_set {
-            // 设置close_on_exec位置
-            *self.flags.lock().await |= OpenFlags::CLOEXEC;
+            *flags |= OpenFlags::CLOEXEC;
         } else {
-            *self.flags.lock().await &= !OpenFlags::CLOEXEC;
+            *flags &= !OpenFlags::CLOEXEC;
         }
-        true
+        Poll::Ready(true)
     }
 
-    async fn get_status(&self) -> OpenFlags {
-        *self.flags.lock().await
+    fn get_status(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<OpenFlags> {
+        Pin::new(&mut self.flags.lock()).poll(cx).map(|flags| *flags)
     }
 
-    async fn ready_to_read(&self) -> bool {
-        // 如果当前epoll事件确实正在等待事件响应，那么可以认为事件准备好read，尽管无法读到实际内容
+    fn ready_to_read(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        // // 如果当前epoll事件确实正在等待事件响应，那么可以认为事件准备好read，尽管无法读到实际内容
         // let process = current_executor();
         // let fd_manager = &process.fd_manager;
         // let fd_table = fd_manager.fd_table.lock().await;
@@ -269,10 +276,10 @@ impl FileIO for EpollFile {
         //             ret_event_type |= EpollEventType::EPOLLOUT;
         //         }
         //         if !ret_event_type.is_empty() {
-        //             return true;
+        //             return Poll::Ready(true);
         //         }
         //     }
         // }
-        false
-    }
+        Poll::Ready(false)
+    }   
 }

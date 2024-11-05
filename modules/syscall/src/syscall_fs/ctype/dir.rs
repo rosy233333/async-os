@@ -1,9 +1,9 @@
 use crate::{normal_file_mode, StMode};
 extern crate alloc;
-use alloc::boxed::Box;
-use alloc::string::{String, ToString};
-use async_fs::api::{self, async_trait, FileIO, FileIOType, Kstat, OpenFlags, SeekFrom};
+use alloc::string::String;
+use async_fs::api::{self, FileIO, FileIOType, Kstat, OpenFlags, SeekFrom};
 use axerrno::{AxError, AxResult};
+use core::{pin::Pin, task::{Context, Poll}};
 
 /// 目录描述符
 pub struct DirDesc {
@@ -19,46 +19,46 @@ impl DirDesc {
     }
 }
 
-#[async_trait]
 /// 为DirDesc实现FileIO trait
 impl FileIO for DirDesc {
-    async fn read(&self, _buf: &mut [u8]) -> AxResult<usize> {
-        Err(AxError::IsADirectory)
+    
+    fn read(self:Pin< &Self> ,_cx: &mut Context<'_> ,_buf: &mut [u8]) -> Poll<AxResult<usize> > {
+        Poll::Ready(Err(AxError::IsADirectory))
     }
 
-    async fn write(&self, _buf: &[u8]) -> AxResult<usize> {
-        Err(AxError::IsADirectory)
+    fn write(self:Pin< &Self> ,_cx: &mut Context<'_> ,_buf: &[u8]) -> Poll<AxResult<usize> > {
+        Poll::Ready(Err(AxError::IsADirectory))
     }
 
-    async fn flush(&self) -> AxResult<()> {
-        Err(AxError::IsADirectory)
+    fn flush(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<AxResult<()> > {
+        Poll::Ready(Err(AxError::IsADirectory))
     }
 
-    async fn seek(&self, _pos: SeekFrom) -> AxResult<u64> {
-        Err(AxError::IsADirectory)
+    fn seek(self:Pin< &Self> ,_cx: &mut Context<'_> ,_pos:SeekFrom) -> Poll<AxResult<u64> > {
+        Poll::Ready(Err(AxError::IsADirectory))
     }
 
-    async fn get_type(&self) -> FileIOType {
-        FileIOType::DirDesc
+    fn get_type(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<FileIOType> {
+        Poll::Ready(FileIOType::DirDesc)
     }
 
-    async fn executable(&self) -> bool {
-        false
+    fn executable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn readable(&self) -> bool {
-        false
+    fn readable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn writable(&self) -> bool {
-        false
+    fn writable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn get_path(&self) -> String {
-        self.dir_path.to_string().clone()
+    fn get_path(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<String> {
+        Poll::Ready(self.dir_path.clone())
     }
 
-    async fn get_stat(&self) -> AxResult<Kstat> {
+    fn get_stat(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<AxResult<Kstat> > {
         let kstat = Kstat {
             st_dev: 1,
             st_ino: 0,
@@ -79,7 +79,7 @@ impl FileIO for DirDesc {
             st_ctime_sec: 0,
             st_ctime_nsec: 0,
         };
-        Ok(kstat)
+        Poll::Ready(Ok(kstat))
     }
 }
 

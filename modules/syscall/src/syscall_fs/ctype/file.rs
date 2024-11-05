@@ -6,8 +6,10 @@ use alloc::string::{String, ToString};
 use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
-use async_fs::api::{async_trait, File, FileIO, FileIOType, Kstat, OpenFlags, SeekFrom};
+use async_fs::api::{File, FileIO, FileIOType, Kstat, OpenFlags, SeekFrom};
+use async_io::{AsyncRead, AsyncSeek, AsyncWrite};
 use axerrno::AxResult;
+use core::{future::Future, pin::Pin, task::{ready, Context, Poll}};
 
 use axlog::debug;
 
@@ -43,148 +45,156 @@ pub struct FileMetaData {
     // pub flags: OpenFlags,
 }
 
-#[async_trait]
 /// 为FileDesc实现 FileIO trait
 impl FileIO for FileDesc {
-    async fn read(&self, buf: &mut [u8]) -> AxResult<usize> {
-        let mut file = self.file.lock().await;
-        file.read(buf).await
+
+    fn read(self:Pin< &Self> ,cx: &mut Context<'_> ,buf: &mut [u8]) -> Poll<AxResult<usize> > {
+        let mut file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
+        AsyncRead::read(Pin::new(&mut *file), cx, buf)
     }
 
-    async fn write(&self, buf: &[u8]) -> AxResult<usize> {
-        let mut file = self.file.lock().await;
-        let old_offset = file.seek(SeekFrom::Current(0)).await.unwrap();
-        let size = file.metadata().await.unwrap().size();
+    fn write(self:Pin< &Self> ,cx: &mut Context<'_> ,buf: &[u8]) -> Poll<AxResult<usize> > {
+        let mut file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
+        let old_offset = ready!(AsyncSeek::seek(Pin::new(&mut *file), cx, SeekFrom::Current(0))).unwrap();
+        // 这里使用了 Box，是否存在不需要进行额外堆分配的操作
+        let size = ready!(Box::pin(file.metadata()).as_mut().poll(cx)).unwrap().size();
         if old_offset > size {
-            let _ = file.seek(SeekFrom::Start(size)).await;
+            let _ = ready!(AsyncSeek::seek(Pin::new(&mut *file), cx, SeekFrom::Start(size)));
             let temp_buf: Vec<u8> = vec![0u8; (old_offset - size) as usize];
-            let _ = file.write(&temp_buf).await;
+            let _ = ready!(AsyncWrite::write(Pin::new(&mut *file), cx, &temp_buf));
         }
-        file.write(buf).await
+        AsyncWrite::write(Pin::new(&mut *file), cx, buf)
+    }
+    
+    fn flush(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<AxResult<()> > {
+        let mut file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
+        AsyncWrite::flush(Pin::new(&mut *file), cx)
     }
 
-    async fn flush(&self) -> AxResult<()> {
-        let file = self.file.lock().await;
-        file.flush().await
+    fn seek(self:Pin< &Self> ,cx: &mut Context<'_> ,pos:SeekFrom) -> Poll<AxResult<u64> > {
+        let mut file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
+        AsyncSeek::seek(Pin::new(&mut *file), cx, pos)
     }
 
-    async fn seek(&self, pos: SeekFrom) -> AxResult<u64> {
-        let mut file = self.file.lock().await;
-        file.seek(pos).await
+    fn readable(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+        let file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
+        Poll::Ready(file.readable())
     }
 
-    async fn readable(&self) -> bool {
-        let flags = self.flags.lock().await;
-        flags.readable()
+    fn writable(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+        let file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
+        Poll::Ready(file.writable())
     }
 
-    async fn writable(&self) -> bool {
-        let flags = self.flags.lock().await;
-        flags.writable()
+    fn executable(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+        let file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
+        Poll::Ready(file.executable())
     }
 
-    async fn executable(&self) -> bool {
-        let file = self.file.lock().await;
-        file.executable()
+    fn get_type(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<FileIOType> {
+        Poll::Ready(FileIOType::FileDesc)
     }
 
-    async fn get_type(&self) -> FileIOType {
-        FileIOType::FileDesc
+
+    fn get_path(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<String> {
+        Poll::Ready(self.path.clone())
     }
 
-    async fn get_path(&self) -> String {
-        self.path.clone()
+    fn truncate(self:Pin< &Self> ,cx: &mut Context<'_> ,len:usize) -> Poll<AxResult<()> > {
+        let file = ready!(Pin::new(&mut self.file.lock()).poll(cx));
+        let res = Box::pin(file.truncate(len as _)).as_mut().poll(cx);
+        res
     }
 
-    async fn truncate(&self, len: usize) -> AxResult<()> {
-        let file = self.file.lock().await;
-        file.truncate(len as _).await
-    }
-
-    async fn get_stat(&self) -> AxResult<Kstat> {
-        let file = self.file.lock().await;
-        let attr = file.get_attr().await?;
-        let stat = self.stat.lock().await;
-        let inode_map = INODE_NAME_MAP.lock().await;
-        let inode_number = if let Some(inode_number) = inode_map.get(&self.path) {
-            *inode_number
-        } else {
-            // return Err(axerrno::AxError::NotFound);
-            // Now the file exists but it wasn't opened
-            drop(inode_map);
-            new_inode(self.path.clone()).await?;
+    fn get_stat(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<AxResult<Kstat> > {
+        let fut = async {
+            let file = self.file.lock().await;
+            let attr = file.get_attr().await?;
+            let stat = self.stat.lock().await;
             let inode_map = INODE_NAME_MAP.lock().await;
-            assert!(inode_map.contains_key(&self.path));
-            let number = *(inode_map.get(&self.path).unwrap());
-            drop(inode_map);
-            number
+            let inode_number = if let Some(inode_number) = inode_map.get(&self.path) {
+                *inode_number
+            } else {
+                // return Err(axerrno::AxError::NotFound);
+                // Now the file exists but it wasn't opened
+                drop(inode_map);
+                new_inode(self.path.clone()).await?;
+                let inode_map = INODE_NAME_MAP.lock().await;
+                assert!(inode_map.contains_key(&self.path));
+                let number = *(inode_map.get(&self.path).unwrap());
+                drop(inode_map);
+                number
+            };
+            let kstat = Kstat {
+                st_dev: 1,
+                st_ino: inode_number,
+                st_mode: normal_file_mode(StMode::S_IFREG).bits() | 0o777,
+                st_nlink: get_link_count(&(self.path.as_str().to_string())).await as _,
+                st_uid: 0,
+                st_gid: 0,
+                st_rdev: 0,
+                _pad0: 0,
+                st_size: attr.size(),
+                st_blksize: async_fs::BLOCK_SIZE as u32,
+                _pad1: 0,
+                st_blocks: attr.blocks(),
+                st_atime_sec: stat.atime.tv_sec as isize,
+                st_atime_nsec: stat.atime.tv_nsec as isize,
+                st_mtime_sec: stat.mtime.tv_sec as isize,
+                st_mtime_nsec: stat.mtime.tv_nsec as isize,
+                st_ctime_sec: stat.ctime.tv_sec as isize,
+                st_ctime_nsec: stat.ctime.tv_nsec as isize,
+            };
+            Ok(kstat)
         };
-        let kstat = Kstat {
-            st_dev: 1,
-            st_ino: inode_number,
-            st_mode: normal_file_mode(StMode::S_IFREG).bits() | 0o777,
-            st_nlink: get_link_count(&(self.path.as_str().to_string())).await as _,
-            st_uid: 0,
-            st_gid: 0,
-            st_rdev: 0,
-            _pad0: 0,
-            st_size: attr.size(),
-            st_blksize: async_fs::BLOCK_SIZE as u32,
-            _pad1: 0,
-            st_blocks: attr.blocks(),
-            st_atime_sec: stat.atime.tv_sec as isize,
-            st_atime_nsec: stat.atime.tv_nsec as isize,
-            st_mtime_sec: stat.mtime.tv_sec as isize,
-            st_mtime_nsec: stat.mtime.tv_nsec as isize,
-            st_ctime_sec: stat.ctime.tv_sec as isize,
-            st_ctime_nsec: stat.ctime.tv_nsec as isize,
-        };
-        Ok(kstat)
+        let res = Box::pin(fut).as_mut().poll(cx);
+        res
+    }
+    
+    fn set_status(self:Pin< &Self> ,cx: &mut Context<'_> ,flags:OpenFlags) -> Poll<bool> {
+        *ready!(Pin::new(&mut self.flags.lock()).poll(cx)) = flags;
+        Poll::Ready(true)
     }
 
-    async fn set_status(&self, flags: OpenFlags) -> bool {
-        *self.flags.lock().await = flags;
-        true
+    fn get_status(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<OpenFlags> {
+        Pin::new(&mut self.flags.lock()).poll(cx).map(|flags| *flags)
     }
 
-    async fn get_status(&self) -> OpenFlags {
-        *self.flags.lock().await
-    }
-
-    async fn set_close_on_exec(&self, is_set: bool) -> bool {
+    fn set_close_on_exec(self:Pin< &Self> ,cx: &mut Context<'_> ,is_set:bool) -> Poll<bool> {
+        let mut flags = ready!(Pin::new(&mut self.flags.lock()).poll(cx));
         if is_set {
             // 设置close_on_exec位置
-            *self.flags.lock().await |= OpenFlags::CLOEXEC;
+            *flags |= OpenFlags::CLOEXEC;
         } else {
-            *self.flags.lock().await &= !OpenFlags::CLOEXEC;
+            *flags &= !OpenFlags::CLOEXEC;
         }
-        true
+        Poll::Ready(true)
     }
 
-    async fn ready_to_read(&self) -> bool {
-        if !self.readable().await {
-            return false;
+    fn ready_to_read(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+        if ready!(self.readable(cx)) {
+            return Poll::Ready(false);
         }
         // 获取当前的位置
-        let now_pos = self.seek(SeekFrom::Current(0)).await.unwrap();
+        let now_pos = ready!(self.seek(cx, SeekFrom::Current(0))).unwrap();
         // 获取最后的位置
-        let len = self.seek(SeekFrom::End(0)).await.unwrap();
+        let len: u64 = ready!(self.seek(cx, SeekFrom::End(0))).unwrap();
         // 把文件指针复原，因为获取len的时候指向了尾部
-        self.seek(SeekFrom::Start(now_pos)).await.unwrap();
-        now_pos != len
+        ready!(self.seek(cx, SeekFrom::Start(now_pos))).unwrap();
+        Poll::Ready(now_pos != len)
     }
 
-    async fn ready_to_write(&self) -> bool {
-        if !self.writable().await {
-            return false;
+    fn ready_to_write(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+        if ready!(self.writable(cx)) {
+            return Poll::Ready(false);
         }
         // 获取当前的位置
-        let now_pos = self.seek(SeekFrom::Current(0)).await.unwrap();
+        let now_pos = ready!(self.seek(cx, SeekFrom::Current(0))).unwrap();
         // 获取最后的位置
-        let len = self.seek(SeekFrom::End(0)).await.unwrap();
+        let len: u64 = ready!(self.seek(cx, SeekFrom::End(0))).unwrap();
         // 把文件指针复原，因为获取len的时候指向了尾部
-        self.seek(SeekFrom::Start(now_pos)).await.unwrap();
-        now_pos != len
+        ready!(self.seek(cx, SeekFrom::Start(now_pos))).unwrap();
+        Poll::Ready(now_pos != len)
     }
 }
 

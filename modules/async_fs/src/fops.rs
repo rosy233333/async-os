@@ -8,6 +8,7 @@ use core::fmt;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
+use crate::api::FileExtTrait;
 #[cfg(feature = "myfs")]
 pub use crate::dev::Disk;
 #[cfg(feature = "myfs")]
@@ -29,6 +30,8 @@ pub struct File {
     is_append: bool,
     offset: u64,
 }
+
+impl FileExtTrait for File {}
 
 impl AsyncRead for File {
     fn read(

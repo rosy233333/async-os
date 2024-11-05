@@ -2,7 +2,7 @@ extern crate alloc;
 use crate::{normal_file_mode, StMode, SyscallError};
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use async_fs::api::{path_exists, FileIO, Kstat, OpenFlags};
+use async_fs::api::{path_exists, AsyncFileIO, Kstat, OpenFlags};
 use axlog::{debug, info};
 use executor::link::FilePath;
 use sync::Mutex;

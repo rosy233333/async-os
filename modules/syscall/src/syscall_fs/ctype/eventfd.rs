@@ -1,10 +1,10 @@
-use alloc::boxed::Box;
 use alloc::sync::Arc;
 use async_fs::api::{FileIO, FileIOType, OpenFlags};
 use axerrno::{AxError, AxResult};
 use bitflags::bitflags;
-use executor::yield_now;
 use sync::Mutex;
+use core::{future::Future, pin::Pin, task::{ready, Context, Poll}};
+
 
 bitflags! {
     // https://sites.uclouvain.be/SystInfo/usr/include/sys/eventfd.h.html
@@ -39,109 +39,107 @@ impl EventFd {
     }
 }
 
-#[async_trait::async_trait]
 impl FileIO for EventFd {
-    async fn read(&self, buf: &mut [u8]) -> AxResult<usize> {
+    fn read(self:Pin< &Self> ,cx: &mut Context<'_> ,buf: &mut [u8]) -> Poll<AxResult<usize> > {
+        
         let len: usize = core::mem::size_of::<u64>();
         if buf.len() < len {
-            return Err(AxError::InvalidInput);
+            return Poll::Ready(Err(AxError::InvalidInput));
         }
 
-        loop {
-            let mut value_guard = self.value.lock().await;
-            // If EFD_SEMAPHORE was not specified and the eventfd counter has a nonzero value, then a read returns 8 bytes containing that value,
-            // and the counter's value is reset to zero.
-            if !self.has_semaphore_set() && *value_guard != 0 {
-                buf[0..len].copy_from_slice(&value_guard.to_ne_bytes());
-                *value_guard = 0;
-                return Ok(len);
-            }
+        let mut value_guard = ready!(Pin::new(&mut self.value.lock()).poll(cx));
+        // If EFD_SEMAPHORE was not specified and the eventfd counter has a nonzero value, then a read returns 8 bytes containing that value,
+        // and the counter's value is reset to zero.
+        if !self.has_semaphore_set() && *value_guard != 0 {
+            buf[0..len].copy_from_slice(&value_guard.to_ne_bytes());
+            *value_guard = 0;
+            return Poll::Ready(Ok(len));
+        }
 
-            // If EFD_SEMAPHORE was specified and the eventfd counter has a nonzero value, then a read returns 8 bytes containing the value 1,
-            // and the counter's value is decremented by 1.
-            if self.has_semaphore_set() && *value_guard != 0 {
-                let result: u64 = 1;
-                buf[0..len].copy_from_slice(&result.to_ne_bytes());
-                let _ = value_guard.checked_add_signed(-1);
-                return Ok(len);
-            }
+        // If EFD_SEMAPHORE was specified and the eventfd counter has a nonzero value, then a read returns 8 bytes containing the value 1,
+        // and the counter's value is decremented by 1.
+        if self.has_semaphore_set() && *value_guard != 0 {
+            let result: u64 = 1;
+            buf[0..len].copy_from_slice(&result.to_ne_bytes());
+            let _ = value_guard.checked_add_signed(-1);
+            return Poll::Ready(Ok(len));
+        }
 
-            // If the eventfd counter is zero at the time of the call to read,
-            // then the call either blocks until the counter becomes nonzero (at which time, the read proceeds as described above)
-            // or fails with the error EAGAIN if the file descriptor has been made nonblocking.
-            if *value_guard != 0 {
-                buf[0..len].copy_from_slice(&value_guard.to_ne_bytes());
-                return Ok(len);
-            }
+        // If the eventfd counter is zero at the time of the call to read,
+        // then the call either blocks until the counter becomes nonzero (at which time, the read proceeds as described above)
+        // or fails with the error EAGAIN if the file descriptor has been made nonblocking.
+        if *value_guard != 0 {
+            buf[0..len].copy_from_slice(&value_guard.to_ne_bytes());
+            return Poll::Ready(Ok(len));
+        }
 
-            if self.should_block() {
-                drop(value_guard);
-                yield_now().await;
-            } else {
-                return Err(AxError::WouldBlock);
-            }
+        if self.should_block() {
+            drop(value_guard);
+            cx.waker().wake_by_ref();
+            return Poll::Pending;
+        } else {
+            return Poll::Ready(Err(AxError::WouldBlock));
         }
     }
 
-    async fn write(&self, buf: &[u8]) -> AxResult<usize> {
+    fn write(self:Pin< &Self> ,cx: &mut Context<'_> ,buf: &[u8]) -> Poll<AxResult<usize> > {
         let len: usize = core::mem::size_of::<u64>();
 
         // A write fails with the error EINVAL if the size of the supplied buffer is less than 8 bytes,
         // or if an attempt is made to write the value 0xffffffffffffffff.
         let val = u64::from_ne_bytes(buf[0..len].try_into().unwrap());
         if buf.len() < 8 || val == u64::MAX {
-            return Err(AxError::InvalidInput);
+            return Poll::Ready(Err(AxError::InvalidInput));
         }
 
-        loop {
-            let mut value_guard = self.value.lock().await;
-            // The maximum value that may be stored in the counter is the largest unsigned 64-bit value minus 1 (i.e., 0xfffffffffffffffe).
-            match value_guard.checked_add(val + 1) {
-                // no overflow
-                Some(_) => {
-                    *value_guard += val;
-                    return Ok(len);
-                }
-                // overflow
-                None => {
-                    if self.should_block() {
-                        drop(value_guard);
-                        yield_now().await;
-                    } else {
-                        return Err(AxError::WouldBlock);
-                    }
+        let mut value_guard = ready!(Pin::new(&mut self.value.lock()).poll(cx));
+        // The maximum value that may be stored in the counter is the largest unsigned 64-bit value minus 1 (i.e., 0xfffffffffffffffe).
+        match value_guard.checked_add(val + 1) {
+            // no overflow
+            Some(_) => {
+                *value_guard += val;
+                return Poll::Ready(Ok(len));
+            }
+            // overflow
+            None => {
+                if self.should_block() {
+                    drop(value_guard);
+                    cx.waker().wake_by_ref();
+                    return Poll::Pending;
+                } else {
+                    return Poll::Ready(Err(AxError::WouldBlock));
                 }
             }
         }
     }
 
-    async fn readable(&self) -> bool {
-        true
+    fn readable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(true)
     }
 
-    async fn writable(&self) -> bool {
-        true
+    fn writable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(true)
     }
 
-    async fn executable(&self) -> bool {
-        false
+    fn executable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn get_type(&self) -> FileIOType {
-        FileIOType::Other
+    fn get_type(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<FileIOType> {
+        Poll::Ready(FileIOType::Other)
     }
 
     // The file descriptor is readable if the counter has a value greater than 0
-    async fn ready_to_read(&self) -> bool {
-        *self.value.lock().await > 0
+    fn ready_to_read(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+        Pin::new(&mut self.value.lock()).poll(cx).map(|value| *value > 0)
     }
 
     // The file descriptor is writable if it is possible to write a value of at least "1" without blocking.
-    async fn ready_to_write(&self) -> bool {
-        *self.value.lock().await < u64::MAX - 1
+    fn ready_to_write(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+        Pin::new(&mut self.value.lock()).poll(cx).map(|value| *value < u64::MAX - 1)
     }
 
-    async fn get_status(&self) -> OpenFlags {
+    fn get_status(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<OpenFlags> {
         let mut status = OpenFlags::RDWR;
         if self.flags & EventFdFlag::EFD_NONBLOCK.bits() != 0 {
             status |= OpenFlags::NON_BLOCK;
@@ -149,8 +147,7 @@ impl FileIO for EventFd {
         if self.flags & EventFdFlag::EFD_CLOEXEC.bits() != 0 {
             status |= OpenFlags::CLOEXEC;
         }
-
-        status
+        Poll::Ready(status)
     }
 }
 

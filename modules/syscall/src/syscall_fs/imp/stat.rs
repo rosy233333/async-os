@@ -2,7 +2,7 @@
 //!
 
 use crate::{get_fs_stat, syscall_fs::solve_path, FsStat, FsStatx, SyscallError, SyscallResult};
-use async_fs::api::Kstat;
+use async_fs::api::{AsyncFileIO, Kstat};
 use axlog::{debug, info};
 use executor::{
     current_executor,

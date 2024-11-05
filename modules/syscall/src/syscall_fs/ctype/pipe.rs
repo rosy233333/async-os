@@ -6,6 +6,7 @@ use alloc::{
 };
 use axerrno::AxResult;
 use axlog::{info, trace};
+use core::{future::Future, pin::Pin, task::{ready, Context, Poll}};
 
 use executor::yield_now;
 use sync::Mutex;
@@ -126,148 +127,166 @@ pub async fn make_pipe(flags: OpenFlags) -> (Arc<Pipe>, Arc<Pipe>) {
     (read_end, write_end)
 }
 
-#[async_trait::async_trait]
 impl FileIO for Pipe {
-    async fn read(&self, buf: &mut [u8]) -> AxResult<usize> {
-        assert!(self.readable().await);
-        let want_to_read = buf.len();
-        let mut buf_iter = buf.iter_mut();
-        let mut already_read = 0usize;
-        loop {
-            let mut ring_buffer = self.buffer.lock().await;
-            let loop_read = ring_buffer.available_read();
-            info!("kernel: Pipe::read: loop_read = {}", loop_read);
-            if loop_read == 0 {
-                if executor::current_executor().have_signals().await.is_some() {
-                    return Err(axerrno::AxError::Interrupted);
-                }
-                info!(
-                    "kernel: Pipe::read: all_write_ends_closed = {}",
-                    ring_buffer.all_write_ends_closed()
-                );
-                if Arc::strong_count(&self.buffer) < 2 || ring_buffer.all_write_ends_closed() {
-                    return Ok(already_read);
-                }
+    fn read(self:Pin< &Self> ,cx: &mut Context<'_> ,buf: &mut [u8]) -> Poll<AxResult<usize> > {
+        let fut = async{
+            assert!(self.readable);
+            let want_to_read = buf.len();
+            let mut buf_iter = buf.iter_mut();
+            let mut already_read = 0usize;
+            loop {
+                let mut ring_buffer = self.buffer.lock().await;
+                let loop_read = ring_buffer.available_read();
+                info!("kernel: Pipe::read: loop_read = {}", loop_read);
+                if loop_read == 0 {
+                    if executor::current_executor().have_signals().await.is_some() {
+                        return Err(axerrno::AxError::Interrupted);
+                    }
+                    info!(
+                        "kernel: Pipe::read: all_write_ends_closed = {}",
+                        ring_buffer.all_write_ends_closed()
+                    );
+                    if Arc::strong_count(&self.buffer) < 2 || ring_buffer.all_write_ends_closed() {
+                        return Ok(already_read);
+                    }
 
-                if self.is_non_block().await {
+                    if self.is_non_block().await {
+                        yield_now().await;
+                        return Err(axerrno::AxError::WouldBlock);
+                    }
+                    drop(ring_buffer);
                     yield_now().await;
-                    return Err(axerrno::AxError::WouldBlock);
+                    continue;
                 }
-                drop(ring_buffer);
-                yield_now().await;
-                continue;
-            }
-            for _ in 0..loop_read {
-                if let Some(byte_ref) = buf_iter.next() {
-                    *byte_ref = ring_buffer.read_byte();
-                    already_read += 1;
-                    if already_read == want_to_read {
-                        return Ok(want_to_read);
+                for _ in 0..loop_read {
+                    if let Some(byte_ref) = buf_iter.next() {
+                        *byte_ref = ring_buffer.read_byte();
+                        already_read += 1;
+                        if already_read == want_to_read {
+                            return Ok(want_to_read);
+                        }
+                    } else {
+                        break;
                     }
-                } else {
-                    break;
                 }
-            }
 
-            return Ok(already_read);
-        }
+                return Ok(already_read);
+            }
+        };
+        let res = Box::pin(fut).as_mut().poll(cx);
+        res
     }
 
-    async fn write(&self, buf: &[u8]) -> AxResult<usize> {
-        info!("kernel: Pipe::write");
-        assert!(self.writable().await);
-        let want_to_write = buf.len();
-        let mut buf_iter = buf.iter();
-        let mut already_write = 0usize;
-        loop {
-            let mut ring_buffer = self.buffer.lock().await;
-            let loop_write = ring_buffer.available_write();
-            if loop_write == 0 {
-                drop(ring_buffer);
+    fn write(self:Pin< &Self> ,cx: &mut Context<'_> ,buf: &[u8]) -> Poll<AxResult<usize> > {
+        let fut = async {
+            info!("kernel: Pipe::write");
+            assert!(self.writable);
+            let want_to_write = buf.len();
+            let mut buf_iter = buf.iter();
+            let mut already_write = 0usize;
+            loop {
+                let mut ring_buffer = self.buffer.lock().await;
+                let loop_write = ring_buffer.available_write();
+                if loop_write == 0 {
+                    drop(ring_buffer);
 
-                if Arc::strong_count(&self.buffer) < 2 || self.is_non_block().await {
-                    // 读入端关闭
-                    return Ok(already_write);
-                }
-                yield_now().await;
-                continue;
-            }
-
-            // write at most loop_write bytes
-            for _ in 0..loop_write {
-                if let Some(byte_ref) = buf_iter.next() {
-                    ring_buffer.write_byte(*byte_ref);
-                    already_write += 1;
-                    if already_write == want_to_write {
-                        drop(ring_buffer);
-                        return Ok(want_to_write);
+                    if Arc::strong_count(&self.buffer) < 2 || self.is_non_block().await {
+                        // 读入端关闭
+                        return Ok(already_write);
                     }
-                } else {
-                    break;
+                    yield_now().await;
+                    continue;
                 }
+
+                // write at most loop_write bytes
+                for _ in 0..loop_write {
+                    if let Some(byte_ref) = buf_iter.next() {
+                        ring_buffer.write_byte(*byte_ref);
+                        already_write += 1;
+                        if already_write == want_to_write {
+                            drop(ring_buffer);
+                            return Ok(want_to_write);
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                return Ok(already_write);
             }
-            return Ok(already_write);
-        }
+        };
+        let res = Box::pin(fut).as_mut().poll(cx);
+        res
     }
 
-    async fn executable(&self) -> bool {
-        false
-    }
-    async fn readable(&self) -> bool {
-        self.readable
-    }
-    async fn writable(&self) -> bool {
-        self.writable
+    fn executable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    async fn get_type(&self) -> FileIOType {
-        FileIOType::Pipe
+    fn readable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(self.readable)
     }
 
-    async fn is_hang_up(&self) -> bool {
+    fn writable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(self.writable)
+    }
+
+    fn get_type(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<FileIOType> {
+        Poll::Ready(FileIOType::Pipe)
+    }
+
+    fn is_hang_up(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
         if self.readable {
-            if self.buffer.lock().await.available_read() == 0
-                && self.buffer.lock().await.all_write_ends_closed()
-            {
+            let ring_buffer = ready!(Pin::new(&mut self.buffer.lock()).poll(cx));
+            if ring_buffer.available_read() == 0 && ring_buffer.all_write_ends_closed() {
                 // 写入端关闭且缓冲区读完了
-                true
+                Poll::Ready(true)
             } else {
-                false
+                Poll::Ready(false)
             }
         } else {
-            // 否则在写入端，只关心读入端是否被关闭
-            Arc::strong_count(&self.buffer) < 2
+            Poll::Ready(Arc::strong_count(&self.buffer) < 2)
         }
     }
 
-    async fn ready_to_read(&self) -> bool {
-        self.readable && self.buffer.lock().await.available_read() != 0
+    fn ready_to_read(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        if !self.readable {
+            Poll::Ready(false)
+        } else {
+            let ring_buffer = ready!(Pin::new(&mut self.buffer.lock()).poll(_cx));
+            Poll::Ready(ring_buffer.available_read() != 0)
+        }
     }
 
-    async fn ready_to_write(&self) -> bool {
-        self.writable && self.buffer.lock().await.available_write() != 0
-    }
-
-    /// 设置文件状态
-    async fn set_status(&self, flags: OpenFlags) -> bool {
-        *self.flags.lock().await = flags;
-        true
+    fn ready_to_write(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<bool> {
+        if !self.writable {
+            Poll::Ready(false)
+        } else {
+            let ring_buffer = ready!(Pin::new(&mut self.buffer.lock()).poll(cx));
+            Poll::Ready(ring_buffer.available_write() != 0)
+        }
     }
 
     /// 获取文件状态
-    async fn get_status(&self) -> OpenFlags {
-        *self.flags.lock().await
+    fn get_status(self:Pin< &Self> ,cx: &mut Context<'_>) -> Poll<OpenFlags> {
+        Pin::new(&mut self.flags.lock()).poll(cx).map(|flags| *flags)
+    }
+
+    /// 设置文件状态
+    fn set_status(self:Pin< &Self> ,cx: &mut Context<'_> ,flags:OpenFlags) -> Poll<bool> {
+        *ready!(Pin::new(&mut self.flags.lock()).poll(cx)) = flags;
+        Poll::Ready(true)
     }
 
     /// 设置 close_on_exec 位
     /// 设置成功返回false
-    async fn set_close_on_exec(&self, is_set: bool) -> bool {
+    fn set_close_on_exec(self:Pin< &Self> ,cx: &mut Context<'_> ,is_set:bool) -> Poll<bool> {
+        let mut flags = ready!(Pin::new(&mut self.flags.lock()).poll(cx));
         if is_set {
             // 设置close_on_exec位置
-            *self.flags.lock().await |= OpenFlags::CLOEXEC;
+            *flags |= OpenFlags::CLOEXEC;
         } else {
-            *self.flags.lock().await &= !OpenFlags::CLOEXEC;
+            *flags &= !OpenFlags::CLOEXEC;
         }
-        true
+        Poll::Ready(true)
     }
 }

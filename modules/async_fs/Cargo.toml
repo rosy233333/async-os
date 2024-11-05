@@ -19,7 +19,8 @@ capability = { git = "https://github.com/Starry-OS/capability.git" }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 bitflags = "2.6"
 futures-core = { version = "0.3.30", default-features = false, features = ["alloc"] }
-async-trait = "0.1.83"
+# async-trait = "0.1.83"
+async_utils = { path = "../async_utils" }
 
 [dependencies.fatfs]
 git = "https://github.com/rafalh/rust-fatfs"

@@ -1,8 +1,8 @@
 use async_io::Result;
 use core::fmt;
 use crate::fops;
-use super::FileExt;
-use alloc::boxed::Box;
+use super::FilePremTrait;
+use core::{pin::Pin, task::{Context, Poll}};
 
 /// A structure representing a type of file with accessors for each file type.
 /// It is returned by [`Metadata::file_type`] method.
@@ -170,19 +170,18 @@ impl File {
     }
 }
 
-#[async_trait::async_trait]
-impl FileExt for File {
-    async fn readable(&self) -> bool {
-        self.readable()
+impl FilePremTrait for File {
+    
+    fn readable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(self.get_ref().readable())
     }
 
-    /// whether the file is writable
-    async fn writable(&self) -> bool {
-        self.writable()
+    fn writable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(self.get_ref().writable())
     }
 
-    /// whether the file is executable
-    async fn executable(&self) -> bool {
-        self.executable()
+    fn executable(self:Pin< &Self> ,_cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(self.get_ref().executable())
     }
+
 }

@@ -1,4 +1,4 @@
-use async_fs::api::FileIO;
+use async_fs::api::{AsyncFileIO, FileIO};
 use axhal::{mem::VirtAddr, time::current_ticks};
 use axsignal::signal_no::SignalNo;
 use bitflags::bitflags;
@@ -26,7 +26,7 @@ bitflags! {
 #[derive(Default)]
 /// file set used for ppoll
 struct PpollFdSet {
-    files: Vec<Arc<dyn FileIO>>,
+    files: Vec<Arc<dyn FileIO + Unpin>>,
     fds: Vec<usize>,
     shadow_bitset: ShadowBitset,
 }

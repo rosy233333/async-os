@@ -39,8 +39,6 @@ numeric-enum-macro = { git = "https://github.com/mexus/numeric-enum-macro" }
 bitflags = "2.6"
 rand = { version = "0.8.5", default-features = false, features = ["small_rng"] }
 num_enum = { version = "0.5.11", default-features = false }
-async-trait = "0.1.83"
-
 
 async_fs = { path = "../async_fs" }
 axhal = { git = "https://github.com/Starry-OS/axhal.git" }
