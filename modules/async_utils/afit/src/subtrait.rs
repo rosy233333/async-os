@@ -133,6 +133,7 @@ pub(crate) fn build_subtrait(super_trait: &ItemTrait) -> TokenStream {
                 subtrait_items.push(
                     if self_mut {
                         quote! {
+                            #[inline]
                             async fn #sub_fn_ident(self: #sub_receiver, #(#sub_inputs), *) -> #sub_ret {
                                 let mut pinned = Pin::new(self);
                                 core::future::poll_fn(|#cx_ident| pinned.as_mut().#super_fn_ident(#cx_ident, #(#sub_inputs_ident), *)).await
@@ -140,6 +141,7 @@ pub(crate) fn build_subtrait(super_trait: &ItemTrait) -> TokenStream {
                         }
                     } else {
                         quote! {
+                            #[inline]
                             async fn #sub_fn_ident(self: #sub_receiver, #(#sub_inputs), *) -> #sub_ret {
                                 let mut pinned = Pin::new(self);
                                 core::future::poll_fn(|#cx_ident| pinned.as_ref().#super_fn_ident(#cx_ident, #(#sub_inputs_ident), *)).await

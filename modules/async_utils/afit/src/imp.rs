@@ -70,6 +70,7 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
                     })
                     .collect::<Vec<Ident>>();
                 impl_pin_items.push(quote! {
+                    #[inline]
                     #sig {
                         self.#get_as.#ident(#cx_ident, #(#actual_inputs_ident),*)
                     }
@@ -97,12 +98,14 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
                         output: sig.output.clone(),
                     };
                     impl_ref_items.push(quote! {
+                        #[inline]
                         #mut_sig {
                             Pin::new(&mut **self).#ident(#cx_ident, #(#actual_inputs_ident),*)
                         }
                     });
                 } else {
                     impl_ref_items.push(quote! {
+                        #[inline]
                         #sig {
                             Pin::new(&**self).#ident(#cx_ident, #(#actual_inputs_ident),*)
                         }
