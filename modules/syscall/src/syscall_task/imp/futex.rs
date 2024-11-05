@@ -5,14 +5,14 @@ extern crate alloc;
 use core::time::Duration;
 
 use axlog::{debug, error};
-use axprocess::{current_process, current_task, futex::FutexRobustList};
+use executor::{current_executor, current_task, futex::FutexRobustList};
 
 use crate::{RobustList, SyscallError, SyscallResult, TimeSecs};
 
 use axfutex::flags::*;
-use axprocess::futex::{futex_requeue, futex_wait, futex_wake, futex_wake_bitset};
+use executor::futex::{futex_requeue, futex_wait, futex_wake, futex_wake_bitset};
 
-pub fn syscall_futex(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_futex(args: [usize; 6]) -> SyscallResult {
     let uaddr = args[0];
     let futex_op = args[1] as i32;
     let val = args[2] as u32;
@@ -21,9 +21,9 @@ pub fn syscall_futex(args: [usize; 6]) -> SyscallResult {
     let uaddr2 = args[4];
     let mut val3 = args[5] as u32;
 
-    let process = current_process();
+    let process = current_executor();
     // convert `TimeSecs` struct to `timeout` nanoseconds
-    let timeout = if val2 != 0 && process.manual_alloc_for_lazy(val2.into()).is_ok() {
+    let timeout = if val2 != 0 && process.manual_alloc_for_lazy(val2.into()).await.is_ok() {
         let time_sepc: TimeSecs = unsafe { *(val2 as *const TimeSecs) };
         time_sepc.turn_to_nanos()
     } else {
@@ -53,7 +53,7 @@ pub fn syscall_futex(args: [usize; 6]) -> SyscallResult {
             } else {
                 None
             };
-            futex_wait(uaddr.into(), flags, val, deadline, val3)
+            futex_wait(uaddr.into(), flags, val, deadline, val3).await
         }
         FUTEX_WAIT_BITSET => {
             let deadline: Option<Duration> = if timeout != 0 {
@@ -61,11 +61,11 @@ pub fn syscall_futex(args: [usize; 6]) -> SyscallResult {
             } else {
                 None
             };
-            futex_wait(uaddr.into(), flags, val, deadline, val3)
+            futex_wait(uaddr.into(), flags, val, deadline, val3).await
         }
-        FUTEX_WAKE => futex_wake(uaddr.into(), flags, val),
-        FUTEX_WAKE_BITSET => futex_wake_bitset(uaddr.into(), flags, val, val3),
-        FUTEX_REQUEUE => futex_requeue(uaddr.into(), flags, val, uaddr2.into(), val2 as u32),
+        FUTEX_WAKE => futex_wake(uaddr.into(), flags, val).await,
+        FUTEX_WAKE_BITSET => futex_wake_bitset(uaddr.into(), flags, val, val3).await,
+        FUTEX_REQUEUE => futex_requeue(uaddr.into(), flags, val, uaddr2.into(), val2 as u32).await,
         FUTEX_CMP_REQUEUE => {
             error!("[linux_syscall_api] futex: unsupported futex operation: FUTEX_CMP_REQUEUE");
             return Err(SyscallError::ENOSYS);
@@ -92,15 +92,15 @@ pub fn syscall_futex(args: [usize; 6]) -> SyscallResult {
 /// # Arguments
 /// * head: usize
 /// * len: usize
-pub fn syscall_set_robust_list(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_set_robust_list(args: [usize; 6]) -> SyscallResult {
     let head = args[0];
     let len = args[1];
-    let process = current_process();
+    let process = current_executor();
     if len != core::mem::size_of::<RobustList>() {
         return Err(SyscallError::EINVAL);
     }
     let curr_id = current_task().id().as_u64();
-    if process.manual_alloc_for_lazy(head.into()).is_ok() {
+    if process.manual_alloc_for_lazy(head.into()).await.is_ok() {
         let mut robust_list = process.robust_list.lock();
         robust_list.insert(curr_id, FutexRobustList::new(head, len));
         Ok(0)
@@ -114,16 +114,17 @@ pub fn syscall_set_robust_list(args: [usize; 6]) -> SyscallResult {
 /// * pid: i32
 /// * head: *mut usize
 /// * len: *mut usize
-pub fn syscall_get_robust_list(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_get_robust_list(args: [usize; 6]) -> SyscallResult {
     let pid = args[0] as i32;
     let head = args[1] as *mut usize;
     let len = args[2] as *mut usize;
 
     if pid == 0 {
-        let process = current_process();
+        let process = current_executor();
         let curr_id = current_task().id().as_u64();
         if process
             .manual_alloc_for_lazy((head as usize).into())
+            .await
             .is_ok()
         {
             let robust_list = process.robust_list.lock();

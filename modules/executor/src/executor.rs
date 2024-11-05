@@ -18,7 +18,7 @@ use spinlock::{SpinNoIrq, SpinNoIrqOnly};
 use sync::Mutex;
 use taskctx::{Scheduler, TaskId};
 use crate::{
-    current_task, fd_manager::{FdManager, FdTable}, flags::CloneFlags, load_app, stdio::{Stderr, Stdin, Stdout}, ExecutorRef, SignalModule
+    current_task, fd_manager::{FdManager, FdTable}, flags::CloneFlags, futex::FutexRobustList, load_app, stdio::{Stderr, Stdin, Stdout}, ExecutorRef, SignalModule
 };
 use task_api::yield_now;
 
@@ -65,6 +65,11 @@ pub struct Executor {
     /// 栈大小
     pub stack_size: AtomicU64,
     pub main_task: Mutex<Option<TaskRef>>,
+
+    /// robust list存储模块
+    /// 用来存储线程对共享变量的使用地址
+    /// 具体使用交给了用户空间
+    pub robust_list: Mutex<BTreeMap<u64, FutexRobustList>>,
 }
 
 unsafe impl Sync for Executor {}
@@ -100,6 +105,7 @@ impl Executor {
             signal_modules: Mutex::new(BTreeMap::new()),
             stack_size: AtomicU64::new(axconfig::TASK_STACK_SIZE as _),
             main_task: Mutex::new(None),
+            robust_list: Mutex::new(BTreeMap::new()),
         }
     }
 
@@ -484,10 +490,11 @@ impl Executor {
             .lock()
             .await
             .insert(new_task.id().as_u64(), SignalModule::init_signal(None));
-        // new_process
-        //     .robust_list
-        //     .lock()
-        //     .insert(new_task.id().as_u64(), FutexRobustList::default());
+        new_executor
+            .robust_list
+            .lock()
+            .await
+            .insert(new_task.id().as_u64(), FutexRobustList::default());
         PID2PC
             .lock().await
             .insert(new_executor.pid().as_u64(), Arc::clone(&new_executor));
@@ -708,9 +715,10 @@ impl Executor {
                 .await
                 .insert(new_task.id().as_u64(), signal_module);
 
-            // self.robust_list
-            //     .lock()
-            //     .insert(new_task.id().as_u64(), FutexRobustList::default());
+            self.robust_list
+                .lock()
+                .await
+                .insert(new_task.id().as_u64(), FutexRobustList::default());
             return_id = new_task.id().as_u64();
         } else {
             let mut cwd_src = Arc::new(Mutex::new(String::from("/").into()));
@@ -757,10 +765,11 @@ impl Executor {
                 .await
                 .insert(new_task.id().as_u64(), signal_module);
 
-            // new_process
-            //     .robust_list
-            //     .lock()
-            //     .insert(new_task.id().as_u64(), FutexRobustList::default());
+            new_process
+                .robust_list
+                .lock()
+                .await
+                .insert(new_task.id().as_u64(), FutexRobustList::default());
             return_id = new_process.pid.as_u64();
             PID2PC
                 .lock()
@@ -928,11 +937,12 @@ impl Executor {
         // 重置用户堆
         self.set_heap_bottom(heap_bottom.as_usize() as u64);
         self.set_heap_top(heap_bottom.as_usize() as u64);
-        // // // 重置robust list
-        // self.robust_list.lock().clear();
-        // self.robust_list
-        //     .lock()
-        //     .insert(current_task.id().as_u64(), FutexRobustList::default());
+        // // 重置robust list
+        self.robust_list.lock().await.clear();
+        self.robust_list
+            .lock()
+            .await
+            .insert(current_task.id().as_u64(), FutexRobustList::default());
 
         {
             use axhal::mem::virt_to_phys;

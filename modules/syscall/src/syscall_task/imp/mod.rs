@@ -1,6 +1,6 @@
 mod signal;
 
-// mod futex;
+mod futex;
 
 // mod schedule;
 
@@ -10,7 +10,7 @@ mod utils;
 
 pub use signal::*;
 
-// pub use futex::*;
+pub use futex::*;
 
 // pub use schedule::*;
 

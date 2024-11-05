@@ -30,6 +30,7 @@ members = [
     "modules/feat", 
     "modules/syscall_interfaces",
     "modules/async_utils/afit", 
-    "modules/task_api"
+    "modules/task_api",
+    "modules/axfutex"
 ]
 resolver = "2"

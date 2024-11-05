@@ -27,4 +27,5 @@ pub use executor::*;
 pub use fd_manager::*;
 pub use stdio::{Stdin, Stdout, Stderr};
 pub use signal::*;
+pub mod futex;
 

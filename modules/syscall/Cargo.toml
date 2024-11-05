@@ -31,7 +31,7 @@ axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 # axnet = { git = "https://github.com/Starry-OS/axnet.git" }
 axsignal = { git = "https://github.com/Starry-OS/axsignal.git" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
-# axfutex = { git = "https://github.com/Starry-OS/axfutex.git"}
+axfutex = { path = "../axfutex" }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }

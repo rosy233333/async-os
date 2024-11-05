@@ -36,3 +36,4 @@ async_io = { path = "../async_io"}
 async_fs = { path = "../async_fs" }
 axhal = { git = "https://github.com/Starry-OS/axhal.git" }
 riscv = "0.10"
+axfutex = { path = "../axfutex" }

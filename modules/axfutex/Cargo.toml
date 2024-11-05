@@ -1,0 +1,14 @@
+[package]
+name = "axfutex"
+version = "0.1.0"
+edition = "2021"
+authors = ["XinHao Li <3253290158@qq.com>"]
+description = "A compatibility layer for futex on Starry"
+
+[dependencies]
+log = "0.4"
+axlog = { git = "https://github.com/Starry-OS/axlog.git" }
+taskctx = { path = "../taskctx" }
+sync = { path = "../sync" }
+hashbrown = "0.11"
+lazy_static = "1.5.0"
