@@ -120,7 +120,7 @@ impl VfsNodeOps for RootDirectory {
     async_vfs::impl_vfs_dir_default! {}
 
     fn poll_get_attr(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<VfsResult<VfsNodeAttr>> {
-        let root_dir = futures_core::ready!(
+        let root_dir = core::task::ready!(
             VfsOps::poll_root_dir(Pin::new(&self.main_fs), cx)
         );
         VfsNodeOps::poll_get_attr(Pin::new(&root_dir), cx)    
@@ -128,7 +128,7 @@ impl VfsNodeOps for RootDirectory {
 
     fn poll_lookup(self: Pin<&Self>, cx: &mut Context<'_>, _path: &str) -> Poll<VfsResult<VfsNodeRef>> {
         self.lookup_mounted_fs(_path, |fs, rest_path| {
-            let root_dir = futures_core::ready!(
+            let root_dir = core::task::ready!(
                 VfsOps::poll_root_dir(Pin::new(&fs), cx)
             );
             VfsNodeOps::poll_lookup(Pin::new(&root_dir), cx, rest_path)
@@ -140,7 +140,7 @@ impl VfsNodeOps for RootDirectory {
             if rest_path.is_empty() {
                 Poll::Ready(Ok(())) // already exists
             } else {
-                let root_dir = futures_core::ready!(
+                let root_dir = core::task::ready!(
                     VfsOps::poll_root_dir(Pin::new(&fs), cx)
                 );
                 VfsNodeOps::poll_create(Pin::new(&root_dir), cx, rest_path, ty)
@@ -153,7 +153,7 @@ impl VfsNodeOps for RootDirectory {
             if rest_path.is_empty() {
                 Poll::Ready(ax_err!(PermissionDenied)) // cannot remove mount points
             } else {
-                let root_dir = futures_core::ready!(
+                let root_dir = core::task::ready!(
                     VfsOps::poll_root_dir(Pin::new(&fs), cx)
                 );
                 VfsNodeOps::poll_remove(Pin::new(&root_dir), cx, rest_path)
@@ -171,7 +171,7 @@ impl VfsNodeOps for RootDirectory {
             if rest_path.is_empty() {
                 Poll::Ready(ax_err!(PermissionDenied)) // cannot rename mount points
             } else {
-                let root_dir = futures_core::ready!(
+                let root_dir = core::task::ready!(
                     VfsOps::poll_root_dir(Pin::new(&fs), cx)
                 );
                 VfsNodeOps::poll_rename(Pin::new(&root_dir), cx, rest_path, dst_path)

@@ -178,7 +178,7 @@ pub fn take_read_internal<R: AsyncRead + ?Sized>(
 
     let max = cmp::min(buf.len() as u64, *limit) as usize;
 
-    match futures_core::ready!(rd.as_mut().read(cx, &mut buf[..max])) {
+    match core::task::ready!(rd.as_mut().read(cx, &mut buf[..max])) {
         Ok(n) => {
             *limit -= n as u64;
             Poll::Ready(Ok(n))
@@ -195,7 +195,7 @@ impl<T: AsyncBufRead> AsyncBufRead for Take<T> {
             return Poll::Ready(Ok(&[]));
         }
 
-        match futures_core::ready!(this.inner.fill_buf(cx)) {
+        match core::task::ready!(this.inner.fill_buf(cx)) {
             Ok(buf) => {
                 let cap = cmp::min(buf.len() as u64, *this.limit) as usize;
                 Poll::Ready(Ok(&buf[..cap]))

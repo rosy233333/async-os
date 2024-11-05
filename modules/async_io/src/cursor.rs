@@ -309,7 +309,7 @@ where
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<axerrno::AxResult<usize>> {
-        let n = futures_core::ready!(AsyncRead::read(
+        let n = core::task::ready!(AsyncRead::read(
             Pin::new(&mut self.remaining_slice()),
             cx,
             buf
@@ -325,7 +325,7 @@ where
     ) -> Poll<axerrno::AxResult<usize>> {
         let mut nread = 0;
         for buf in bufs {
-            let n = futures_core::ready!(Pin::new(&mut *self).read(cx, buf))?;
+            let n = core::task::ready!(Pin::new(&mut *self).read(cx, buf))?;
             nread += n;
             if n < buf.len() {
                 break;

@@ -21,7 +21,7 @@ impl<T: AsyncRead + Unpin> AsyncStream for Bytes<T> {
 
         let rd = Pin::new(&mut self.inner);
 
-        match futures_core::ready!(rd.read(cx, core::slice::from_mut(&mut byte))) {
+        match core::task::ready!(rd.read(cx, core::slice::from_mut(&mut byte))) {
             Ok(0) => Poll::Ready(None),
             Ok(..) => Poll::Ready(Some(Ok(byte))),
             Err(ref e) if *e == Error::Interrupted => Poll::Pending,

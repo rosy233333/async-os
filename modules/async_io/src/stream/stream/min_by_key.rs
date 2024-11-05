@@ -42,7 +42,7 @@ where
         }
 
         let this = self.project();
-        let next = futures_core::ready!(this.stream.poll_next(cx));
+        let next = core::task::ready!(this.stream.poll_next(cx));
 
         match next {
             Some(new) => {

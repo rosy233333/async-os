@@ -26,7 +26,7 @@ where
     type Output = Option<B>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let item = futures_core::ready!(Pin::new(&mut *self.stream).poll_next(cx));
+        let item = core::task::ready!(Pin::new(&mut *self.stream).poll_next(cx));
 
         match item {
             Some(v) => match (&mut self.f)(v) {

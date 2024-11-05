@@ -43,8 +43,8 @@ where
         let mut this = self.project();
 
         loop {
-            let l_val = futures_core::ready!(this.l.as_mut().poll_next(cx));
-            let r_val = futures_core::ready!(this.r.as_mut().poll_next(cx));
+            let l_val = core::task::ready!(this.l.as_mut().poll_next(cx));
+            let r_val = core::task::ready!(this.r.as_mut().poll_next(cx));
 
             if this.l.done && this.r.done {
                 return Poll::Ready(true);

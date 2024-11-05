@@ -30,7 +30,6 @@ kernel_guard = { path = "../kernel_guard" }
 percpu = { git = "https://github.com/Starry-OS/percpu.git", optional = true }
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git"}
-futures-core = { version = "0.3.30", default-features = false, features = ["alloc"] }
 spin = "0.9"
 crate_interface = "0.1"
 

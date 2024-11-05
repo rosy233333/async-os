@@ -38,7 +38,7 @@ where
         let mut this = self.project();
 
         loop {
-            let next = futures_core::ready!(this.stream.as_mut().poll_next(cx));
+            let next = core::task::ready!(this.stream.as_mut().poll_next(cx));
 
             match next {
                 Some(v) => {

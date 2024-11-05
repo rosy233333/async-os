@@ -32,7 +32,7 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
         loop {
-            let next = futures_core::ready!(this.stream.as_mut().poll_next(cx));
+            let next = core::task::ready!(this.stream.as_mut().poll_next(cx));
 
             match next {
                 Some(v) => (this.f)(v),

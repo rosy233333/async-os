@@ -38,7 +38,7 @@ where
     type Output = bool;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let result = futures_core::ready!(self.project().partial_cmp.poll(cx));
+        let result = core::task::ready!(self.project().partial_cmp.poll(cx));
 
         match result {
             Some(Ordering::Less) | Some(Ordering::Equal) => Poll::Ready(true),

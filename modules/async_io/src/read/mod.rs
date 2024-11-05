@@ -160,7 +160,7 @@ impl AsyncRead for &[u8] {
     ) -> Poll<Result<usize>> {
         let mut nread = 0;
         for buf in bufs {
-            nread += futures_core::ready!(Pin::new(&mut *self).read(_cx, buf))?;
+            nread += core::task::ready!(Pin::new(&mut *self).read(_cx, buf))?;
             if self.is_empty() {
                 break;
             }

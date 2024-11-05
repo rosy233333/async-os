@@ -19,7 +19,7 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadExactFuture<'_, T> {
         let Self { reader, buf } = &mut *self;
 
         while !buf.is_empty() {
-            let n = futures_core::ready!(Pin::new(&mut *reader).read(cx, buf))?;
+            let n = core::task::ready!(Pin::new(&mut *reader).read(cx, buf))?;
             let (_, rest) = mem::replace(buf, &mut []).split_at_mut(n);
             *buf = rest;
 

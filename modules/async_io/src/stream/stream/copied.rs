@@ -27,7 +27,7 @@ where
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        let next = futures_core::ready!(this.stream.poll_next(cx));
+        let next = core::task::ready!(this.stream.poll_next(cx));
         Poll::Ready(next.copied())
     }
 }

@@ -54,7 +54,7 @@ impl<A: AsyncStream, B: AsyncStream> AsyncStream for Zip<A, B> {
                 Poll::Ready(Some(item)) => *this.item_slot = Some(item),
             }
         }
-        let second_item = futures_core::ready!(this.second.poll_next(cx));
+        let second_item = core::task::ready!(this.second.poll_next(cx));
         let first_item = this.item_slot.take().unwrap();
         Poll::Ready(second_item.map(|second_item| (first_item, second_item)))
     }

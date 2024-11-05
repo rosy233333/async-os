@@ -40,10 +40,10 @@ impl<T: AsyncWrite + Unpin + ?Sized> Future for WriteFmtFuture<'_, T> {
         // Copy the data from the buffer into the writer until it's done.
         loop {
             if *amt == buffer.len() {
-                futures_core::ready!(Pin::new(&mut **writer).flush(cx))?;
+                core::task::ready!(Pin::new(&mut **writer).flush(cx))?;
                 return Poll::Ready(Ok(()));
             }
-            let i = futures_core::ready!(Pin::new(&mut **writer).write(cx, &buffer[*amt..]))?;
+            let i = core::task::ready!(Pin::new(&mut **writer).write(cx, &buffer[*amt..]))?;
             if i == 0 {
                 return Poll::Ready(Err(io::Error::WriteZero));
             }

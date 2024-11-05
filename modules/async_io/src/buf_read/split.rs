@@ -34,7 +34,7 @@ impl<R: AsyncBufRead> AsyncStream for Split<R> {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        let n = futures_core::ready!(read_until_internal(
+        let n = core::task::ready!(read_until_internal(
             this.reader,
             cx,
             *this.delim,

@@ -28,7 +28,7 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
-            let item = futures_core::ready!(Pin::new(&mut self.stream).poll_next(cx));
+            let item = core::task::ready!(Pin::new(&mut self.stream).poll_next(cx));
 
             match item {
                 None => return Poll::Ready(Ok(())),

@@ -38,14 +38,14 @@ impl<S: AsyncStream, U: AsyncStream<Item = S::Item>> AsyncStream for Chain<S, U>
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
         if !this.first.done {
-            let next = futures_core::ready!(this.first.as_mut().poll_next(cx));
+            let next = core::task::ready!(this.first.as_mut().poll_next(cx));
             if let Some(next) = next {
                 return Poll::Ready(Some(next));
             }
         }
 
         if !this.second.done {
-            let next = futures_core::ready!(this.second.as_mut().poll_next(cx));
+            let next = core::task::ready!(this.second.as_mut().poll_next(cx));
             if let Some(next) = next {
                 return Poll::Ready(Some(next));
             }

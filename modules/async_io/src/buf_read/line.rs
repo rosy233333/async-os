@@ -36,7 +36,7 @@ impl<R: AsyncBufRead> AsyncStream for Lines<R> {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
-        let n = futures_core::ready!(read_line_internal(
+        let n = core::task::ready!(read_line_internal(
             this.reader,
             cx,
             this.buf,
@@ -63,7 +63,7 @@ pub fn read_line_internal<R: AsyncBufRead + ?Sized>(
     bytes: &mut Vec<u8>,
     read: &mut usize,
 ) -> Poll<io::Result<usize>> {
-    let ret = futures_core::ready!(read_until_internal(reader, cx, b'\n', bytes, read));
+    let ret = core::task::ready!(read_until_internal(reader, cx, b'\n', bytes, read));
     if str::from_utf8(&bytes).is_err() {
         Poll::Ready(ret.and_then(|_| ax_err!(InvalidData, "stream did not contain valid UTF-8")))
     } else {

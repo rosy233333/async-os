@@ -30,7 +30,7 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadToStringFuture<'_, T> {
         } = &mut *self;
         let reader = Pin::new(reader);
 
-        let ret = futures_core::ready!(read_to_end_internal(reader, cx, bytes, *start_len));
+        let ret = core::task::ready!(read_to_end_internal(reader, cx, bytes, *start_len));
         if str::from_utf8(&bytes).is_err() {
             Poll::Ready(
                 ret.and_then(|_| ax_err!(InvalidData, "stream did not contain valid UTF-8")),

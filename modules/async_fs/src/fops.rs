@@ -41,7 +41,7 @@ impl AsyncRead for File {
     ) -> Poll<AxResult<usize>> {
         let Self { node, offset, .. } = self.get_mut();
         let node = node.access(Cap::READ)?;
-        let read_len = futures_core::ready!(
+        let read_len = core::task::ready!(
             VfsNodeOps::poll_read_at(Pin::new(node), cx, *offset, buf)
         )?;
         *offset += read_len as u64;
@@ -58,10 +58,10 @@ impl AsyncWrite for File {
         let Self { node, is_append, offset } = self.get_mut();
         let node = node.access(Cap::WRITE)?;
         if *is_append {
-            let attr = futures_core::ready!(VfsNodeOps::poll_get_attr(Pin::new(node), cx)).unwrap();
+            let attr = core::task::ready!(VfsNodeOps::poll_get_attr(Pin::new(node), cx)).unwrap();
             *offset = attr.size();
         };
-        let write_len = futures_core::ready!(
+        let write_len = core::task::ready!(
             VfsNodeOps::poll_write_at(Pin::new(node), cx, *offset, buf)
         ).unwrap();
         *offset += write_len as u64;
@@ -89,7 +89,7 @@ impl AsyncSeek for File {
             offset, .. 
         } = self.get_mut();
         let node = node.access(Cap::empty())?;
-        let attr = futures_core::ready!(VfsNodeOps::poll_get_attr(Pin::new(node), cx)).unwrap();
+        let attr = core::task::ready!(VfsNodeOps::poll_get_attr(Pin::new(node), cx)).unwrap();
         let size = attr.size();
         let new_offset = match pos {
             SeekFrom::Start(pos) => Some(pos),
@@ -426,7 +426,7 @@ impl Directory {
     ) -> Poll<AxResult<usize>> {
         let Self { node, entry_idx } = self.get_mut();
         let node = node.access(Cap::READ)?;
-        let n = futures_core::ready!(VfsNodeOps::poll_read_dir(Pin::new(node), cx, *entry_idx, dirents))?;
+        let n = core::task::ready!(VfsNodeOps::poll_read_dir(Pin::new(node), cx, *entry_idx, dirents))?;
         *entry_idx += n;
         Poll::Ready(Ok(n))
     }

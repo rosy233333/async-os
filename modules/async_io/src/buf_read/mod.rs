@@ -330,7 +330,7 @@ pub(crate) fn read_until_internal<R: BufRead + ?Sized>(
 ) -> Poll<io::Result<usize>> {
     loop {
         let (done, used) = {
-            let available = futures_core::ready!(reader.as_mut().fill_buf(cx))?;
+            let available = core::task::ready!(reader.as_mut().fill_buf(cx))?;
             if let Some(i) = memchr::memchr(byte, available) {
                 buf.extend_from_slice(&available[..=i]);
                 (true, i + 1)

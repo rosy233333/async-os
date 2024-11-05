@@ -1,6 +1,6 @@
 use core::pin::Pin;
 
-use futures_core::ready;
+use core::task::ready;
 use pin_project_lite::pin_project;
 
 use super::AsyncStream;

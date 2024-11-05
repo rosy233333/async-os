@@ -70,7 +70,7 @@ pub fn read_to_end_internal<R: AsyncRead + ?Sized>(
             }
         }
 
-        match futures_core::ready!(rd.as_mut().read(cx, &mut g.buf[g.len..])) {
+        match core::task::ready!(rd.as_mut().read(cx, &mut g.buf[g.len..])) {
             Ok(0) => {
                 ret = Poll::Ready(Ok(g.len - start_len));
                 break;

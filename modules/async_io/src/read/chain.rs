@@ -107,7 +107,7 @@ impl<T: AsyncRead, U: AsyncRead> AsyncRead for Chain<T, U> {
     fn read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         let this = self.project();
         if !*this.done_first {
-            match futures_core::ready!(this.first.read(cx, buf)) {
+            match core::task::ready!(this.first.read(cx, buf)) {
                 Ok(0) if !buf.is_empty() => *this.done_first = true,
                 Ok(n) => return Poll::Ready(Ok(n)),
                 Err(err) => return Poll::Ready(Err(err)),
@@ -124,7 +124,7 @@ impl<T: AsyncRead, U: AsyncRead> AsyncRead for Chain<T, U> {
     ) -> Poll<io::Result<usize>> {
         let this = self.project();
         if !*this.done_first {
-            match futures_core::ready!(this.first.read_vectored(cx, bufs)) {
+            match core::task::ready!(this.first.read_vectored(cx, bufs)) {
                 Ok(0) if !bufs.is_empty() => *this.done_first = true,
                 Ok(n) => return Poll::Ready(Ok(n)),
                 Err(err) => return Poll::Ready(Err(err)),
@@ -139,7 +139,7 @@ impl<T: AsyncBufRead, U: AsyncBufRead> AsyncBufRead for Chain<T, U> {
     fn fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
         let this = self.project();
         if !*this.done_first {
-            match futures_core::ready!(this.first.fill_buf(cx)) {
+            match core::task::ready!(this.first.fill_buf(cx)) {
                 Ok(buf) if buf.is_empty() => {
                     *this.done_first = true;
                 }

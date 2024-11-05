@@ -60,14 +60,14 @@ where
 
             // Get next value if possible and necessary
             if !this.l.done && this.l_cache.is_none() {
-                let l_next = futures_core::ready!(this.l.as_mut().poll_next(cx));
+                let l_next = core::task::ready!(this.l.as_mut().poll_next(cx));
                 if let Some(item) = l_next {
                     *this.l_cache = Some(item);
                 }
             }
 
             if !this.r.done && this.r_cache.is_none() {
-                let r_next = futures_core::ready!(this.r.as_mut().poll_next(cx));
+                let r_next = core::task::ready!(this.r.as_mut().poll_next(cx));
                 if let Some(item) = r_next {
                     *this.r_cache = Some(item);
                 }

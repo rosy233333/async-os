@@ -64,7 +64,7 @@ impl<'a> AsyncStream for ReadDir<'a> {
         } = self.get_mut();
         loop {
             if *buf_pos >= *buf_end {
-                match futures_core::ready!(Pin::new(&mut *inner).poll_read_dir(cx, dirent_buf)) {
+                match core::task::ready!(Pin::new(&mut *inner).poll_read_dir(cx, dirent_buf)) {
                     Ok(n) => {
                         if n == 0 {
                             *end_of_stream = true;

@@ -172,7 +172,7 @@ impl VfsNodeOps for DirWrapper<'static> {
 
         // TODO: use `fatfs::Dir::find_entry`, but it's not public.
         if let Some((dir, rest)) = path.split_once('/') {
-            let dir = futures_core::ready!(self.poll_lookup(cx, dir))?;
+            let dir = core::task::ready!(self.poll_lookup(cx, dir))?;
             return VfsNodeOps::poll_lookup(Pin::new(&dir), cx, rest);
         }
 

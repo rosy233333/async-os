@@ -35,7 +35,7 @@ impl<S: AsyncStream> AsyncStream for Take<S> {
         if *this.remaining == 0 {
             Poll::Ready(None)
         } else {
-            let next = futures_core::ready!(this.stream.poll_next(cx));
+            let next = core::task::ready!(this.stream.poll_next(cx));
             match next {
                 Some(_) => *this.remaining -= 1,
                 None => *this.remaining = 0,
