@@ -65,7 +65,7 @@ impl RootDirectory {
         }
         // create the mount point in the main filesystem if it does not exist
         self.main_fs.root_dir().await.create(path, FileType::Dir).await?;
-        fs.mount(path, self.main_fs.root_dir().await.lookup(path).await?).await?;
+        fs.mount(path, &self.main_fs.root_dir().await.lookup(path).await?).await?;
         self.mounts.push(MountPoint::new(path, fs));
         Ok(())
     }
@@ -119,49 +119,49 @@ impl RootDirectory {
 impl VfsNodeOps for RootDirectory {
     async_vfs::impl_vfs_dir_default! {}
 
-    fn get_attr(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<VfsResult<VfsNodeAttr>> {
+    fn poll_get_attr(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<VfsResult<VfsNodeAttr>> {
         let root_dir = futures_core::ready!(
-            VfsOps::root_dir(Pin::new(&self.main_fs), cx)
+            VfsOps::poll_root_dir(Pin::new(&self.main_fs), cx)
         );
-        VfsNodeOps::get_attr(Pin::new(&root_dir), cx)    
+        VfsNodeOps::poll_get_attr(Pin::new(&root_dir), cx)    
     }
 
-    fn lookup(self: Pin<&Self>, cx: &mut Context<'_>, _path: &str) -> Poll<VfsResult<VfsNodeRef>> {
+    fn poll_lookup(self: Pin<&Self>, cx: &mut Context<'_>, _path: &str) -> Poll<VfsResult<VfsNodeRef>> {
         self.lookup_mounted_fs(_path, |fs, rest_path| {
             let root_dir = futures_core::ready!(
-                VfsOps::root_dir(Pin::new(&fs), cx)
+                VfsOps::poll_root_dir(Pin::new(&fs), cx)
             );
-            VfsNodeOps::lookup(Pin::new(&root_dir), cx, rest_path)
+            VfsNodeOps::poll_lookup(Pin::new(&root_dir), cx, rest_path)
         })
     }
 
-    fn create(self: Pin<&Self>, cx: &mut Context<'_>, path: &str, ty: VfsNodeType) -> Poll<VfsResult> {
+    fn poll_create(self: Pin<&Self>, cx: &mut Context<'_>, path: &str, ty: VfsNodeType) -> Poll<VfsResult> {
         self.lookup_mounted_fs(path, |fs, rest_path| {
             if rest_path.is_empty() {
                 Poll::Ready(Ok(())) // already exists
             } else {
                 let root_dir = futures_core::ready!(
-                    VfsOps::root_dir(Pin::new(&fs), cx)
+                    VfsOps::poll_root_dir(Pin::new(&fs), cx)
                 );
-                VfsNodeOps::create(Pin::new(&root_dir), cx, rest_path, ty)
+                VfsNodeOps::poll_create(Pin::new(&root_dir), cx, rest_path, ty)
             }
         })
     }
 
-    fn remove(self: Pin<&Self>, cx: &mut Context<'_>, path: &str) -> Poll<VfsResult> {
+    fn poll_remove(self: Pin<&Self>, cx: &mut Context<'_>, path: &str) -> Poll<VfsResult> {
         self.lookup_mounted_fs(path, |fs, rest_path| {
             if rest_path.is_empty() {
                 Poll::Ready(ax_err!(PermissionDenied)) // cannot remove mount points
             } else {
                 let root_dir = futures_core::ready!(
-                    VfsOps::root_dir(Pin::new(&fs), cx)
+                    VfsOps::poll_root_dir(Pin::new(&fs), cx)
                 );
-                VfsNodeOps::remove(Pin::new(&root_dir), cx, rest_path)
+                VfsNodeOps::poll_remove(Pin::new(&root_dir), cx, rest_path)
             }
         })
     }
 
-    fn rename(
+    fn poll_rename(
         self: Pin<&Self>, 
         cx: &mut Context<'_>, 
         src_path: &str, 
@@ -172,9 +172,9 @@ impl VfsNodeOps for RootDirectory {
                 Poll::Ready(ax_err!(PermissionDenied)) // cannot rename mount points
             } else {
                 let root_dir = futures_core::ready!(
-                    VfsOps::root_dir(Pin::new(&fs), cx)
+                    VfsOps::poll_root_dir(Pin::new(&fs), cx)
                 );
-                VfsNodeOps::rename(Pin::new(&root_dir), cx, rest_path, dst_path)
+                VfsNodeOps::poll_rename(Pin::new(&root_dir), cx, rest_path, dst_path)
             }
         })
     }

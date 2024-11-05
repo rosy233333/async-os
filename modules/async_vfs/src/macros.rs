@@ -5,7 +5,7 @@
 #[macro_export]
 macro_rules! impl_vfs_dir_default {
     () => {
-        fn read_at(
+        fn poll_read_at(
             self: core::pin::Pin<&Self>,
             _cx: &mut core::task::Context<'_>,
             _offset: u64,
@@ -14,7 +14,7 @@ macro_rules! impl_vfs_dir_default {
             core::task::Poll::Ready($crate::__priv::ax_err!(IsADirectory))
         }
 
-        fn write_at(
+        fn poll_write_at(
             self: core::pin::Pin<&Self>,
             _cx: &mut core::task::Context<'_>,
             _offset: u64,
@@ -23,14 +23,14 @@ macro_rules! impl_vfs_dir_default {
             core::task::Poll::Ready($crate::__priv::ax_err!(IsADirectory))
         }
 
-        fn fsync(
+        fn poll_fsync(
             self: core::pin::Pin<&Self>,
             _cx: &mut core::task::Context<'_>,
         ) -> core::task::Poll<$crate::VfsResult> {
             core::task::Poll::Ready($crate::__priv::ax_err!(IsADirectory))
         }
 
-        fn truncate(
+        fn poll_truncate(
             self: core::pin::Pin<&Self>,
             _cx: &mut core::task::Context<'_>,
             _size: u64,
@@ -52,7 +52,7 @@ macro_rules! impl_vfs_dir_default {
 #[macro_export]
 macro_rules! impl_vfs_non_dir_default {
     () => {
-        fn lookup(
+        fn poll_lookup(
             self: core::pin::Pin<&Self>,
             _cx: &mut core::task::Context<'_>,
             _path: &str,
@@ -60,7 +60,7 @@ macro_rules! impl_vfs_non_dir_default {
             core::task::Poll::Ready($crate::__priv::ax_err!(NotADirectory))
         }
 
-        fn create(
+        fn poll_create(
             self: core::pin::Pin<&Self>,
             _cx: &mut core::task::Context<'_>,
             _path: &str,
@@ -69,7 +69,7 @@ macro_rules! impl_vfs_non_dir_default {
             core::task::Poll::Ready($crate::__priv::ax_err!(NotADirectory))
         }
 
-        fn remove(
+        fn poll_remove(
             self: core::pin::Pin<&Self>,
             _cx: &mut core::task::Context<'_>,
             _path: &str,
@@ -77,7 +77,7 @@ macro_rules! impl_vfs_non_dir_default {
             core::task::Poll::Ready($crate::__priv::ax_err!(NotADirectory))
         }
 
-        fn read_dir(
+        fn poll_read_dir(
             self: core::pin::Pin<&Self>,
             _cx: &mut core::task::Context<'_>,
             _start_idx: usize,

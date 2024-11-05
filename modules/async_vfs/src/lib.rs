@@ -39,16 +39,171 @@ extern crate alloc;
 
 mod macros;
 mod structs;
-
-mod basic;
 pub mod path;
-mod vfs;
-mod vfs_node;
 
 pub use crate::structs::{FileSystemInfo, VfsDirEntry, VfsNodeAttr, VfsNodePerm, VfsNodeType};
-pub use basic::{VfsError, VfsNodeOps, VfsNodeRef, VfsOps, VfsResult};
-pub use vfs::AsyncVfsOps;
-pub use vfs_node::AsyncVfsNodeOps;
+
+
+use alloc::sync::Arc;
+use axerrno::{ax_err, AxError, AxResult};
+use core::pin::Pin;
+use core::task::{Context, Poll};
+
+/// A wrapper of [`Arc<dyn VfsNodeOps>`].
+pub type VfsNodeRef = Arc<dyn VfsNodeOps + Unpin + Send + Sync>;
+
+/// Alias of [`AxError`].
+pub type VfsError = AxError;
+
+/// Alias of [`AxResult`].
+pub type VfsResult<T = ()> = AxResult<T>;
+
+use async_utils::async_trait;
+
+/// Filesystem operations.
+#[async_trait]
+pub trait VfsOps: Send + Sync {
+    /// Do something when the filesystem is mounted.
+    fn poll_mount(
+        self: Pin<&Self>,
+        _cx: &mut Context<'_>,
+        _path: &str,
+        _mount_point: &VfsNodeRef,
+    ) -> Poll<VfsResult> {
+        Poll::Ready(Ok(()))
+    }
+
+    /// Do something when the filesystem is unmounted.
+    fn umount(&self) -> VfsResult {
+        Ok(())
+    }
+
+    /// Format the filesystem.
+    fn poll_format(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsResult> {
+        Poll::Ready(ax_err!(Unsupported))
+    }
+
+    /// Get the attributes of the filesystem.
+    fn poll_statfs(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsResult<FileSystemInfo>> {
+        Poll::Ready(ax_err!(Unsupported))
+    }
+
+    /// Get the root directory of the filesystem.
+    fn poll_root_dir(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsNodeRef>;
+}
+
+/// Node (file/directory) operations.
+#[async_trait]
+pub trait VfsNodeOps: Send + Sync {
+    /// Do something when the node is opened.
+    fn poll_open(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsResult> {
+        Poll::Ready(Ok(()))
+    }
+
+    /// Do something when the node is closed.
+    fn release(&self) -> VfsResult {
+       Ok(())
+    }
+
+    /// Get the attributes of the node.
+    fn poll_get_attr(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsResult<VfsNodeAttr>> {
+        Poll::Ready(ax_err!(Unsupported))
+    }
+
+    // file operations:
+
+    /// Read data from the file at the given offset.
+    fn poll_read_at(
+        self: Pin<&Self>,
+        _cx: &mut Context<'_>,
+        _offset: u64,
+        _buf: &mut [u8],
+    ) -> Poll<VfsResult<usize>> {
+        Poll::Ready(ax_err!(InvalidInput))
+    }
+
+    /// Write data to the file at the given offset.
+    fn poll_write_at(
+        self: Pin<&Self>,
+        _cx: &mut Context<'_>,
+        _offset: u64,
+        _buf: &[u8],
+    ) -> Poll<VfsResult<usize>> {
+        Poll::Ready(ax_err!(InvalidInput))
+    }
+
+    /// Flush the file, synchronize the data to disk.
+    fn poll_fsync(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsResult> {
+        Poll::Ready(ax_err!(InvalidInput))
+    }
+
+    /// Truncate the file to the given size.
+    fn poll_truncate(self: Pin<&Self>, _cx: &mut Context<'_>, _size: u64) -> Poll<VfsResult> {
+        Poll::Ready(ax_err!(InvalidInput))
+    }
+
+    // directory operations:
+
+    /// Get the parent directory of this directory.
+    ///
+    /// Return `None` if the node is a file.
+    fn poll_parent(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<Option<VfsNodeRef>> {
+        Poll::Ready(None)
+    }
+
+    /// Lookup the node with given `path` in the directory.
+    ///
+    /// Return the node if found.
+    fn poll_lookup(self: Pin<&Self>, _cx: &mut Context<'_>, _path: &str) -> Poll<VfsResult<VfsNodeRef>> {
+        Poll::Ready(ax_err!(Unsupported))
+    }
+
+    /// Create a new node with the given `path` in the directory
+    ///
+    /// Return [`Ok(())`](Ok) if it already exists.
+    fn poll_create(
+        self: Pin<&Self>,
+        _cx: &mut Context<'_>,
+        _path: &str,
+        _ty: VfsNodeType,
+    ) -> Poll<VfsResult> {
+        Poll::Ready(ax_err!(Unsupported))
+    }
+
+    /// Remove the node with the given `path` in the directory.
+    fn poll_remove(self: Pin<&Self>, _cx: &mut Context<'_>, _path: &str) -> Poll<VfsResult> {
+        Poll::Ready(ax_err!(Unsupported))
+    }
+
+    /// Read directory entries into `dirents`, starting from `start_idx`.
+    fn poll_read_dir(
+        self: Pin<&Self>,
+        _cx: &mut Context<'_>,
+        _start_idx: usize,
+        _dirents: &mut [VfsDirEntry],
+    ) -> Poll<VfsResult<usize>> {
+        Poll::Ready(ax_err!(Unsupported))
+    }
+
+    /// Renames or moves existing file or directory.
+    fn poll_rename(
+        self: Pin<&Self>,
+        _cx: &mut Context<'_>,
+        _src_path: &str,
+        _dst_path: &str,
+    ) -> Poll<VfsResult> {
+        Poll::Ready(ax_err!(Unsupported))
+    }
+
+    /// Convert `&self` to [`&dyn Any`][1] that can use
+    /// [`Any::downcast_ref`][2].
+    ///
+    /// [1]: core::any::Any
+    /// [2]: core::any::Any#method.downcast_ref
+    fn as_any(&self) -> &dyn core::any::Any {
+        unimplemented!()
+    }
+}
 
 #[doc(hidden)]
 pub mod __priv {

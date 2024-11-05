@@ -39,7 +39,7 @@ impl AsyncRead for File {
         let Self { node, offset, .. } = self.get_mut();
         let node = node.access(Cap::READ)?;
         let read_len = futures_core::ready!(
-            VfsNodeOps::read_at(Pin::new(node), cx, *offset, buf)
+            VfsNodeOps::poll_read_at(Pin::new(node), cx, *offset, buf)
         )?;
         *offset += read_len as u64;
         Poll::Ready(Ok(read_len))
@@ -55,11 +55,11 @@ impl AsyncWrite for File {
         let Self { node, is_append, offset } = self.get_mut();
         let node = node.access(Cap::WRITE)?;
         if *is_append {
-            let attr = futures_core::ready!(VfsNodeOps::get_attr(Pin::new(node), cx)).unwrap();
+            let attr = futures_core::ready!(VfsNodeOps::poll_get_attr(Pin::new(node), cx)).unwrap();
             *offset = attr.size();
         };
         let write_len = futures_core::ready!(
-            VfsNodeOps::write_at(Pin::new(node), cx, *offset, buf)
+            VfsNodeOps::poll_write_at(Pin::new(node), cx, *offset, buf)
         ).unwrap();
         *offset += write_len as u64;
         Poll::Ready(Ok(write_len))
@@ -67,7 +67,7 @@ impl AsyncWrite for File {
 
     fn flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<AxResult<()>> {
         let node = self.get_mut().node.access(Cap::WRITE)?;
-        VfsNodeOps::fsync(Pin::new(node), cx)
+        VfsNodeOps::poll_fsync(Pin::new(node), cx)
     }
 
     fn close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<AxResult<()>> {
@@ -86,7 +86,7 @@ impl AsyncSeek for File {
             offset, .. 
         } = self.get_mut();
         let node = node.access(Cap::empty())?;
-        let attr = futures_core::ready!(VfsNodeOps::get_attr(Pin::new(node), cx)).unwrap();
+        let attr = futures_core::ready!(VfsNodeOps::poll_get_attr(Pin::new(node), cx)).unwrap();
         let size = attr.size();
         let new_offset = match pos {
             SeekFrom::Start(pos) => Some(pos),
@@ -423,7 +423,7 @@ impl Directory {
     ) -> Poll<AxResult<usize>> {
         let Self { node, entry_idx } = self.get_mut();
         let node = node.access(Cap::READ)?;
-        let n = futures_core::ready!(VfsNodeOps::read_dir(Pin::new(node), cx, *entry_idx, dirents))?;
+        let n = futures_core::ready!(VfsNodeOps::poll_read_dir(Pin::new(node), cx, *entry_idx, dirents))?;
         *entry_idx += n;
         Poll::Ready(Ok(n))
     }

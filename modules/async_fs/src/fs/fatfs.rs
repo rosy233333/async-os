@@ -68,7 +68,7 @@ impl FatFileSystem {
 impl VfsNodeOps for FileWrapper<'static> {
     async_vfs::impl_vfs_non_dir_default! {}
 
-    fn get_attr(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<VfsResult<VfsNodeAttr>> {
+    fn poll_get_attr(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<VfsResult<VfsNodeAttr>> {
         Pin::new(&mut self.0.lock()).poll(cx).map(|mut file| {
             let size = file.seek(SeekFrom::End(0)).map_err(as_vfs_err)?;
             let blocks = (size + BLOCK_SIZE as u64 - 1) / BLOCK_SIZE as u64;
@@ -78,7 +78,7 @@ impl VfsNodeOps for FileWrapper<'static> {
         })
     }
 
-    fn read_at(self: Pin<&Self>, cx: &mut Context<'_>, offset: u64, buf: &mut [u8]) -> Poll<VfsResult<usize>> {
+    fn poll_read_at(self: Pin<&Self>, cx: &mut Context<'_>, offset: u64, buf: &mut [u8]) -> Poll<VfsResult<usize>> {
         Pin::new(&mut self.0.lock()).poll(cx).map(|mut file| {
             file.seek(SeekFrom::Start(offset)).map_err(as_vfs_err)?; // TODO: more efficient
             let buf_len = buf.len();
@@ -102,7 +102,7 @@ impl VfsNodeOps for FileWrapper<'static> {
         })
     }
 
-    fn write_at(
+    fn poll_write_at(
         self: Pin<&Self>, 
         cx: &mut Context<'_>, 
         offset: u64, 
@@ -130,7 +130,7 @@ impl VfsNodeOps for FileWrapper<'static> {
         })
     }
 
-    fn truncate(self: Pin<&Self>, cx: &mut Context<'_>, size: u64) -> Poll<VfsResult> {
+    fn poll_truncate(self: Pin<&Self>, cx: &mut Context<'_>, size: u64) -> Poll<VfsResult> {
         Pin::new(&mut self.0.lock()).poll(cx).map(|mut file| {
             file.seek(SeekFrom::Start(size)).map_err(as_vfs_err)?; // TODO: more efficient
             file.truncate().map_err(as_vfs_err)
@@ -141,7 +141,7 @@ impl VfsNodeOps for FileWrapper<'static> {
 impl VfsNodeOps for DirWrapper<'static> {
     async_vfs::impl_vfs_dir_default! {}
 
-    fn get_attr(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsResult<VfsNodeAttr>> {
+    fn poll_get_attr(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsResult<VfsNodeAttr>> {
         Poll::Ready(Ok(VfsNodeAttr::new(
             VfsNodePerm::from_bits_truncate(0o755),
             VfsNodeType::Dir,
@@ -150,14 +150,14 @@ impl VfsNodeOps for DirWrapper<'static> {
         )))
     }
 
-    fn parent(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<Option<VfsNodeRef>> {
+    fn poll_parent(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<Option<VfsNodeRef>> {
         Poll::Ready(self.0
             .open_dir("..")
             .map_or(None, |dir| Some(FatFileSystem::new_dir(dir)))
         )
     }
 
-    fn lookup(self: Pin<&Self>, cx: &mut Context<'_>, path: &str) -> Poll<VfsResult<VfsNodeRef>> {
+    fn poll_lookup(self: Pin<&Self>, cx: &mut Context<'_>, path: &str) -> Poll<VfsResult<VfsNodeRef>> {
         debug!("lookup at fatfs: {}", path);
         let path = path.trim_matches('/');
         if path.is_empty() || path == "." {
@@ -167,13 +167,13 @@ impl VfsNodeOps for DirWrapper<'static> {
         }
 
         if let Some(rest) = path.strip_prefix("./") {
-            return self.lookup(cx, rest);
+            return self.poll_lookup(cx, rest);
         }
 
         // TODO: use `fatfs::Dir::find_entry`, but it's not public.
         if let Some((dir, rest)) = path.split_once('/') {
-            let dir = futures_core::ready!(self.lookup(cx, dir))?;
-            return VfsNodeOps::lookup(Pin::new(&dir), cx, rest);
+            let dir = futures_core::ready!(self.poll_lookup(cx, dir))?;
+            return VfsNodeOps::poll_lookup(Pin::new(&dir), cx, rest);
         }
 
         for entry in self.0.iter() {
@@ -192,14 +192,14 @@ impl VfsNodeOps for DirWrapper<'static> {
         Poll::Ready(Err(VfsError::NotFound))
     }
 
-    fn create(self: Pin<&Self>, cx: &mut Context<'_>, path: &str, ty: VfsNodeType) -> Poll<VfsResult> {
+    fn poll_create(self: Pin<&Self>, cx: &mut Context<'_>, path: &str, ty: VfsNodeType) -> Poll<VfsResult> {
         debug!("create {:?} at fatfs: {}", ty, path);
         let path = path.trim_matches('/');
         if path.is_empty() || path == "." {
             return Poll::Ready(Ok(()));
         }
         if let Some(rest) = path.strip_prefix("./") {
-            return self.create(cx, rest, ty);
+            return self.poll_create(cx, rest, ty);
         }
         match ty {
             VfsNodeType::File => {
@@ -214,17 +214,17 @@ impl VfsNodeOps for DirWrapper<'static> {
         }
     }
 
-    fn remove(self: Pin<&Self>, cx: &mut Context<'_>, path: &str) -> Poll<VfsResult> {
+    fn poll_remove(self: Pin<&Self>, cx: &mut Context<'_>, path: &str) -> Poll<VfsResult> {
         debug!("remove at fatfs: {}", path);
         let path = path.trim_matches('/');
         assert!(!path.is_empty()); // already check at `root.rs`
         if let Some(rest) = path.strip_prefix("./") {
-            return self.remove(cx, rest);
+            return self.poll_remove(cx, rest);
         }
         Poll::Ready(self.0.remove(path).map_err(as_vfs_err))
     }
 
-    fn read_dir(
+    fn poll_read_dir(
         self: Pin<&Self>, 
         _cx: &mut Context<'_>, 
         start_idx: usize, 
@@ -250,7 +250,7 @@ impl VfsNodeOps for DirWrapper<'static> {
         Poll::Ready(Ok(dirents.len()))
     }
 
-    fn rename(
+    fn poll_rename(
         self: Pin<&Self>, 
         _cx: &mut Context<'_>, 
         src_path: &str, 
@@ -271,7 +271,7 @@ impl VfsNodeOps for DirWrapper<'static> {
 }
 
 impl VfsOps for FatFileSystem {
-    fn root_dir(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsNodeRef> {
+    fn poll_root_dir(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsNodeRef> {
         let root_dir = unsafe { (*self.root_dir.get()).as_ref().unwrap() };
         Poll::Ready(root_dir.clone())
     }
