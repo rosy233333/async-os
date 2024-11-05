@@ -1,12 +1,12 @@
 //! 对文件系统的管理,包括目录项的创建、文件权限设置等内容
+use alloc::string::ToString;
 use async_fs::api::{
     remove_dir, remove_file, rename, ConsoleWinSize, OpenFlags, Permissions, FIOCLEX, FIONBIO,
     TCGETS, TIOCGPGRP, TIOCGWINSZ, TIOCSPGRP,
 };
+use async_io::Stream;
 use axlog::{debug, error, info};
 use core::ptr::{self, copy_nonoverlapping};
-use async_io::Stream;
-use alloc::string::ToString;
 
 use crate::{
     syscall_fs::{
@@ -53,7 +53,11 @@ pub async fn syscall_getcwd(args: [usize; 6]) -> SyscallResult {
         let process = current_executor();
         let start: VirtAddr = (buf as usize).into();
         let end = start + len;
-        if process.manual_alloc_range_for_lazy(start, end).await.is_ok() {
+        if process
+            .manual_alloc_range_for_lazy(start, end)
+            .await
+            .is_ok()
+        {
             unsafe {
                 core::ptr::copy_nonoverlapping(cwd.as_ptr(), buf, cwd.len());
             }
@@ -125,7 +129,9 @@ pub async fn syscall_chdir(args: [usize; 6]) -> SyscallResult {
     let path = solve_path(AT_FDCWD, Some(path_address), true).await?;
     debug!("Into syscall_chdir. path: {:?}", path.path());
 
-    current_executor().set_cwd(alloc::string::String::from(path.path())).await;
+    current_executor()
+        .set_cwd(alloc::string::String::from(path.path()))
+        .await;
     Ok(0)
 }
 
@@ -147,7 +153,11 @@ pub async fn syscall_getdents64(args: [usize; 6]) -> SyscallResult {
     // 注意是否分配地址
     let start: VirtAddr = (buf as usize).into();
     let end = start + len;
-    if process.manual_alloc_range_for_lazy(start, end).await.is_err() {
+    if process
+        .manual_alloc_range_for_lazy(start, end)
+        .await
+        .is_err()
+    {
         return Err(SyscallError::EFAULT);
     }
     if len < DirEnt::fixed_size() {
@@ -498,7 +508,8 @@ pub async fn syscall_fchmodat(args: [usize; 6]) -> SyscallResult {
     let path = args[1] as *const u8;
     let mode = args[2];
     let file_path = solve_path(dir_fd, Some(path), false).await?;
-    async_fs::api::metadata(file_path.path()).await
+    async_fs::api::metadata(file_path.path())
+        .await
         .map(|mut metadata| {
             metadata.set_permissions(Permissions::from_bits_truncate(mode as u16));
             Ok(0)
@@ -609,7 +620,8 @@ pub async fn syscall_utimensat(args: [usize; 6]) -> SyscallResult {
 
     if dir_fd == AT_FDCWD
         && process
-            .manual_alloc_for_lazy((path as usize).into()).await
+            .manual_alloc_for_lazy((path as usize).into())
+            .await
             .is_err()
     {
         return Err(SyscallError::EFAULT); // 地址不合法
@@ -656,7 +668,9 @@ pub async fn syscall_utimensat(args: [usize; 6]) -> SyscallResult {
                 return Err(SyscallError::ENOENT);
             }
         }
-        let file = new_fd(file_path.path().to_string(), 0.into()).await.unwrap();
+        let file = new_fd(file_path.path().to_string(), 0.into())
+            .await
+            .unwrap();
         file.stat.lock().await.atime.set_as_utime(&new_atime);
         file.stat.lock().await.mtime.set_as_utime(&new_mtime);
         Ok(0)
@@ -670,5 +684,6 @@ pub async fn syscall_pidfd_open(args: [usize; 6]) -> SyscallResult {
     new_pidfd(
         pid as u64,
         OpenFlags::from_bits(flags).ok_or(SyscallError::EINVAL)?,
-    ).await
+    )
+    .await
 }

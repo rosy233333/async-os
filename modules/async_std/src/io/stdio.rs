@@ -1,24 +1,24 @@
 //! 这里的实现，直接使用了 axhal 模块中的 console 的实现，
 //! 这里无法读出数据时，会直接调用 cx.waker().wake_by_ref() 函数
 //! 将任务重新放回到就绪队列中，定期轮询
-//! 
+//!
 //! 正常的做法应该是等键盘输入产生了中断后才唤醒任务，将其放入就绪队列
-//! 
+//!
+use super::{ax_console_read_byte, ax_console_write_bytes, Result};
 use async_io::{AsyncRead, AsyncWrite, BufReader, Write};
-use sync::Mutex;
-use core::{future::Future, pin::Pin, task::{Context, Poll}};
-use super::{Result, ax_console_read_byte, ax_console_write_bytes};
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 use lazy_init::LazyInit;
+use sync::Mutex;
 
 struct StdinRaw;
 struct StdoutRaw;
 
 impl AsyncRead for StdinRaw {
-    fn read(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    fn read(self: Pin<&mut Self>, _cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         let mut read_len = 0;
         while read_len < buf.len() {
             if let Some(c) = ax_console_read_byte() {
@@ -30,15 +30,10 @@ impl AsyncRead for StdinRaw {
         }
         Poll::Ready(Ok(read_len))
     }
-    
 }
 
 impl AsyncWrite for StdoutRaw {
-    fn write(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize>> {
+    fn write(self: Pin<&mut Self>, _cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize>> {
         Poll::Ready(ax_console_write_bytes(buf))
     }
 
@@ -57,11 +52,7 @@ pub struct Stdin {
 }
 
 impl AsyncRead for Stdin {
-    fn read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    fn read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         let mut lock = futures_core::ready!(Pin::new(&mut self.inner.lock()).poll(cx));
         let read_len = futures_core::ready!(AsyncRead::read(Pin::new(&mut *lock), cx, buf))?;
         if buf.is_empty() || read_len > 0 {
@@ -78,7 +69,6 @@ impl AsyncRead for Stdin {
 pub struct Stdout {
     inner: &'static Mutex<StdoutRaw>,
 }
-
 
 impl AsyncWrite for Stdout {
     fn write(

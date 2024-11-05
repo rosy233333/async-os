@@ -1,4 +1,4 @@
-use executor::link::{FilePath, create_link};
+use executor::link::{create_link, FilePath};
 
 pub async fn fs_init() {
     use alloc::format;
@@ -19,19 +19,28 @@ pub async fn fs_init() {
     let libc_so2 = &"ld-musl-aarch64.so.1"; // 另一种名字的 libc.so，非 libc-test 测例库用
 
     create_link(
-        &(FilePath::new(("/lib/".to_string() + libc_so).as_str()).await.unwrap()),
+        &(FilePath::new(("/lib/".to_string() + libc_so).as_str())
+            .await
+            .unwrap()),
         &(FilePath::new("libc.so").await.unwrap()),
-    ).await;
+    )
+    .await;
     create_link(
-        &(FilePath::new(("/lib/".to_string() + libc_so2).as_str()).await.unwrap()),
+        &(FilePath::new(("/lib/".to_string() + libc_so2).as_str())
+            .await
+            .unwrap()),
         &(FilePath::new("libc.so").await.unwrap()),
-    ).await;
+    )
+    .await;
 
     let tls_so = &"tls_get_new-dtv_dso.so";
     create_link(
-        &(FilePath::new(("/lib/".to_string() + tls_so).as_str()).await.unwrap()),
+        &(FilePath::new(("/lib/".to_string() + tls_so).as_str())
+            .await
+            .unwrap()),
         &(FilePath::new("tls_get_new-dtv_dso.so").await.unwrap()),
-    ).await;
+    )
+    .await;
 
     // 接下来对 busybox 相关的指令建立软链接
     let busybox_arch = ["ls", "mkdir", "touch", "mv", "busybox", "sh", "which", "cp"];
@@ -40,26 +49,31 @@ pub async fn fs_init() {
         create_link(
             &(FilePath::new(src_path.as_str()).await.unwrap()),
             &(FilePath::new("busybox").await.unwrap()),
-        ).await;
+        )
+        .await;
         let src_path = "/usr/bin/".to_string() + arch;
         create_link(
             &(FilePath::new(src_path.as_str()).await.unwrap()),
             &(FilePath::new("busybox").await.unwrap()),
-        ).await;
+        )
+        .await;
         let src_path = "/bin/".to_string() + arch;
         create_link(
             &(FilePath::new(src_path.as_str()).await.unwrap()),
             &(FilePath::new("busybox").await.unwrap()),
-        ).await;
+        )
+        .await;
     }
     create_link(
         &(FilePath::new("/bin/lmbench_all").await.unwrap()),
         &(FilePath::new("/lmbench_all").await.unwrap()),
-    ).await;
+    )
+    .await;
     create_link(
         &(FilePath::new("/bin/iozone").await.unwrap()),
         &(FilePath::new("/iozone").await.unwrap()),
-    ).await;
+    )
+    .await;
 
     #[cfg(target_arch = "x86_64")]
     {
@@ -67,37 +81,44 @@ pub async fn fs_init() {
         create_link(
             &(FilePath::new(libc_zlm).await.unwrap()),
             &(FilePath::new("ld-linux-x86-64.so.2").await.unwrap()),
-        ).await;
+        )
+        .await;
 
         create_link(
             &(FilePath::new("/lib/libssl.so.3").await.unwrap()),
             &(FilePath::new("libssl.so.3").await.unwrap()),
-        ).await;
+        )
+        .await;
 
         create_link(
             &(FilePath::new("/lib/libcrypto.so.3").await.unwrap()),
             &(FilePath::new("libcrypto.so.3").await.unwrap()),
-        ).await;
+        )
+        .await;
 
         create_link(
             &(FilePath::new("/lib/libstdc++.so.6").await.unwrap()),
             &(FilePath::new("libstdc++.so.6").await.unwrap()),
-        ).await;
+        )
+        .await;
 
         create_link(
             &(FilePath::new("/lib/libm.so.6").await.unwrap()),
             &(FilePath::new("libm.so.6").await.unwrap()),
-        ).await;
+        )
+        .await;
 
         create_link(
             &(FilePath::new("/lib/libgcc_s.so.1").await.unwrap()),
             &(FilePath::new("libgcc_s.so.1").await.unwrap()),
-        ).await;
+        )
+        .await;
 
         create_link(
             &(FilePath::new("/lib/libc.so.6").await.unwrap()),
             &(FilePath::new("libc.so.6").await.unwrap()),
-        ).await;
+        )
+        .await;
     }
 
     // let mem_file = axfs::api::lookup("/proc/meminfo").await.unwrap();
@@ -117,51 +138,103 @@ pub async fn fs_init() {
     // gcc相关的链接，可以在testcases/gcc/riscv64-linux-musl-native/lib目录下使用ls -al指令查看
     let src_dir = "riscv64-linux-musl-native/lib";
     create_link(
-        &FilePath::new(format!("{}/ld-musl-riscv64.so.1", src_dir).as_str()).await.unwrap(),
+        &FilePath::new(format!("{}/ld-musl-riscv64.so.1", src_dir).as_str())
+            .await
+            .unwrap(),
         &FilePath::new("/lib/libc.so").await.unwrap(),
-    ).await;
+    )
+    .await;
     create_link(
-        &FilePath::new(format!("{}/libatomic.so", src_dir).as_str()).await.unwrap(),
-        &FilePath::new(format!("{}/libatomic.so.1.2.0", src_dir).as_str()).await.unwrap(),
-    ).await;
+        &FilePath::new(format!("{}/libatomic.so", src_dir).as_str())
+            .await
+            .unwrap(),
+        &FilePath::new(format!("{}/libatomic.so.1.2.0", src_dir).as_str())
+            .await
+            .unwrap(),
+    )
+    .await;
     create_link(
-        &FilePath::new(format!("{}/libatomic.so.1", src_dir).as_str()).await.unwrap(),
-        &FilePath::new(format!("{}/libatomic.so.1.2.0", src_dir).as_str()).await.unwrap(),
-    ).await;
+        &FilePath::new(format!("{}/libatomic.so.1", src_dir).as_str())
+            .await
+            .unwrap(),
+        &FilePath::new(format!("{}/libatomic.so.1.2.0", src_dir).as_str())
+            .await
+            .unwrap(),
+    )
+    .await;
     create_link(
-        &FilePath::new(format!("{}/libgfortran.so", src_dir).as_str()).await.unwrap(),
-        &FilePath::new(format!("{}/libgfortran.so.5.0.0", src_dir).as_str()).await.unwrap(),
-    ).await;
+        &FilePath::new(format!("{}/libgfortran.so", src_dir).as_str())
+            .await
+            .unwrap(),
+        &FilePath::new(format!("{}/libgfortran.so.5.0.0", src_dir).as_str())
+            .await
+            .unwrap(),
+    )
+    .await;
     create_link(
-        &FilePath::new(format!("{}/libgfortran.so.5", src_dir).as_str()).await.unwrap(),
-        &FilePath::new(format!("{}/libgfortran.so.5.0.0", src_dir).as_str()).await.unwrap(),
-    ).await;
+        &FilePath::new(format!("{}/libgfortran.so.5", src_dir).as_str())
+            .await
+            .unwrap(),
+        &FilePath::new(format!("{}/libgfortran.so.5.0.0", src_dir).as_str())
+            .await
+            .unwrap(),
+    )
+    .await;
     create_link(
-        &FilePath::new(format!("{}/libgomp.so", src_dir).as_str()).await.unwrap(),
-        &FilePath::new(format!("{}/libgomp.so.1.0.0", src_dir).as_str()).await.unwrap(),
-    ).await;
+        &FilePath::new(format!("{}/libgomp.so", src_dir).as_str())
+            .await
+            .unwrap(),
+        &FilePath::new(format!("{}/libgomp.so.1.0.0", src_dir).as_str())
+            .await
+            .unwrap(),
+    )
+    .await;
     create_link(
-        &FilePath::new(format!("{}/libgomp.so.1", src_dir).as_str()).await.unwrap(),
-        &FilePath::new(format!("{}/libgomp.so.1.0.0", src_dir).as_str()).await.unwrap(),
-    ).await;
+        &FilePath::new(format!("{}/libgomp.so.1", src_dir).as_str())
+            .await
+            .unwrap(),
+        &FilePath::new(format!("{}/libgomp.so.1.0.0", src_dir).as_str())
+            .await
+            .unwrap(),
+    )
+    .await;
     create_link(
-        &FilePath::new(format!("{}/libssp.so", src_dir).as_str()).await.unwrap(),
-        &FilePath::new(format!("{}/libssp.so.0.0.0", src_dir).as_str()).await.unwrap(),
-    ).await;
+        &FilePath::new(format!("{}/libssp.so", src_dir).as_str())
+            .await
+            .unwrap(),
+        &FilePath::new(format!("{}/libssp.so.0.0.0", src_dir).as_str())
+            .await
+            .unwrap(),
+    )
+    .await;
     create_link(
-        &FilePath::new(format!("{}/libssp.so.0", src_dir).as_str()).await.unwrap(),
-        &FilePath::new(format!("{}/libssp.so.0.0.0", src_dir).as_str()).await.unwrap(),
-    ).await;
+        &FilePath::new(format!("{}/libssp.so.0", src_dir).as_str())
+            .await
+            .unwrap(),
+        &FilePath::new(format!("{}/libssp.so.0.0.0", src_dir).as_str())
+            .await
+            .unwrap(),
+    )
+    .await;
     create_link(
-        &FilePath::new(format!("{}/libstdc++.so", src_dir).as_str()).await.unwrap(),
-        &FilePath::new(format!("{}/libstdc++.so.6.0.29", src_dir).as_str()).await.unwrap(),
-    ).await;
+        &FilePath::new(format!("{}/libstdc++.so", src_dir).as_str())
+            .await
+            .unwrap(),
+        &FilePath::new(format!("{}/libstdc++.so.6.0.29", src_dir).as_str())
+            .await
+            .unwrap(),
+    )
+    .await;
     create_link(
-        &FilePath::new(format!("{}/libstdc++.so.6", src_dir).as_str()).await.unwrap(),
-        &FilePath::new(format!("{}/libstdc++.so.6.0.29", src_dir).as_str()).await.unwrap(),
-    ).await;
+        &FilePath::new(format!("{}/libstdc++.so.6", src_dir).as_str())
+            .await
+            .unwrap(),
+        &FilePath::new(format!("{}/libstdc++.so.6.0.29", src_dir).as_str())
+            .await
+            .unwrap(),
+    )
+    .await;
 }
-
 
 // fn meminfo() -> &'static str {
 //     "MemTotal:       32246488 kB

@@ -1,6 +1,6 @@
-use core::{mem::ManuallyDrop, ops::Deref};
-use alloc::sync::Arc;
 use crate::{Executor, ExecutorRef};
+use alloc::sync::Arc;
+use core::{mem::ManuallyDrop, ops::Deref};
 
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 #[inline]
@@ -264,7 +264,6 @@ pub unsafe fn set_current_executor_ptr<T>(ptr: *const T) {
     }
 }
 
-
 /// A wrapper of [`TaskRef`] as the current task.
 pub struct CurrentExecutor(ManuallyDrop<ExecutorRef>);
 
@@ -272,7 +271,9 @@ impl CurrentExecutor {
     pub(crate) fn try_get() -> Option<Self> {
         let ptr: *const Executor = current_executor_ptr();
         if !ptr.is_null() {
-            Some(Self(unsafe { ManuallyDrop::new(ExecutorRef::from_raw(ptr)) }))
+            Some(Self(unsafe {
+                ManuallyDrop::new(ExecutorRef::from_raw(ptr))
+            }))
         } else {
             None
         }
@@ -313,7 +314,6 @@ impl CurrentExecutor {
     pub fn clean_current_without_drop() {
         unsafe { set_current_executor_ptr(0 as *const Executor) };
     }
-
 }
 
 impl Deref for CurrentExecutor {

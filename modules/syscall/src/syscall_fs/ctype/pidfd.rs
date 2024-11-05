@@ -1,12 +1,12 @@
 extern crate alloc;
+use crate::{SyscallError, SyscallResult};
+use alloc::boxed::Box;
 use alloc::sync::Arc;
 use async_fs::api::{FileIO, OpenFlags};
 use async_io::SeekFrom;
+use axerrno::{AxError, AxResult};
 use executor::{current_executor, Executor, PID2PC};
 use sync::Mutex;
-use axerrno::{AxError, AxResult};
-use crate::{SyscallError, SyscallResult};
-use alloc::boxed::Box;
 
 pub struct PidFd {
     flags: Mutex<OpenFlags>,
@@ -29,17 +29,16 @@ impl PidFd {
 }
 #[async_trait::async_trait]
 impl FileIO for PidFd {
-
     async fn read(&self, _buf: &mut [u8]) -> AxResult<usize> {
         Err(axerrno::AxError::Unsupported)
     }
 
     async fn write(&self, _buf: &[u8]) -> AxResult<usize> {
-        Err(AxError::Unsupported) 
+        Err(AxError::Unsupported)
     }
-    
+
     async fn seek(&self, _pos: SeekFrom) -> AxResult<u64> {
-        Err(AxError::Unsupported) 
+        Err(AxError::Unsupported)
     }
 
     /// To check whether the target process is still alive

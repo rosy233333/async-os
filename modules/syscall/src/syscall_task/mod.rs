@@ -10,7 +10,10 @@ mod imp;
 pub use imp::*;
 
 /// 进行 syscall 的分发
-pub async fn task_syscall(syscall_id: task_syscall_id::TaskSyscallId, args: [usize; 6]) -> SyscallResult {
+pub async fn task_syscall(
+    syscall_id: task_syscall_id::TaskSyscallId,
+    args: [usize; 6],
+) -> SyscallResult {
     match syscall_id {
         EXIT => syscall_exit(args).await,
         EXECVE => syscall_exec(args).await,

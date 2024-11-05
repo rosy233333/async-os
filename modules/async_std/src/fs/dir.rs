@@ -63,13 +63,13 @@ impl<'a> AsyncStream for ReadDir<'a> {
         if self.end_of_stream {
             return Poll::Ready(None);
         }
-        let Self { 
-            path, 
-            inner, 
-            buf_pos, 
-            buf_end, 
-            end_of_stream, 
-            dirent_buf 
+        let Self {
+            path,
+            inner,
+            buf_pos,
+            buf_end,
+            end_of_stream,
+            dirent_buf,
         } = self.get_mut();
         loop {
             if *buf_pos >= *buf_end {
@@ -103,7 +103,7 @@ impl<'a> AsyncStream for ReadDir<'a> {
             })));
         }
     }
-    
+
     fn size_hint(&self) -> (usize, Option<usize>) {
         (0, None)
     }

@@ -6,27 +6,27 @@ extern crate alloc;
 extern crate log;
 
 mod arch;
-mod task;
-mod kstack;
 mod current;
-mod waker;
+mod kstack;
 mod stat;
+mod task;
+mod waker;
 
 use alloc::sync::Arc;
 pub use arch::TrapFrame;
 pub use arch::TrapStatus;
-pub use waker::waker_from_task;
 pub use current::CurrentTask;
-pub use kstack::TaskStack;
 pub use kstack::init;
+pub use kstack::TaskStack;
+pub use waker::waker_from_task;
 
 pub type TaskRef = Arc<Task>;
-pub use task::{TaskInner, TaskId, TaskState, SchedPolicy, SchedStatus};
-pub use scheduler::BaseScheduler;
 pub use kstack::*;
+pub use scheduler::BaseScheduler;
+pub use task::{SchedPolicy, SchedStatus, TaskId, TaskInner, TaskState};
 
 #[cfg(feature = "thread")]
-pub use task::{StackCtx, CtxType};
+pub use task::{CtxType, StackCtx};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "sched_rr")] {
@@ -51,7 +51,8 @@ pub fn wakeup_task(task: TaskRef) {
     task.set_state(TaskState::Runable);
     // log::debug!("wakeup task {}, count {}", task.id_name(), Arc::strong_count(&task));
     task.clone()
-        .scheduler.lock()
+        .scheduler
+        .lock()
         .lock()
         .put_prev_task(task, false);
 }

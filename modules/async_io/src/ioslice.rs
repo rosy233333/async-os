@@ -1,5 +1,10 @@
-use core::{ffi::c_void, fmt, marker::PhantomData, ops::{Deref, DerefMut}};
 use core::slice;
+use core::{
+    ffi::c_void,
+    fmt,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
 #[allow(non_camel_case_types)]
 pub struct iovec {
@@ -17,7 +22,10 @@ impl<'a> IoSlice<'a> {
     #[inline]
     pub fn new(buf: &'a [u8]) -> IoSlice<'a> {
         IoSlice {
-            vec: iovec { iov_base: buf.as_ptr() as *mut u8 as *mut c_void, iov_len: buf.len() },
+            vec: iovec {
+                iov_base: buf.as_ptr() as *mut u8 as *mut c_void,
+                iov_len: buf.len(),
+            },
             _p: PhantomData,
         }
     }
@@ -69,7 +77,10 @@ impl<'a> IoSliceMut<'a> {
     #[inline]
     pub fn new(buf: &'a mut [u8]) -> IoSliceMut<'a> {
         IoSliceMut {
-            vec: iovec { iov_base: buf.as_mut_ptr() as *mut c_void, iov_len: buf.len() },
+            vec: iovec {
+                iov_base: buf.as_mut_ptr() as *mut c_void,
+                iov_len: buf.len(),
+            },
             _p: PhantomData,
         }
     }

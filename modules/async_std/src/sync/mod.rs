@@ -7,7 +7,6 @@ pub use core::sync::atomic;
 #[doc(no_inline)]
 pub use alloc::sync::{Arc, Weak};
 
-
 #[cfg(feature = "multitask")]
 #[doc(cfg(feature = "multitask"))]
 pub use sync::{Mutex, MutexGuard};

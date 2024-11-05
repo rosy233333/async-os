@@ -1,10 +1,6 @@
-const BUILTIN_PLATFORMS: &[&str] = &[
-    "riscv64-qemu-virt",
-];
+const BUILTIN_PLATFORMS: &[&str] = &["riscv64-qemu-virt"];
 
-const BUILTIN_PLATFORM_FAMILIES: &[&str] = &[
-    "riscv64-qemu-virt",
-];
+const BUILTIN_PLATFORM_FAMILIES: &[&str] = &["riscv64-qemu-virt"];
 
 fn make_cfg_values(str_list: &[&str]) -> String {
     str_list

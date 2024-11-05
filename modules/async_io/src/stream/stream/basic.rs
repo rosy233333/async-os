@@ -1,5 +1,5 @@
 //! Asynchronous streams.
-//! 
+//!
 
 use core::ops::DerefMut;
 use core::pin::Pin;

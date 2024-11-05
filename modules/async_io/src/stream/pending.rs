@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-use super::{DoubleEndedStream, ExactSizeStream, FusedStream, AsyncStream};
+use super::{AsyncStream, DoubleEndedStream, ExactSizeStream, FusedStream};
 
 /// A stream that never returns any items.
 ///

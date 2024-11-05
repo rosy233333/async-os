@@ -16,38 +16,36 @@
 //!     5. write_vectored
 //! AsyncSeek -> Seek
 //!     1. seek
-//! 
+//!
 #![cfg_attr(not(test), no_std)]
 #![cfg_attr(test, feature(noop_waker))]
 
 extern crate alloc;
 
-pub use axerrno::{AxError as Error, AxResult as Result, ax_err};
+pub use axerrno::{ax_err, AxError as Error, AxResult as Result};
 
-mod read;
-mod write;
-mod seek;
 mod buf_read;
-pub mod ioslice;
-mod stream;
 mod buf_reader;
 mod buf_writer;
 mod cursor;
+pub mod ioslice;
 pub mod prelude;
+mod read;
+mod seek;
+mod stream;
+mod write;
 
 pub use ioslice::*;
 
-pub use read::{AsyncRead, Read};
 pub use buf_read::{AsyncBufRead, BufRead};
-pub use write::{AsyncWrite, Write};
+pub use read::{AsyncRead, Read};
 pub use seek::{AsyncSeek, Seek, SeekFrom};
+pub use write::{AsyncWrite, Write};
 
 pub use buf_reader::BufReader;
 pub use buf_writer::BufWriter;
-pub use stream::*;
 pub use cursor::Cursor;
-
-
+pub use stream::*;
 
 /// I/O poll results.
 #[derive(Debug, Default, Clone, Copy)]

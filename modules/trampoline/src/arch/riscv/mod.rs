@@ -1,8 +1,7 @@
-use core::arch::asm;
-use taskctx::TrapFrame;
-use riscv::register::stvec;
 use crate::trampoline;
-
+use core::arch::asm;
+use riscv::register::stvec;
+use taskctx::TrapFrame;
 
 /// Writes Supervisor Trap Vector Base Address Register (`stvec`).
 #[inline]
@@ -107,7 +106,6 @@ macro_rules! include_restore_regs_macros {
 include_save_regs_macros!();
 include_restore_regs_macros!();
 
-
 macro_rules! include_asm_marcos {
     () => {
         #[cfg(target_arch = "riscv32")]
@@ -189,6 +187,5 @@ macro_rules! include_asm_marcos {
         );
     };
 }
-
 
 include_asm_marcos!();

@@ -1,11 +1,14 @@
 use async_fs::api::{FileIO, FileIOType, OpenFlags};
 extern crate alloc;
-use alloc::{sync::{Arc, Weak}, boxed::Box};
+use alloc::{
+    boxed::Box,
+    sync::{Arc, Weak},
+};
 use axerrno::AxResult;
 use axlog::{info, trace};
 
-use sync::Mutex;
 use executor::yield_now;
+use sync::Mutex;
 
 /// IPC pipe
 pub struct Pipe {

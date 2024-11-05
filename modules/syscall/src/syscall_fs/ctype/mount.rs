@@ -56,7 +56,10 @@ pub async fn mount_fat_fs(device_path: &FilePath, mount_path: &FilePath) -> bool
     // debug!("mounting {} to {}", device_path.path(), mount_path.path());
     // if let Some(true_device_path) = real_path(device_path) {
     if path_exists(mount_path.path()).await {
-        MOUNTED.lock().await.push(MountedFs::new(device_path, mount_path));
+        MOUNTED
+            .lock()
+            .await
+            .push(MountedFs::new(device_path, mount_path));
         info!("mounted {} to {}", device_path.path(), mount_path.path());
         return true;
     }

@@ -18,5 +18,6 @@ pub fn async_main(_args: TokenStream, item: TokenStream) -> TokenStream {
         fn keep_name() -> BoxFut {
             Box::pin(async { #block })
         }
-    }.into()
+    }
+    .into()
 }

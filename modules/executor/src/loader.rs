@@ -1,16 +1,20 @@
 use core::{ptr::copy_nonoverlapping, str::from_utf8};
 
-use alloc::{boxed::Box, string::{String, ToString}, vec::Vec, vec};
+use crate::link::real_path;
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use async_mem::MemorySet;
 use axconfig::{MAX_USER_HEAP_SIZE, MAX_USER_STACK_SIZE, USER_HEAP_BASE, USER_STACK_TOP};
-use axhal::{mem::VirtAddr, paging::MappingFlags};
-use elf_parser::{get_app_stack_region, get_auxv_vector, get_elf_entry, get_elf_segments, get_relocate_pairs};
-use crate::link::real_path;
 use axerrno::{AxError, AxResult};
+use axhal::{mem::VirtAddr, paging::MappingFlags};
+use elf_parser::{
+    get_app_stack_region, get_auxv_vector, get_elf_entry, get_elf_segments, get_relocate_pairs,
+};
 use xmas_elf::program::SegmentData;
-
-
-
 
 /// 返回应用程序入口，用户栈底，用户堆底
 pub async fn load_app(
@@ -55,14 +59,16 @@ pub async fn load_app(
     let segments = get_elf_segments(&elf, elf_base_addr);
     let relocate_pairs = get_relocate_pairs(&elf, elf_base_addr);
     for segment in segments {
-        memory_set.new_region(
-            segment.vaddr,
-            segment.size,
-            false,
-            segment.flags,
-            segment.data.as_deref(),
-            None,
-        ).await;
+        memory_set
+            .new_region(
+                segment.vaddr,
+                segment.size,
+                false,
+                segment.flags,
+                segment.data.as_deref(),
+                None,
+            )
+            .await;
     }
 
     for relocate_pair in relocate_pairs {
@@ -75,14 +81,16 @@ pub async fn load_app(
     // Now map the stack and the heap
     let heap_start = VirtAddr::from(USER_HEAP_BASE);
     let heap_data = [0_u8].repeat(MAX_USER_HEAP_SIZE);
-    memory_set.new_region(
-        heap_start,
-        MAX_USER_HEAP_SIZE,
-        false,
-        MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
-        Some(&heap_data),
-        None,
-    ).await;
+    memory_set
+        .new_region(
+            heap_start,
+            MAX_USER_HEAP_SIZE,
+            false,
+            MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
+            Some(&heap_data),
+            None,
+        )
+        .await;
     info!(
         "[new region] user heap: [{:?}, {:?})",
         heap_start,
@@ -95,14 +103,16 @@ pub async fn load_app(
     let stack_size = MAX_USER_STACK_SIZE;
 
     let (stack_data, stack_bottom) = get_app_stack_region(args, envs, auxv, stack_top, stack_size);
-    memory_set.new_region(
-        stack_top,
-        stack_size,
-        false,
-        MappingFlags::USER | MappingFlags::READ | MappingFlags::WRITE,
-        Some(&stack_data),
-        None,
-    ).await;
+    memory_set
+        .new_region(
+            stack_top,
+            stack_size,
+            false,
+            MappingFlags::USER | MappingFlags::READ | MappingFlags::WRITE,
+            Some(&stack_data),
+            None,
+        )
+        .await;
     info!(
         "[new region] user stack: [{:?}, {:?})",
         stack_top,

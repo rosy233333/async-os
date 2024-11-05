@@ -1,8 +1,8 @@
 use async_fs::api::FileIO;
 use axhal::{mem::VirtAddr, time::current_ticks};
-use executor::{current_executor, yield_now};
 use axsignal::signal_no::SignalNo;
 use bitflags::bitflags;
+use executor::{current_executor, yield_now};
 extern crate alloc;
 use crate::{SyscallError, SyscallResult, TimeSecs, TimeVal};
 use alloc::{sync::Arc, vec::Vec};
@@ -179,7 +179,11 @@ pub async fn syscall_ppoll(args: [usize; 6]) -> SyscallResult {
 
     let start: VirtAddr = (ufds as usize).into();
     let end = start + nfds * core::mem::size_of::<PollFd>();
-    if process.manual_alloc_range_for_lazy(start, end).await.is_err() {
+    if process
+        .manual_alloc_range_for_lazy(start, end)
+        .await
+        .is_err()
+    {
         return Err(SyscallError::EFAULT);
     }
 
@@ -269,7 +273,11 @@ async fn init_fd_set(addr: *mut usize, len: usize) -> Result<PpollFdSet, Syscall
 
     let start: VirtAddr = (addr as usize).into();
     let end = start + (len + 7) / 8;
-    if process.manual_alloc_range_for_lazy(start, end).await.is_err() {
+    if process
+        .manual_alloc_range_for_lazy(start, end)
+        .await
+        .is_err()
+    {
         axlog::error!("[pselect6()] addr {addr:?} invalid");
         return Err(SyscallError::EFAULT);
     }
@@ -341,7 +349,8 @@ pub async fn syscall_pselect6(args: [usize; 6]) -> SyscallResult {
     let expire_time = if !timeout.is_null() {
         if process
             .memory_set
-            .lock().await
+            .lock()
+            .await
             .manual_alloc_type_for_lazy(timeout)
             .await
             .is_err()

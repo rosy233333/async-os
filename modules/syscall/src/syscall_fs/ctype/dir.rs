@@ -1,9 +1,9 @@
 use crate::{normal_file_mode, StMode};
 extern crate alloc;
-use alloc::string::{String, ToString};
 use alloc::boxed::Box;
+use alloc::string::{String, ToString};
+use async_fs::api::{self, async_trait, FileIO, FileIOType, Kstat, OpenFlags, SeekFrom};
 use axerrno::{AxError, AxResult};
-use async_fs::api::{self, FileIO, FileIOType, Kstat, OpenFlags, SeekFrom, async_trait};
 
 /// 目录描述符
 pub struct DirDesc {
@@ -22,7 +22,6 @@ impl DirDesc {
 #[async_trait]
 /// 为DirDesc实现FileIO trait
 impl FileIO for DirDesc {
-
     async fn read(&self, _buf: &mut [u8]) -> AxResult<usize> {
         Err(AxError::IsADirectory)
     }
@@ -34,7 +33,7 @@ impl FileIO for DirDesc {
     async fn flush(&self) -> AxResult<()> {
         Err(AxError::IsADirectory)
     }
-    
+
     async fn seek(&self, _pos: SeekFrom) -> AxResult<u64> {
         Err(AxError::IsADirectory)
     }
@@ -46,7 +45,7 @@ impl FileIO for DirDesc {
     async fn executable(&self) -> bool {
         false
     }
-    
+
     async fn readable(&self) -> bool {
         false
     }
@@ -82,7 +81,6 @@ impl FileIO for DirDesc {
         };
         Ok(kstat)
     }
-
 }
 
 pub async fn new_dir(dir_path: String, _flags: OpenFlags) -> AxResult<DirDesc> {

@@ -1,13 +1,12 @@
 #![cfg_attr(not(test), no_std)]
 #![allow(async_fn_in_trait)]
 
-
 #[cfg(test)]
 mod tests;
 
 /// 这个是提供给应用程序的接口
 /// 以 async 的形式提供
-/// 
+///
 pub fn read(_fd: usize, _base: *mut u8, _len: usize) -> isize {
     // // 同步接口
     // sys_read(fd, base, len)
@@ -28,7 +27,11 @@ pub fn sys_read_(_fd: usize, _base: *mut u8, _len: usize) -> ReadFuture {
     ReadFuture { _fd, _base, _len }
 }
 
-use core::{future::Future, pin::Pin, task::{Context, Poll}};
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 pub struct ReadFuture {
     _fd: usize,
@@ -43,5 +46,3 @@ impl Future for ReadFuture {
         Poll::Ready(0)
     }
 }
-
-

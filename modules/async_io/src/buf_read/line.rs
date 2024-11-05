@@ -7,8 +7,8 @@ use alloc::vec::Vec;
 use pin_project_lite::pin_project;
 
 use super::read_until_internal;
-use crate::{self as io, AsyncBufRead, ax_err};
 use crate::stream::AsyncStream;
+use crate::{self as io, ax_err, AsyncBufRead};
 use core::task::{Context, Poll};
 
 pin_project! {
@@ -65,12 +65,7 @@ pub fn read_line_internal<R: AsyncBufRead + ?Sized>(
 ) -> Poll<io::Result<usize>> {
     let ret = futures_core::ready!(read_until_internal(reader, cx, b'\n', bytes, read));
     if str::from_utf8(&bytes).is_err() {
-        Poll::Ready(ret.and_then(|_| {
-            ax_err!(
-                InvalidData,
-                "stream did not contain valid UTF-8"
-            )
-        }))
+        Poll::Ready(ret.and_then(|_| ax_err!(InvalidData, "stream did not contain valid UTF-8")))
     } else {
         debug_assert!(buf.is_empty());
         debug_assert_eq!(*read, 0);

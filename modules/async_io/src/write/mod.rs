@@ -12,52 +12,52 @@ use write_all::WriteAllFuture;
 use write_fmt::WriteFmtFuture;
 use write_vectored::WriteVectoredFuture;
 
-use crate::{Result, IoSlice};
-use core::{ops::DerefMut, pin::Pin, task::{Context, Poll}};
+use crate::{IoSlice, Result};
+use core::{
+    ops::DerefMut,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 /// 异步写
-/// 
+///
 /// 类似于 `std::io::Write`，但集成了异步任务系统。
 /// `write` 函数不同于 `std::io::Write::write`，
 /// 会自动将当前任务放入等待队列，并让出 CPU
 pub trait AsyncWrite {
     /// 尝试将 `buf` 中的数据写到对象中
-    /// 
+    ///
     /// 一旦成功，则返回 `Poll::Ready(Ok(num_bytes_written))`
-    /// 
+    ///
     /// 如果对象暂时不可写，将返回 `Poll::Pending`，并让出 CPU
-    /// 
+    ///
     /// 当对象可写或关闭时，唤醒等待的任务
-    /// 
+    ///
     /// # 实现
-    /// 
+    ///
     /// 这个函数不会返回 `WouldBlock` 或 `Interrupted` 错误，
     /// 而是将这些错误转化为 `Poll::Pending`，并且在内部进行重试
     /// 或者转化为其他错误
-    /// 
+    ///
     /// 如果该对象只能通过 `flush` 才可以变成可写的状态，
     /// 则 `write` 函数中必须尝试使用 `flush` 使对象可写
-    fn write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize>>;
+    fn write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize>>;
 
     /// 尝试使用向量 IO 异步的将数据从 `bufs` 写到对象中
-    /// 
+    ///
     /// 这个函数类似于 `write`，但允许在单个函数中将多个缓冲区的数据写到对象中
-    /// 
+    ///
     /// 一旦成功，则返回 `Poll::Ready(Ok(num_bytes_written))`
-    /// 
+    ///
     /// 如果对象不可写，则返回 `Poll::Pending`，当前任务让出 CPU
-    /// 
+    ///
     /// 当对象可写或关闭时，唤醒等待的任务
-    /// 
+    ///
     /// 默认情况下，这个函数对 `bufs` 中第一个非空的缓冲区使用 `write` 函数，
     /// 或者直接写取到空的缓冲区。支持向量 IO 的对象必须重写这个函数
     ///
     /// # 实现
-    /// 
+    ///
     /// 这个函数不会返回 `WouldBlock` 或 `Interrupted` 错误，
     /// 而是将这些错误转化为 `Poll::Pending`，并且在内部进行重试
     /// 或者转化为其他错误
@@ -76,27 +76,27 @@ pub trait AsyncWrite {
     }
 
     /// 尝试异步刷新对象，保证缓冲区的数据达到目标
-    /// 
+    ///
     /// 一旦成功，返回 `Poll::Ready(OK(()))`
-    /// 
+    ///
     /// 如果不能立即完成，则返回 `Poll::Pending`，当前 CPU 让权
-    /// 
+    ///
     ///
     /// # 实现
     ///
     /// 这个函数不会返回 `WouldBlock` 或 `Interrupted` 错误，
     /// 而是将这些错误转化为 `Poll::Pending`，并且在内部进行重试
     /// 或者转化为其他错误
-    /// 
+    ///
     /// 只有当缓冲区实际存在数据时，这个操作才有意义
     fn flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>>;
 
     /// 尝试关闭对象
-    /// 
+    ///
     /// 一旦成功，返回 `Poll::Ready(Ok(()))`.
-    /// 
+    ///
     /// 如果不能马上完成，则返回 `Poll::Pending`，当前任务让出 CPU
-    /// 
+    ///
     /// # 实现
     ///
     /// 这个函数不会返回 `WouldBlock` 或 `Interrupted` 错误，
@@ -104,7 +104,6 @@ pub trait AsyncWrite {
     /// 或者转化为其他错误
     fn close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>>;
 }
-
 
 macro_rules! deref_async_write {
     () => {
@@ -147,11 +146,7 @@ where
     P: DerefMut + Unpin,
     P::Target: AsyncWrite,
 {
-    fn write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize>> {
+    fn write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize>> {
         self.get_mut().as_mut().write(cx, buf)
     }
 
@@ -173,11 +168,7 @@ where
 }
 
 impl AsyncWrite for Vec<u8> {
-    fn write(
-        mut self: Pin<&mut Self>,
-        _: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize>> {
+    fn write(mut self: Pin<&mut Self>, _: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize>> {
         self.extend_from_slice(buf);
         Poll::Ready(Ok(buf.len()))
     }
@@ -235,10 +226,7 @@ pub trait Write: AsyncWrite {
         # Ok(()) }) }
         ```
     "#]
-    fn write<'a>(
-        &'a mut self,
-        buf: &'a [u8],
-    ) -> WriteFuture<'a, Self>
+    fn write<'a>(&'a mut self, buf: &'a [u8]) -> WriteFuture<'a, Self>
     where
         Self: Unpin,
     {
@@ -283,10 +271,7 @@ pub trait Write: AsyncWrite {
 
         [`write`]: #tymethod.write
     "#]
-    fn write_vectored<'a>(
-        &'a mut self,
-        bufs: &'a [IoSlice<'a>],
-    ) -> WriteVectoredFuture<'a, Self>
+    fn write_vectored<'a>(&'a mut self, bufs: &'a [IoSlice<'a>]) -> WriteVectoredFuture<'a, Self>
     where
         Self: Unpin,
     {
@@ -319,10 +304,7 @@ pub trait Write: AsyncWrite {
 
         [`write`]: #tymethod.write
     "#]
-    fn write_all<'a>(
-        &'a mut self,
-        buf: &'a [u8],
-    ) -> WriteAllFuture<'a, Self>
+    fn write_all<'a>(&'a mut self, buf: &'a [u8]) -> WriteAllFuture<'a, Self>
     where
         Self: Unpin,
     {
@@ -356,10 +338,7 @@ pub trait Write: AsyncWrite {
         # Ok(()) }) }
         ```
     "#]
-    fn write_fmt<'a>(
-        &'a mut self,
-        fmt: core::fmt::Arguments<'_>,
-    ) -> WriteFmtFuture<'a, Self>
+    fn write_fmt<'a>(&'a mut self, fmt: core::fmt::Arguments<'_>) -> WriteFmtFuture<'a, Self>
     where
         Self: Unpin,
     {
@@ -370,7 +349,12 @@ pub trait Write: AsyncWrite {
         let res = core::fmt::write(&mut string, fmt)
             .map(|_| string.into_bytes())
             .map_err(|_| ax_err_type!(Unsupported, "formatter error"));
-        WriteFmtFuture { writer: self, res: Some(res), buffer: None, amt: 0 }
+        WriteFmtFuture {
+            writer: self,
+            res: Some(res),
+            buffer: None,
+            amt: 0,
+        }
     }
 }
 

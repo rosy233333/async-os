@@ -12,4 +12,4 @@ use aos_api::task as api;
 ///
 /// For single-threaded configuration (`multitask` feature is disabled), we just
 /// relax the CPU and wait for incoming interrupts.
-pub use api::{yield_now, sleep_until, sleep};
+pub use api::{sleep, sleep_until, yield_now};

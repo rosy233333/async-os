@@ -1,7 +1,7 @@
-use core::pin::Pin;
 use core::future::Future;
+use core::pin::Pin;
 
-use crate::{self as io, IoSliceMut, AsyncRead};
+use crate::{self as io, AsyncRead, IoSliceMut};
 use core::task::{Context, Poll};
 
 #[doc(hidden)]

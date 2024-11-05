@@ -5,19 +5,18 @@
 extern crate alloc;
 extern crate arch_boot;
 
+pub mod env;
 pub mod io;
+pub mod os;
+pub mod prelude;
 pub mod sync;
 pub mod task;
-pub mod env;
-pub mod os;
 pub mod time;
-pub mod prelude;
 
 #[cfg(feature = "fs")]
 pub mod fs;
 #[cfg(feature = "net")]
 pub mod net;
-
 
 #[macro_use]
 mod macros;

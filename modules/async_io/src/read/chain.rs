@@ -4,7 +4,7 @@ use core::task::{Context, Poll};
 
 use pin_project_lite::pin_project;
 
-use crate::{AsyncBufRead, IoSliceMut, AsyncRead, self as io};
+use crate::{self as io, AsyncBufRead, AsyncRead, IoSliceMut};
 
 pin_project! {
     /// Adaptor to chain together two readers.
@@ -104,11 +104,7 @@ impl<T: fmt::Debug, U: fmt::Debug> fmt::Debug for Chain<T, U> {
 }
 
 impl<T: AsyncRead, U: AsyncRead> AsyncRead for Chain<T, U> {
-    fn read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+    fn read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         let this = self.project();
         if !*this.done_first {
             match futures_core::ready!(this.first.read(cx, buf)) {
@@ -167,10 +163,13 @@ impl<T: AsyncBufRead, U: AsyncBufRead> AsyncBufRead for Chain<T, U> {
 
 #[cfg(test)]
 mod tests {
-    use crate::Cursor;
     use crate::read::Read;
-    use core::{future::Future, task::{Context, Waker}};
+    use crate::Cursor;
     use alloc::boxed::Box;
+    use core::{
+        future::Future,
+        task::{Context, Waker},
+    };
 
     #[test]
     fn test_chain_basics() {
@@ -186,7 +185,6 @@ mod tests {
             assert_eq!(6, source.read_to_end(&mut buffer).await.unwrap());
             assert_eq!(buffer, vec![0, 1, 2, 3, 4, 5]);
             println!("buffer {:?}", buffer);
-
         };
         let _ = Box::pin(fut).as_mut().poll(&mut cx);
     }

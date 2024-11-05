@@ -1,6 +1,10 @@
+use crate::{AsyncBufRead, AsyncRead, AsyncSeek, IoSliceMut, Result, SeekFrom};
 use alloc::{boxed::Box, vec};
-use crate::{AsyncRead, AsyncBufRead, AsyncSeek, IoSliceMut, Result, SeekFrom};
-use core::{cmp, fmt, pin::Pin, task::{Context, Poll}};
+use core::{
+    cmp, fmt,
+    pin::Pin,
+    task::{Context, Poll},
+};
 use pin_project_lite::pin_project;
 const DEFAULT_BUF_SIZE: usize = 1024;
 
@@ -196,11 +200,7 @@ impl<R> BufReader<R> {
 }
 
 impl<R: AsyncRead> AsyncRead for BufReader<R> {
-    fn read(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<Result<usize>> {
+    fn read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         // If we don't have any buffered data and we're doing a massive read
         // (larger than our internal buffer), bypass our internal buffer
         // entirely.
@@ -222,8 +222,7 @@ impl<R: AsyncRead> AsyncRead for BufReader<R> {
     ) -> Poll<Result<usize>> {
         let total_len = bufs.iter().map(|b| b.len()).sum::<usize>();
         if self.pos == self.cap && total_len >= self.buf.len() {
-            let res =
-                futures_core::ready!(self.as_mut().get_pin_mut().read_vectored(cx, bufs));
+            let res = futures_core::ready!(self.as_mut().get_pin_mut().read_vectored(cx, bufs));
             self.discard_buffer();
             return Poll::Ready(res);
         }
@@ -235,10 +234,7 @@ impl<R: AsyncRead> AsyncRead for BufReader<R> {
 }
 
 impl<R: AsyncRead> AsyncBufRead for BufReader<R> {
-    fn fill_buf<'a>(
-        self: Pin<&'a mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<&'a [u8]>> {
+    fn fill_buf<'a>(self: Pin<&'a mut Self>, cx: &mut Context<'_>) -> Poll<Result<&'a [u8]>> {
         let mut this = self.project();
 
         // If we've reached the end of our internal buffer then we need to fetch
@@ -289,11 +285,7 @@ impl<R: AsyncSeek> AsyncSeek for BufReader<R> {
     /// would have if you called `seek` with `SeekFrom::Current(0)`.
     ///
     /// [`Seek`]: trait.Seek.html
-    fn seek(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        pos: SeekFrom,
-    ) -> Poll<Result<u64>> {
+    fn seek(mut self: Pin<&mut Self>, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
         let result: u64;
         if let SeekFrom::Current(n) = pos {
             let remainder = (self.cap - self.pos) as i64;
@@ -303,24 +295,21 @@ impl<R: AsyncSeek> AsyncSeek for BufReader<R> {
             // support seeking by i64::min_value() so we need to handle underflow when subtracting
             // remainder.
             if let Some(offset) = n.checked_sub(remainder) {
-                result = futures_core::ready!(
-                    self.as_mut()
-                        .get_pin_mut()
-                        .seek(cx, SeekFrom::Current(offset))
-                )?;
+                result = futures_core::ready!(self
+                    .as_mut()
+                    .get_pin_mut()
+                    .seek(cx, SeekFrom::Current(offset)))?;
             } else {
                 // seek backwards by our remainder, and then by the offset
-                futures_core::ready!(
-                    self.as_mut()
-                        .get_pin_mut()
-                        .seek(cx, SeekFrom::Current(-remainder))
-                )?;
+                futures_core::ready!(self
+                    .as_mut()
+                    .get_pin_mut()
+                    .seek(cx, SeekFrom::Current(-remainder)))?;
                 self.as_mut().discard_buffer();
-                result = futures_core::ready!(
-                    self.as_mut()
-                        .get_pin_mut()
-                        .seek(cx, SeekFrom::Current(n))
-                )?;
+                result = futures_core::ready!(self
+                    .as_mut()
+                    .get_pin_mut()
+                    .seek(cx, SeekFrom::Current(n)))?;
             }
         } else {
             // Seeking with Start/End doesn't care about our buffer length.
@@ -329,5 +318,4 @@ impl<R: AsyncSeek> AsyncSeek for BufReader<R> {
         self.discard_buffer();
         Poll::Ready(Ok(result))
     }
-
 }

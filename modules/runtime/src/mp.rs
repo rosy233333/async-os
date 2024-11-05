@@ -36,7 +36,6 @@ pub fn rust_main_secondary(cpu_id: usize) -> ! {
     trampoline::trampoline(tf, false, false);
 
     unreachable!()
-
 }
 
 /// The number of CPUs that have entered the runtime.

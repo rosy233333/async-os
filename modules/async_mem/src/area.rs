@@ -1,13 +1,13 @@
 use alloc::{sync::Arc, vec::Vec};
+use async_io::{Seek, SeekFrom};
 use axalloc::PhysPage;
 use axerrno::AxResult;
 use axhal::{
     mem::{virt_to_phys, VirtAddr, PAGE_SIZE_4K},
     paging::{MappingFlags, PageSize, PageTable},
 };
-use async_io::{Seek, SeekFrom};
-use sync::Mutex;
 use core::ptr::copy_nonoverlapping;
+use sync::Mutex;
 
 use crate::MemBackend;
 
@@ -162,7 +162,8 @@ impl MapArea {
                     .read_from_seek(
                         SeekFrom::Current((page_index * PAGE_SIZE_4K) as i64),
                         page.as_slice_mut(),
-                    ).await
+                    )
+                    .await
                     .is_err()
                 {
                     warn!("Failed to read from backend to memory");
@@ -200,7 +201,8 @@ impl MapArea {
                         .write_to_seek(
                             SeekFrom::Start((page_index * PAGE_SIZE_4K) as u64),
                             page.lock().await.as_slice(),
-                        ).await
+                        )
+                        .await
                         .unwrap();
                 }
             }
@@ -219,7 +221,10 @@ impl MapArea {
 
         // move backend offset
         if let Some(backend) = &mut self.backend {
-            let _ = backend.seek(SeekFrom::Current(delete_size as i64)).await.unwrap();
+            let _ = backend
+                .seek(SeekFrom::Current(delete_size as i64))
+                .await
+                .unwrap();
         }
 
         // remove (dealloc) phys pages
@@ -261,7 +266,9 @@ impl MapArea {
         let backend = if let Some(backend) = self.backend.as_ref() {
             let mut backend = backend.clone();
             let _ = backend
-                .seek(SeekFrom::Current((addr.as_usize() - self.vaddr.as_usize()) as i64))
+                .seek(SeekFrom::Current(
+                    (addr.as_usize() - self.vaddr.as_usize()) as i64,
+                ))
                 .await
                 .unwrap();
             Some(backend)
@@ -273,7 +280,7 @@ impl MapArea {
             vaddr: addr,
             flags: self.flags,
             shared: self.shared,
-            backend
+            backend,
         }
     }
 
@@ -306,7 +313,8 @@ impl MapArea {
             let _ = backend
                 .seek(SeekFrom::Current(
                     (start.as_usize() - self.vaddr.as_usize()) as i64,
-                )).await
+                ))
+                .await
                 .unwrap();
             Some(backend)
         } else {
@@ -318,7 +326,7 @@ impl MapArea {
             vaddr: start,
             flags: self.flags,
             shared: self.shared,
-            backend: mid_backend
+            backend: mid_backend,
         };
 
         let right_backend = if let Some(backend) = self.backend.as_ref() {
@@ -326,7 +334,8 @@ impl MapArea {
             let _ = backend
                 .seek(SeekFrom::Current(
                     (end.as_usize() - self.vaddr.as_usize()) as i64,
-                )).await
+                ))
+                .await
                 .unwrap();
             Some(backend)
         } else {
@@ -338,7 +347,7 @@ impl MapArea {
             vaddr: end,
             flags: self.flags,
             shared: self.shared,
-            backend: right_backend
+            backend: right_backend,
         };
 
         (mid, right)
@@ -375,7 +384,8 @@ impl MapArea {
             let _ = backend
                 .seek(SeekFrom::Current(
                     (right_start.as_usize() - self.vaddr.as_usize()) as i64,
-                )).await
+                ))
+                .await
                 .unwrap();
             Some(backend)
         } else {
@@ -387,7 +397,7 @@ impl MapArea {
             vaddr: right_start,
             flags: self.flags,
             shared: self.shared,
-            backend: right_backend
+            backend: right_backend,
         };
 
         // remove pages
@@ -493,7 +503,8 @@ impl MapArea {
                 })
                 .collect();
             for vaddr in fault_pages {
-                self.handle_page_fault(vaddr, MappingFlags::empty(), parent_page_table).await;
+                self.handle_page_fault(vaddr, MappingFlags::empty(), parent_page_table)
+                    .await;
             }
 
             // Map the area in the child page table.
@@ -530,7 +541,8 @@ impl MapArea {
                 Some(unsafe { self.as_slice() }),
                 self.backend.clone(),
                 page_table,
-            ).await
+            )
+            .await
         } else {
             let mut pages = Vec::new();
             for (idx, slot) in self.pages.iter().enumerate() {

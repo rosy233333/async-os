@@ -23,10 +23,7 @@ pin_project! {
 
 impl<S, F> Inspect<S, F> {
     pub(super) fn new(stream: S, f: F) -> Self {
-        Self {
-            stream,
-            f,
-        }
+        Self { stream, f }
     }
 }
 

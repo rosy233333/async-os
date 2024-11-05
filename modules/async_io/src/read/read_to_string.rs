@@ -1,12 +1,12 @@
+use core::future::Future;
 use core::mem;
 use core::pin::Pin;
 use core::str;
-use core::future::Future;
 
 use alloc::{string::String, vec::Vec};
 
 use super::read_to_end_internal;
-use crate::{self as io, AsyncRead, ax_err};
+use crate::{self as io, ax_err, AsyncRead};
 use core::task::{Context, Poll};
 
 #[doc(hidden)]
@@ -32,12 +32,9 @@ impl<T: AsyncRead + Unpin + ?Sized> Future for ReadToStringFuture<'_, T> {
 
         let ret = futures_core::ready!(read_to_end_internal(reader, cx, bytes, *start_len));
         if str::from_utf8(&bytes).is_err() {
-            Poll::Ready(ret.and_then(|_| {
-                ax_err!(
-                    InvalidData,
-                    "stream did not contain valid UTF-8"
-                )
-            }))
+            Poll::Ready(
+                ret.and_then(|_| ax_err!(InvalidData, "stream did not contain valid UTF-8")),
+            )
         } else {
             #[allow(clippy::debug_assert_with_mut_call)]
             {

@@ -1,11 +1,18 @@
+#[cfg(feature = "thread")]
+use crate::TaskStack;
 use crate::{stat::TimeStat, Scheduler, TrapFrame};
-use core::{cell::UnsafeCell, fmt, future::Future, pin::Pin, sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering}, task::Waker};
-use spinlock::SpinNoIrq;
 use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, sync::Arc};
 #[cfg(feature = "preempt")]
 use core::sync::atomic::AtomicUsize;
-#[cfg(feature = "thread")]
-use crate::TaskStack;
+use core::{
+    cell::UnsafeCell,
+    fmt,
+    future::Future,
+    pin::Pin,
+    sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering},
+    task::Waker,
+};
+use spinlock::SpinNoIrq;
 
 /// A unique identifier for a thread.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -29,7 +36,6 @@ impl Default for TaskId {
         Self::new()
     }
 }
-
 
 /// The possible states of a task.
 #[repr(u8)]
@@ -104,11 +110,11 @@ pub struct TaskInner {
     // executor: SpinNoIrq<Arc<Executor>>,
     pub(crate) wait_wakers: UnsafeCell<VecDeque<Waker>>,
     pub(crate) scheduler: SpinNoIrq<Arc<SpinNoIrq<Scheduler>>>,
-    
+
     pub(crate) id: TaskId,
     pub(crate) name: UnsafeCell<String>,
     /// Whether the task is the initial task
-    /// 
+    ///
     /// If the task is the initial task, the kernel will terminate
     /// when the task exits.
     pub(crate) is_init: bool,
@@ -134,7 +140,7 @@ pub struct TaskInner {
     /// 在内核中发生抢占或者使用线程接口时的上下文
     #[cfg(feature = "thread")]
     stack_ctx: UnsafeCell<Option<StackCtx>>,
-    
+
     /// 是否是所属进程下的主线程
     is_leader: AtomicBool,
     process_id: AtomicU64,
@@ -148,7 +154,6 @@ unsafe impl Send for TaskInner {}
 unsafe impl Sync for TaskInner {}
 
 impl TaskInner {
-
     pub fn new(
         name: String,
         process_id: u64,
@@ -192,7 +197,7 @@ impl TaskInner {
         process_id: u64,
         scheduler: Arc<SpinNoIrq<Scheduler>>,
         fut: Pin<Box<dyn Future<Output = i32> + 'static>>,
-        utrap_frame: Box<TrapFrame>
+        utrap_frame: Box<TrapFrame>,
     ) -> Self {
         let is_init = &name == "main";
         let t = Self {
@@ -381,7 +386,6 @@ impl TaskInner {
     pub fn set_process_id(&self, process_id: u64) {
         self.process_id.store(process_id, Ordering::Release);
     }
-
 }
 
 /// Methods for task switch
@@ -399,9 +403,9 @@ impl TaskInner {
     }
 
     pub fn utrap_frame(&self) -> Option<&mut TrapFrame> {
-        unsafe {&mut *self.utrap_frame.get() }
-        .as_mut()
-        .map(|tf| tf.as_mut())
+        unsafe { &mut *self.utrap_frame.get() }
+            .as_mut()
+            .map(|tf| tf.as_mut())
     }
 }
 
@@ -556,7 +560,7 @@ pub enum CtxType {
     /// 在线程恢复执行后，需要恢复原来的中断状态
     Thread = 0,
     #[cfg(feature = "preempt")]
-    Interrupt
+    Interrupt,
 }
 
 #[cfg(feature = "thread")]
@@ -571,9 +575,16 @@ pub struct StackCtx {
 impl TaskInner {
     pub fn set_stack_ctx(&self, trap_frame: *const TrapFrame, ctx_type: CtxType) {
         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
-        assert!(stack_ctx.is_none(), "cannot use thread api to do task switch");
+        assert!(
+            stack_ctx.is_none(),
+            "cannot use thread api to do task switch"
+        );
         let kstack = crate::pick_current_stack();
-        stack_ctx.replace(StackCtx { kstack, trap_frame, ctx_type });
+        stack_ctx.replace(StackCtx {
+            kstack,
+            trap_frame,
+            ctx_type,
+        });
     }
 
     pub fn get_stack_ctx(&self) -> Option<StackCtx> {

@@ -1,11 +1,15 @@
-use core::{future::Future, task::{Context, Poll}, pin::Pin};
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
-use kernel_guard::{NoPreemptIrqSave, BaseGuard};
+use kernel_guard::{BaseGuard, NoPreemptIrqSave};
 
 #[derive(Debug)]
-pub struct YieldFuture{
-    _has_polled: bool, 
-    _irq_state: <NoPreemptIrqSave as BaseGuard>::State
+pub struct YieldFuture {
+    _has_polled: bool,
+    _irq_state: <NoPreemptIrqSave as BaseGuard>::State,
 }
 
 impl YieldFuture {
@@ -15,7 +19,10 @@ impl YieldFuture {
         let _irq_state = Default::default();
         #[cfg(not(feature = "thread"))]
         let _irq_state = NoPreemptIrqSave::acquire();
-        Self{ _has_polled: false, _irq_state }
+        Self {
+            _has_polled: false,
+            _irq_state,
+        }
     }
 }
 

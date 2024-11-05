@@ -5,7 +5,9 @@ use async_fs::api::OpenFlags;
 
 /// 在完成一次系统调用之后，恢复全局目录
 pub async fn init_current_dir() {
-    async_fs::api::set_current_dir("/").await.expect("reset current dir failed");
+    async_fs::api::set_current_dir("/")
+        .await
+        .expect("reset current dir failed");
 }
 
 /// Flags for opening a file

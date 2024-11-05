@@ -1,6 +1,6 @@
-use core::pin::Pin;
-use core::future::Future;
 use alloc::boxed::Box;
+use core::future::Future;
+use core::pin::Pin;
 
 use super::into_stream::IntoStream;
 

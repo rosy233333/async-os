@@ -1,7 +1,10 @@
-use core::{pin::Pin, task::{Context, Poll}};
 use alloc::boxed::Box;
 use async_fs::api::{AsAny, File, FileExt};
 use async_io::{AsyncRead, AsyncSeek, Seek, SeekFrom};
+use core::{
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 type BackEndFile = Box<dyn FileExt>;
 
@@ -29,12 +32,20 @@ impl MemBackend {
     }
 
     /// read from the file of the `MemBackend` with a pos offset.
-    pub async fn read_from_seek(&mut self, pos: SeekFrom, buf: &mut [u8]) -> Result<usize, async_io::Error> {
+    pub async fn read_from_seek(
+        &mut self,
+        pos: SeekFrom,
+        buf: &mut [u8],
+    ) -> Result<usize, async_io::Error> {
         self.file.read_from_seek(pos, buf).await
     }
 
     /// write to the file of the `MemBackend` with a pos offset.
-    pub async fn write_to_seek(&mut self, pos: SeekFrom, buf: &[u8]) -> Result<usize, async_io::Error> {
+    pub async fn write_to_seek(
+        &mut self,
+        pos: SeekFrom,
+        buf: &[u8],
+    ) -> Result<usize, async_io::Error> {
         self.file.write_to_seek(pos, buf).await
     }
 

@@ -1,7 +1,7 @@
 use super::AsyncStream;
+use core::pin::Pin;
 use core::task::{Context, Poll};
 use pin_project_lite::pin_project;
-use core::pin::Pin;
 
 pin_project! {
     /// A stream that clones the elements of an underlying stream.

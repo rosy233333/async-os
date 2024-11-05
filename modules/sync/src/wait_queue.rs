@@ -1,8 +1,8 @@
+use alloc::sync::Arc;
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll, Waker};
 use spinlock::SpinNoIrq;
-use alloc::sync::Arc;
 #[cfg(feature = "thread")]
 use task_api::{block_current, current_task};
 use task_api::{cancel_alarm, set_alarm_wakeup, WaitTaskList, WaitWakerNode};
@@ -36,13 +36,16 @@ impl WaitQueue {
             block_current();
             self.queue.lock().remove(&waker_node);
         }
-        WaitFuture { _wq: self, _flag: false }
+        WaitFuture {
+            _wq: self,
+            _flag: false,
+        }
     }
 
     /// 当前任务等待某个条件成功
-    pub fn wait_until<'a, F>(&'a self, _condition: F) -> WaitUntilFuture<'a, F> 
-    where 
-        F: Fn() -> bool + Unpin
+    pub fn wait_until<'a, F>(&'a self, _condition: F) -> WaitUntilFuture<'a, F>
+    where
+        F: Fn() -> bool + Unpin,
     {
         #[cfg(feature = "thread")]
         {
@@ -57,9 +60,12 @@ impl WaitQueue {
             }
             self.queue.lock().remove(&waker_node);
         }
-        WaitUntilFuture { _wq: self, _condition }
+        WaitUntilFuture {
+            _wq: self,
+            _condition,
+        }
     }
-    
+
     /// 当前任务等待，直到 deadline
     /// 参数使用 deadline，如果使用 Duration，则会导致每次进入这个函数都会重新计算 deadline
     /// 从而导致一直无法唤醒
@@ -75,22 +81,31 @@ impl WaitQueue {
 
             cancel_alarm(&waker);
             self.queue.lock().remove(&waker_node);
-            return WaitTimeoutFuture { 
-                res: Some(current_time() >= _deadline), 
+            return WaitTimeoutFuture {
+                res: Some(current_time() >= _deadline),
                 _wq: self,
                 _deadline,
-                _flag: false
+                _flag: false,
             };
         }
         #[cfg(not(feature = "thread"))]
-        WaitTimeoutFuture { res: None, _wq: self, _deadline, _flag: false }
+        WaitTimeoutFuture {
+            res: None,
+            _wq: self,
+            _deadline,
+            _flag: false,
+        }
     }
 
     /// 当前任务等待条件满足或者到达deadline
     #[cfg(feature = "irq")]
-    pub fn wait_timeout_until<'a, F>(&'a self, _deadline: TimeValue, _condition: F) -> WaitTimeoutUntilFuture<'a, F>
-    where 
-        F: Fn() -> bool + Unpin
+    pub fn wait_timeout_until<'a, F>(
+        &'a self,
+        _deadline: TimeValue,
+        _condition: F,
+    ) -> WaitTimeoutUntilFuture<'a, F>
+    where
+        F: Fn() -> bool + Unpin,
     {
         #[cfg(feature = "thread")]
         {
@@ -113,10 +128,20 @@ impl WaitQueue {
             }
 
             self.queue.lock().remove(&waker_node);
-            return WaitTimeoutUntilFuture { _wq: self, _deadline, _condition, res: Some(timeout) }
+            return WaitTimeoutUntilFuture {
+                _wq: self,
+                _deadline,
+                _condition,
+                res: Some(timeout),
+            };
         }
         #[cfg(not(feature = "thread"))]
-        WaitTimeoutUntilFuture { _wq: self, _deadline, _condition, res: None }
+        WaitTimeoutUntilFuture {
+            _wq: self,
+            _deadline,
+            _condition,
+            res: None,
+        }
     }
 
     /// Wake up the given task in the wait queue.
@@ -137,7 +162,7 @@ impl WaitQueue {
 
 pub struct WaitFuture<'a> {
     _wq: &'a WaitQueue,
-    _flag: bool
+    _flag: bool,
 }
 
 impl<'a> Future for WaitFuture<'a> {
@@ -164,7 +189,7 @@ impl<'a> Future for WaitFuture<'a> {
 
 pub struct WaitUntilFuture<'a, F> {
     _wq: &'a WaitQueue,
-    _condition: F
+    _condition: F,
 }
 
 impl<'a, F: Fn() -> bool + Unpin> Future for WaitUntilFuture<'a, F> {
@@ -194,7 +219,7 @@ pub struct WaitTimeoutFuture<'a> {
     res: Option<bool>,
     _wq: &'a WaitQueue,
     _deadline: TimeValue,
-    _flag: bool
+    _flag: bool,
 }
 
 #[cfg(feature = "irq")]
@@ -202,7 +227,12 @@ impl<'a> Future for WaitTimeoutFuture<'a> {
     type Output = bool;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let Self { res, _wq, _deadline, _flag } = self.get_mut();
+        let Self {
+            res,
+            _wq,
+            _deadline,
+            _flag,
+        } = self.get_mut();
         cfg_if::cfg_if! {
             if #[cfg(feature = "thread")] {
                 assert!(res.is_some());
@@ -232,7 +262,7 @@ pub struct WaitTimeoutUntilFuture<'a, F> {
     res: Option<bool>,
     _wq: &'a WaitQueue,
     _deadline: TimeValue,
-    _condition: F
+    _condition: F,
 }
 
 #[cfg(feature = "irq")]
@@ -240,7 +270,12 @@ impl<'a, F: Fn() -> bool + Unpin> Future for WaitTimeoutUntilFuture<'a, F> {
     type Output = bool;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let Self { _wq, _deadline, _condition, res } = self.get_mut();
+        let Self {
+            _wq,
+            _deadline,
+            _condition,
+            res,
+        } = self.get_mut();
         cfg_if::cfg_if! {
             if #[cfg(feature = "thread")] {
                 assert!(res.is_some());

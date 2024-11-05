@@ -1,12 +1,13 @@
-use axerrno::{AxError, AxResult};
 use async_fs::api::port::{
-    FileIO, ConsoleWinSize, FileIOType, OpenFlags, FIOCLEX, TCGETS, TIOCGPGRP, TIOCGWINSZ, TIOCSPGRP, async_trait
+    async_trait, ConsoleWinSize, FileIO, FileIOType, OpenFlags, FIOCLEX, TCGETS, TIOCGPGRP,
+    TIOCGWINSZ, TIOCSPGRP,
 };
-use axhal::console::{getchar, putchar, write_bytes};
 use async_io::SeekFrom;
+use axerrno::{AxError, AxResult};
+use axhal::console::{getchar, putchar, write_bytes};
 use axlog::warn;
-use sync::Mutex;
 use core::task::Poll;
+use sync::Mutex;
 
 extern crate alloc;
 use alloc::{boxed::Box, string::String};
@@ -49,20 +50,19 @@ impl FileIO for Stdin {
     async fn read(&self, buf: &mut [u8]) -> AxResult<usize> {
         // busybox
         if buf.len() == 1 {
-            core::future::poll_fn(|cx| {
-                match getchar() {
-                    Some(c) => {
-                        unsafe {
-                            buf.as_mut_ptr().write_volatile(c);
-                        }
-                        Poll::Ready(Ok(1))
+            core::future::poll_fn(|cx| match getchar() {
+                Some(c) => {
+                    unsafe {
+                        buf.as_mut_ptr().write_volatile(c);
                     }
-                    None => {
-                        cx.waker().wake_by_ref();
-                        Poll::Pending
-                    }
+                    Poll::Ready(Ok(1))
                 }
-            }).await
+                None => {
+                    cx.waker().wake_by_ref();
+                    Poll::Pending
+                }
+            })
+            .await
         } else {
             // user appilcation
             let mut line = String::new();
@@ -83,7 +83,7 @@ impl FileIO for Stdin {
                             }
                         }
                         _ => {
-                            // echo 
+                            // echo
                             putchar(c);
                             line.push(c as char);
                         }
@@ -92,14 +92,14 @@ impl FileIO for Stdin {
                     let _ = core::future::poll_fn(|cx| {
                         cx.waker().wake_by_ref();
                         Poll::<AxResult<usize>>::Pending
-                    }).await;
+                    })
+                    .await;
                 }
             }
             let len = line.len();
             buf[..len].copy_from_slice(line.as_bytes());
             Ok(len)
         }
-        
     }
 
     async fn write(&self, _buf: &[u8]) -> AxResult<usize> {
@@ -163,7 +163,7 @@ impl FileIO for Stdin {
             _ => Err(AxError::Unsupported),
         }
     }
-    
+
     async fn set_status(&self, flags: OpenFlags) -> bool {
         if flags.contains(OpenFlags::CLOEXEC) {
             *self.flags.lock().await = flags;
@@ -190,7 +190,6 @@ impl FileIO for Stdin {
 
 #[async_trait]
 impl FileIO for Stdout {
-
     async fn read(&self, _buf: &mut [u8]) -> AxResult<usize> {
         panic!("Cannot read from stdout!");
     }
@@ -282,16 +281,14 @@ impl FileIO for Stdout {
             _ => Err(AxError::Unsupported),
         }
     }
-
 }
 
 #[async_trait]
 impl FileIO for Stderr {
-
     async fn read(&self, _buf: &mut [u8]) -> AxResult<usize> {
         panic!("Cannot read from stderr!");
     }
-    
+
     async fn write(&self, buf: &[u8]) -> AxResult<usize> {
         write_bytes(buf);
         Ok(buf.len())
@@ -356,5 +353,4 @@ impl FileIO for Stderr {
             _ => Err(AxError::Unsupported),
         }
     }
-
 }

@@ -1,8 +1,8 @@
+use axhal::time::{current_time, TimeValue};
 use core::{future::poll_fn, task::Poll, time::Duration};
-use axhal::time::{TimeValue, current_time};
 pub use executor::*;
+use riscv::register::scause::{Exception, Trap};
 use syscall::trap::{handle_page_fault, MappingFlags};
-use riscv::register::scause::{Trap, Exception};
 
 pub fn turn_to_kernel_executor() {
     if current_executor().ptr_eq(&KERNEL_EXECUTOR) {
@@ -22,7 +22,10 @@ pub fn current_check_preempt_pending(tf: &mut TrapFrame) {
     if let Some(curr) = current_task_may_uninit() {
         // if task is already exited or blocking,
         // no need preempt, they are rescheduling
-        if curr.get_preempt_pending() && curr.can_preempt() && !curr.is_exited() && !curr.is_blocking()
+        if curr.get_preempt_pending()
+            && curr.can_preempt()
+            && !curr.is_exited()
+            && !curr.is_blocking()
         {
             trace!(
                 "current {} is to be preempted , allow {}",
@@ -31,7 +34,7 @@ pub fn current_check_preempt_pending(tf: &mut TrapFrame) {
             );
             preempt(curr.as_task_ref(), tf)
         }
-    }    
+    }
 }
 
 #[cfg(feature = "preempt")]
@@ -42,7 +45,10 @@ pub async fn current_check_user_preempt_pending(_tf: &TrapFrame) {
     if let Some(curr) = current_task_may_uninit() {
         // if task is already exited or blocking,
         // no need preempt, they are rescheduling
-        if curr.get_preempt_pending() && curr.can_preempt() && !curr.is_exited() && !curr.is_blocking()
+        if curr.get_preempt_pending()
+            && curr.can_preempt()
+            && !curr.is_exited()
+            && !curr.is_blocking()
         {
             trace!(
                 "current {} is to be preempted , allow {}",
@@ -52,7 +58,7 @@ pub async fn current_check_user_preempt_pending(_tf: &TrapFrame) {
             taskctx::CurrentTask::clean_current_without_drop();
             yield_now().await;
         }
-    }    
+    }
 }
 
 #[cfg(feature = "preempt")]
@@ -69,7 +75,8 @@ pub async fn wait(task: &TaskRef) -> Option<i32> {
             task.join(cx.waker().clone());
             Poll::Pending
         }
-    }).await 
+    })
+    .await
 }
 
 pub async fn user_task_top() -> i32 {
@@ -82,7 +89,7 @@ pub async fn user_task_top() -> i32 {
             match trap {
                 Trap::Interrupt(_interrupt) => {
                     crate::handle_user_irq(tf.get_scause_code(), &mut tf).await;
-                },
+                }
                 Trap::Exception(Exception::UserEnvCall) => {
                     axhal::arch::enable_irqs();
                     tf.sepc += 4;
@@ -91,7 +98,8 @@ pub async fn user_task_top() -> i32 {
                         [
                             tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
                         ],
-                    ).await;
+                    )
+                    .await;
                     // 判断任务是否退出
                     if curr.is_exited() {
                         return curr.get_exit_code();
@@ -105,7 +113,8 @@ pub async fn user_task_top() -> i32 {
                     axhal::arch::disable_irqs();
                 }
                 Trap::Exception(Exception::InstructionPageFault) => {
-                    handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::EXECUTE).await;
+                    handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::EXECUTE)
+                        .await;
                 }
 
                 Trap::Exception(Exception::LoadPageFault) => {
@@ -127,14 +136,15 @@ pub async fn user_task_top() -> i32 {
             }
             syscall::trap::handle_signals().await;
             tf.trap_status = TrapStatus::Done;
-        } 
+        }
         poll_fn(|_cx| {
             if tf.trap_status == TrapStatus::Done {
                 Poll::Pending
             } else {
                 Poll::Ready(())
             }
-        }).await
+        })
+        .await
     }
 }
 
@@ -142,7 +152,6 @@ struct TaskApiImpl;
 
 #[crate_interface::impl_interface]
 impl task_api::TaskApi for TaskApiImpl {
-
     fn current_task() -> CurrentTask {
         current_task()
     }
@@ -184,7 +193,6 @@ impl task_api::TaskApi for TaskApiImpl {
         let res = None;
         JoinFuture::new(task.clone(), res)
     }
-    
 }
 
 #[cfg(feature = "thread")]
@@ -256,13 +264,14 @@ pub fn restore_from_stack_ctx(task: &TaskRef) {
     if let Some(StackCtx {
         kstack,
         trap_frame,
-        ctx_type
-    }) = task.get_stack_ctx() {
+        ctx_type,
+    }) = task.get_stack_ctx()
+    {
         taskctx::put_prev_stack(kstack);
         match ctx_type {
-            CtxType::Thread => unsafe { &*trap_frame }.thread_return(), 
+            CtxType::Thread => unsafe { &*trap_frame }.thread_return(),
             #[cfg(feature = "preempt")]
-            CtxType::Interrupt => unsafe { &*trap_frame }.preempt_return(), 
+            CtxType::Interrupt => unsafe { &*trap_frame }.preempt_return(),
         }
     }
 }

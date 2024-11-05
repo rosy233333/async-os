@@ -1,5 +1,5 @@
-use core::pin::Pin;
 use core::future::Future;
+use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use crate::{VfsNodeAttr, VfsNodeOps, VfsResult};

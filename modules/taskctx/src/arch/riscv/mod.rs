@@ -1,4 +1,7 @@
-use riscv::register::{scause::{Exception, Interrupt, Trap}, sstatus::{self, Sstatus}};
+use riscv::register::{
+    scause::{Exception, Interrupt, Trap},
+    sstatus::{self, Sstatus},
+};
 
 /// General registers of RISC-V.
 #[allow(missing_docs)]
@@ -67,7 +70,7 @@ pub enum TrapStatus {
     #[default]
     Done = 0,
     Blocked = 1,
-    Unknown
+    Unknown,
 }
 
 impl From<usize> for TrapStatus {
@@ -94,7 +97,6 @@ impl TryFrom<TrapStatus> for usize {
 }
 
 impl TrapFrame {
-
     /// 用于创建用户态任务的初始化
     pub fn init_user_context(app_entry: usize, user_sp: usize) -> Self {
         let sstatus = sstatus::read();

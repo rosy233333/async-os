@@ -1,10 +1,10 @@
-use alloc::sync::Arc;
 use alloc::boxed::Box;
-use axerrno::{AxError, AxResult};
+use alloc::sync::Arc;
 use async_fs::api::{FileIO, FileIOType, OpenFlags};
-use sync::Mutex;
-use executor::yield_now;
+use axerrno::{AxError, AxResult};
 use bitflags::bitflags;
+use executor::yield_now;
+use sync::Mutex;
 
 bitflags! {
     // https://sites.uclouvain.be/SystInfo/usr/include/sys/eventfd.h.html
@@ -157,10 +157,10 @@ impl FileIO for EventFd {
 #[cfg(test)]
 mod tests {
     use super::EventFd;
-    use axerrno::AxError;
-    use async_fs::api::FileIO;
-    use core::task::{Context, Poll, Waker};
     use alloc::boxed::Box;
+    use async_fs::api::FileIO;
+    use axerrno::AxError;
+    use core::task::{Context, Poll, Waker};
 
     #[test]
     fn test_read() {
@@ -172,9 +172,8 @@ mod tests {
             .read(&mut event_fd_val.to_ne_bytes())
             .as_mut()
             .poll(cx)
-            .map(|res| 
-                res.unwrap()
-            ) {
+            .map(|res| res.unwrap())
+        {
             assert_eq!(42, event_fd_val);
             assert_eq!(4, len);
         } else {
@@ -195,7 +194,8 @@ mod tests {
             .map(|result| {
                 assert_eq!(Err(AxError::InvalidInput), result);
                 0
-            }) {
+            })
+        {
         } else {
             panic!("read failed");
         }
@@ -214,7 +214,10 @@ mod tests {
             .poll(cx);
 
         let event_fd_val = 0u64;
-        let _ = event_fd.read(&mut event_fd_val.to_ne_bytes()).as_mut().poll(cx);
+        let _ = event_fd
+            .read(&mut event_fd_val.to_ne_bytes())
+            .as_mut()
+            .poll(cx);
         assert_eq!(54, event_fd_val);
     }
 }

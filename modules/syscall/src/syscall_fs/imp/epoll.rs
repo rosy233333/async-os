@@ -96,7 +96,11 @@ pub async fn syscall_epoll_wait(args: [usize; 6]) -> SyscallResult {
     // maybe give the max_event a limit is a better solution
     let max_event = core::cmp::min(max_event, 400);
     let end = start + max_event * core::mem::size_of::<EpollEvent>();
-    if process.manual_alloc_range_for_lazy(start, end).await.is_err() {
+    if process
+        .manual_alloc_range_for_lazy(start, end)
+        .await
+        .is_err()
+    {
         return Err(SyscallError::EFAULT);
     }
 

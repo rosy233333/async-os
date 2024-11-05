@@ -1,10 +1,15 @@
+use crate::{self as io, AsyncRead, Result};
 use alloc::{boxed::Box, string::String, vec::Vec};
+use core::{
+    mem,
+    ops::DerefMut,
+    pin::Pin,
+    task::{Context, Poll},
+};
 use line::Lines;
 use read_line::ReadLineFuture;
 use read_until::ReadUntilFuture;
 use split::Split;
-use crate::{Result, AsyncRead, self as io};
-use core::{mem, ops::DerefMut, pin::Pin, task::{Context, Poll}};
 
 mod line;
 mod read_line;
@@ -12,22 +17,22 @@ mod read_until;
 mod split;
 
 /// 异步读
-/// 
+///
 /// 类似于 `std::io::BufRead`，但集成了异步任务系统
 /// `poll_fill_buf` 不同于 `std::io::BufRead::fill_buf`，
 /// 当数据没有准备好时，当前任务主动让出 CPU
 pub trait AsyncBufRead: AsyncRead {
     /// 尝试返回内部缓冲区的内容，如果缓冲区为空，则用内部读取器中的更多数据填充它。
-    /// 
+    ///
     /// 一旦成功，返回 `Poll::Ready(Ok(buf))`
-    /// 
+    ///
     /// 如果数据没有准备好，返回 `Poll::Pending`，当前任务让出 CPU
     /// 当对象可读或者关闭时，唤醒等待的任务
-    /// 
+    ///
     /// 此函数是低级调用。它需要与 [`consume`] 方法配合使用才能正常运行。
     /// 调用此方法时，不会“读取”任何内容，因为稍后调用 [`read`] 可能会返回相同的内容。
     /// 因此，必须使用从此缓冲区消耗的字节数来调用 [`consume`]，以确保字节不会重复返回。
-    /// 
+    ///
     /// [`read`]: AsyncRead::read
     /// [`consume`]: BufRead::consume
     ///
@@ -42,7 +47,7 @@ pub trait AsyncBufRead: AsyncRead {
 
     /// 告诉这个缓冲区，缓冲区中的“amt”字节已经被消耗，
     /// 因此它们不再应在对[“read”]的调用中返回。
-    /// 
+    ///
     /// 此函数是低级调用。它需要与 [`fill_buf`] 方法配对才能正常运行。
     /// 此函数不执行任何 I/O，它只是通知此对象，
     /// 从 [`fill_buf`] 返回的一定量的缓冲区已被使用，不应再返回。
@@ -65,9 +70,7 @@ impl AsyncBufRead for &[u8] {
     fn consume(mut self: Pin<&mut Self>, amt: usize) {
         *self = &self[amt..];
     }
-
 }
-
 
 macro_rules! deref_async_buf_read {
     () => {
@@ -102,8 +105,6 @@ where
         self.get_mut().as_mut().consume(amt)
     }
 }
-
-
 
 #[doc = r#"
     Extension methods for [`BufRead`].
@@ -161,11 +162,7 @@ pub trait BufRead: AsyncBufRead {
         # Ok(()) }) }
         ```
     "#]
-    fn read_until<'a>(
-        &'a mut self,
-        byte: u8,
-        buf: &'a mut Vec<u8>,
-    ) -> ReadUntilFuture<'a, Self>
+    fn read_until<'a>(&'a mut self, byte: u8, buf: &'a mut Vec<u8>) -> ReadUntilFuture<'a, Self>
     where
         Self: Unpin,
     {
@@ -215,10 +212,7 @@ pub trait BufRead: AsyncBufRead {
         # Ok(()) }) }
         ```
     "#]
-    fn read_line<'a>(
-        &'a mut self,
-        buf: &'a mut String,
-    ) -> ReadLineFuture<'a, Self>
+    fn read_line<'a>(&'a mut self, buf: &'a mut String) -> ReadLineFuture<'a, Self>
     where
         Self: Unpin,
     {

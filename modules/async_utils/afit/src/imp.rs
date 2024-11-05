@@ -1,6 +1,6 @@
-use syn::{FnArg, Ident, ItemTrait, Signature, TraitItem};
-use quote::{quote, ToTokens};
 use quote::__private::TokenStream;
+use quote::{quote, ToTokens};
+use syn::{FnArg, Ident, ItemTrait, Signature, TraitItem};
 
 pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
     let trait_ident = &self_trait.ident;
@@ -23,39 +23,37 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
                 } else {
                     quote! {get_ref().as_ref()}
                 };
-                let actual_inputs = inputs.iter().enumerate().filter(|(idx, _args)| {
-                    *idx > 1
-                }).map(|(_idx, args)| {
-                    args.clone()
-                }).collect::<Vec<FnArg>>();
-                let actual_inputs_ident = actual_inputs.iter().map(|arg| {
-                    let arg_ident = match arg {
-                        FnArg::Receiver(_receiver) => panic!("Not support self receiver"),
-                        FnArg::Typed(pat_type) => {
-                            match pat_type.pat.as_ref() {
-                                syn::Pat::Ident(pat_ident) => {
-                                    pat_ident.ident.clone()
-                                },
+                let actual_inputs = inputs
+                    .iter()
+                    .enumerate()
+                    .filter(|(idx, _args)| *idx > 1)
+                    .map(|(_idx, args)| args.clone())
+                    .collect::<Vec<FnArg>>();
+                let actual_inputs_ident = actual_inputs
+                    .iter()
+                    .map(|arg| {
+                        let arg_ident = match arg {
+                            FnArg::Receiver(_receiver) => panic!("Not support self receiver"),
+                            FnArg::Typed(pat_type) => match pat_type.pat.as_ref() {
+                                syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
                                 _ => panic!("Not support other pattern"),
-                            }
-                        },
-                    };
-                    arg_ident
-                }).collect::<Vec<Ident>>();
-                impl_pin_items.push(
-                    quote! {
-                        #sig {
-                            self.#get_as.#ident(cx, #(#actual_inputs_ident),*)
-                        }
+                            },
+                        };
+                        arg_ident
+                    })
+                    .collect::<Vec<Ident>>();
+                impl_pin_items.push(quote! {
+                    #sig {
+                        self.#get_as.#ident(cx, #(#actual_inputs_ident),*)
                     }
-                );
+                });
                 if mutable {
                     let mut new_inputs = sig.inputs.clone();
                     let self_arg = new_inputs.first_mut().unwrap();
                     match self_arg {
                         FnArg::Receiver(receiver) => {
                             receiver.mutability = Some(Default::default());
-                        },
+                        }
                         _ => panic!("First argument must be self receiver"),
                     }
                     let mut_sig = Signature {
@@ -71,23 +69,19 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
                         variadic: sig.variadic.clone(),
                         output: sig.output.clone(),
                     };
-                    impl_ref_items.push(
-                        quote! {
-                            #mut_sig {
-                                Pin::new(&mut **self).#ident(cx, #(#actual_inputs_ident),*)
-                            }
+                    impl_ref_items.push(quote! {
+                        #mut_sig {
+                            Pin::new(&mut **self).#ident(cx, #(#actual_inputs_ident),*)
                         }
-                    );
+                    });
                 } else {
-                    impl_ref_items.push(
-                        quote! {
-                            #sig {
-                                Pin::new(&**self).#ident(cx, #(#actual_inputs_ident),*)
-                            }
+                    impl_ref_items.push(quote! {
+                        #sig {
+                            Pin::new(&**self).#ident(cx, #(#actual_inputs_ident),*)
                         }
-                    );
+                    });
                 }
-            },
+            }
             _ => panic!("Only support trait item function"),
         }
     }
@@ -139,8 +133,9 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
         {
             #(#impl_pin_items)*
         }
-        
+
         #impl_refs
-        
-    }.into()
+
+    }
+    .into()
 }

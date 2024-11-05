@@ -5,6 +5,5 @@
 #![allow(async_fn_in_trait)]
 #![cfg_attr(test, feature(noop_waker))]
 
-pub use async_main::async_main;
 pub use afit::async_trait;
-
+pub use async_main::async_main;

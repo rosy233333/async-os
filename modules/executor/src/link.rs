@@ -5,8 +5,8 @@ use alloc::collections::BTreeMap;
 use alloc::format;
 // use alloc::format;
 use alloc::string::{String, ToString};
-use axerrno::{AxError, AxResult};
 use async_fs::api::{canonicalize, path_exists, remove_file, FileIOType};
+use axerrno::{AxError, AxResult};
 // use axfs::api::FileIOType;
 use axlog::{debug, info, trace};
 use sync::Mutex;
@@ -273,7 +273,6 @@ pub async fn create_link(src_path: &FilePath, dest_path: &FilePath) -> bool {
         }
     }
 
-
     // 创建新链接
     map.insert(
         src_path.path().to_string(),
@@ -309,7 +308,8 @@ pub async fn deal_with_path(
             return Err(AxError::BadAddress);
         }
         executor
-            .manual_alloc_for_lazy((path_addr as usize).into()).await
+            .manual_alloc_for_lazy((path_addr as usize).into())
+            .await
             .map(|_| {
                 path = unsafe { raw_ptr_to_ref_str(path_addr) }.to_string().clone();
             })?;

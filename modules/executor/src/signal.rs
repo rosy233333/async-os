@@ -1,10 +1,9 @@
 //! 负责处理进程中与信号相关的内容
 extern crate alloc;
+use crate::KERNEL_EXECUTOR_ID;
 use alloc::sync::Arc;
 use axerrno::{AxError, AxResult};
 use axhal::cpu::this_cpu_id;
-use taskctx::TrapFrame;
-use crate::KERNEL_EXECUTOR_ID;
 use axlog::{info, warn};
 use axsignal::{
     action::{SigActionFlags, SignalDefault, SIG_DFL, SIG_IGN},
@@ -14,6 +13,7 @@ use axsignal::{
     SignalHandler, SignalSet,
 };
 use sync::Mutex;
+use taskctx::TrapFrame;
 
 /// 信号处理模块，进程间不共享
 pub struct SignalModule {
@@ -80,7 +80,7 @@ impl SignalModule {
 
 const USER_SIGNAL_PROTECT: usize = 512;
 
-use crate::{current_executor, current_task, PID2PC, TID2TASK, exit};
+use crate::{current_executor, current_task, exit, PID2PC, TID2TASK};
 
 /// 将保存的trap上下文填入内核栈中
 ///
@@ -97,7 +97,7 @@ pub async fn load_trap_for_signal() -> bool {
     if let Some(old_trap_frame) = signal_module.last_trap_frame_for_signal.take() {
         unsafe {
             // let now_trap_frame: *mut TrapFrame = current_task.get_first_trap_frame();
-            
+
             let now_trap_frame = current_task.utrap_frame().unwrap();
             // let mut now_trap_frame =
             //     read_trapframe_from_kstack(current_task.get_kernel_stack_top().unwrap());
@@ -131,11 +131,11 @@ async fn terminate_process(signal: SignalNo, info: Option<SigInfo>) {
             current_task.get_process_id() as isize,
             signal as isize,
             info,
-        ).await
+        )
+        .await
         .unwrap();
         // exit_current_task(-1);
         exit(-1).await;
-
     }
 }
 
@@ -349,7 +349,11 @@ pub async fn signal_return() -> isize {
 /// 发送信号到指定的进程
 ///
 /// 默认发送到该进程下的主线程
-pub async fn send_signal_to_process(pid: isize, signum: isize, info: Option<SigInfo>) -> AxResult<()> {
+pub async fn send_signal_to_process(
+    pid: isize,
+    signum: isize,
+    info: Option<SigInfo>,
+) -> AxResult<()> {
     let mut pid2pc = PID2PC.lock().await;
     if !pid2pc.contains_key(&(pid as u64)) {
         return Err(axerrno::AxError::NotFound);

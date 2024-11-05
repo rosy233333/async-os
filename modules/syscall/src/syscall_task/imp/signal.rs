@@ -3,9 +3,9 @@
 
 use axhal::cpu::this_cpu_id;
 // use axlog::{debug, info};
-use executor::{current_executor, current_task, yield_now};
 use axsignal::signal_no::SignalNo;
 use axsignal::{action::SigAction, ucontext::SignalStack};
+use executor::{current_executor, current_task, yield_now};
 
 use crate::{SigMaskFlag, SyscallError, SyscallResult, SIGSET_SIZE_IN_BYTE};
 
@@ -245,14 +245,23 @@ pub async fn syscall_sigaltstack(args: [usize; 6]) -> SyscallResult {
     let current_process = current_executor();
     let ss = args[0] as *const SignalStack;
     let old_ss = args[1] as *mut SignalStack;
-    if !ss.is_null() && current_process.manual_alloc_type_for_lazy(ss).await.is_err() {
+    if !ss.is_null()
+        && current_process
+            .manual_alloc_type_for_lazy(ss)
+            .await
+            .is_err()
+    {
         return Err(SyscallError::EFAULT);
     }
     let task_id = current_task().id().as_u64();
     let mut signal_modules = current_process.signal_modules.lock().await;
 
     if !old_ss.is_null() {
-        if current_process.manual_alloc_type_for_lazy(old_ss).await.is_err() {
+        if current_process
+            .manual_alloc_type_for_lazy(old_ss)
+            .await
+            .is_err()
+        {
             return Err(SyscallError::EFAULT);
         }
         unsafe {

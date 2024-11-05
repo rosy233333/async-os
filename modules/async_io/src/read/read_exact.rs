@@ -1,6 +1,6 @@
+use core::future::Future;
 use core::mem;
 use core::pin::Pin;
-use core::future::Future;
 
 use crate::{self as io, AsyncRead};
 use core::task::{Context, Poll};

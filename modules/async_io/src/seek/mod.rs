@@ -1,38 +1,36 @@
 mod seek;
 
-use alloc::boxed::Box;
 use crate::Result;
-use core::{ops::DerefMut, pin::Pin, task::{Context, Poll}};
+use alloc::boxed::Box;
+use core::{
+    ops::DerefMut,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 /// 异步查找
-/// 
+///
 /// 类似于 `std::io::Seek`，但集成了异步任务系统
-/// 
+///
 /// `seek` 函数不同于 `std::io::Seek::seek`，当数据还没有准备好时，
 /// 当前任务主动让出 CPU
 pub trait AsyncSeek {
     /// 尝试从指定位置查找
-    /// 
+    ///
     /// 允许超出流的范围，但行为需要自定义
-    /// 
+    ///
     /// 如果查找成功，则返回从流的开始处的新位置（后续使用通过 [`SeekFrom::Start`]）
     ///
     /// # 错误
     /// 查找到一个负数位置将视为错误
-    /// 
+    ///
     /// # 实现
-    /// 
+    ///
     /// 这个函数不会返回 `WouldBlock` 或 `Interrupted` 错误，
     /// 而是将这些错误转化为 `Poll::Pending`，并且在内部进行重试
     /// 或者转化为其他错误
-    fn seek(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        pos: SeekFrom,
-    ) -> Poll<Result<u64>>;
+    fn seek(self: Pin<&mut Self>, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>>;
 }
-
-
 
 macro_rules! deref_async_seek {
     () => {
@@ -59,15 +57,10 @@ where
     P: DerefMut + Unpin,
     P::Target: AsyncSeek,
 {
-    fn seek(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        pos: SeekFrom,
-    ) -> Poll<Result<u64>> {
+    fn seek(self: Pin<&mut Self>, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
         self.get_mut().as_mut().seek(cx, pos)
     }
 }
-
 
 /// 枚举在 I/O 对象中寻找的可能方法
 ///
@@ -78,7 +71,7 @@ pub enum SeekFrom {
     Start(u64),
 
     /// 将偏移量设置为此对象的大小加上指定的字节数
-    /// 
+    ///
     /// 可以搜索到对象末尾以外的位置，但搜索到字节 0 之前的位置则为错误
     End(i64),
 
@@ -120,10 +113,7 @@ pub trait Seek: AsyncSeek {
         # Ok(()) }) }
         ```
     "#]
-    fn seek(
-        &mut self,
-        pos: SeekFrom,
-    ) -> SeekFuture<'_, Self>
+    fn seek(&mut self, pos: SeekFrom) -> SeekFuture<'_, Self>
     where
         Self: Unpin,
     {

@@ -15,7 +15,6 @@ macro_rules! path_to_str {
 
 mod cmd;
 
-
 const LF: u8 = b'\n';
 const CR: u8 = b'\r';
 const DL: u8 = b'\x7f';

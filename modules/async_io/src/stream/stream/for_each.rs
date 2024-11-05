@@ -1,5 +1,5 @@
-use core::pin::Pin;
 use core::future::Future;
+use core::pin::Pin;
 
 use pin_project_lite::pin_project;
 
@@ -18,10 +18,7 @@ pin_project! {
 
 impl<S, F> ForEachFuture<S, F> {
     pub(super) fn new(stream: S, f: F) -> Self {
-        Self {
-            stream,
-            f,
-        }
+        Self { stream, f }
     }
 }
 

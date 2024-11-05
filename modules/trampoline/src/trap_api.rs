@@ -1,7 +1,6 @@
 use executor::current_task_may_uninit;
 use taskctx::{TrapFrame, TrapStatus};
 
-
 #[cfg(feature = "irq")]
 #[doc(cfg(feature = "irq"))]
 /// Handles periodic timer ticks for the task manager.
@@ -16,7 +15,7 @@ pub fn on_timer_tick() {
             #[cfg(feature = "preempt")]
             curr.set_preempt_pending(true);
         }
-    }    
+    }
 }
 
 pub fn handle_irq(_irq_num: usize, tf: &mut TrapFrame) {
@@ -44,5 +43,3 @@ pub async fn handle_user_irq(_irq_num: usize, tf: &mut TrapFrame) {
         crate::current_check_user_preempt_pending(tf).await;
     }
 }
-
-

@@ -1,13 +1,13 @@
 use crate::{syscall_fs::FileDesc, MMAPFlags, MREMAPFlags, SyscallError, SyscallResult, MMAPPROT};
 extern crate alloc;
 
+use async_mem::MemorySet;
 use axerrno::AxError;
 use axhal::{arch::flush_tlb, mem::VirtAddr, paging::MappingFlags};
 use axlog::info;
-use async_mem::MemorySet;
 
-use executor::current_executor;
 use bitflags::bitflags;
+use executor::current_executor;
 
 const MAX_HEAP_SIZE: usize = 0x20000;
 /// 修改用户堆大小，
@@ -64,7 +64,8 @@ pub async fn syscall_mmap(args: [usize; 6]) -> SyscallResult {
         }
         process
             .memory_set
-            .lock().await
+            .lock()
+            .await
             .mmap(start.into(), len, prot.into(), shared, fixed, None)
             .await
     } else {
@@ -89,14 +90,12 @@ pub async fn syscall_mmap(args: [usize; 6]) -> SyscallResult {
         };
 
         let backend = MemBackend::new(file, offset as u64).await;
-        process.memory_set.lock().await.mmap(
-            start.into(),
-            len,
-            prot.into(),
-            shared,
-            fixed,
-            Some(backend),
-        ).await
+        process
+            .memory_set
+            .lock()
+            .await
+            .mmap(start.into(), len, prot.into(), shared, fixed, Some(backend))
+            .await
     };
 
     flush_tlb(None);
@@ -115,7 +114,12 @@ pub async fn syscall_munmap(args: [usize; 6]) -> SyscallResult {
     let start = args[0];
     let len = args[1];
     let process = current_executor();
-    process.memory_set.lock().await.munmap(start.into(), len).await;
+    process
+        .memory_set
+        .lock()
+        .await
+        .munmap(start.into(), len)
+        .await;
     flush_tlb(None);
     Ok(0)
 }
@@ -127,7 +131,12 @@ pub async fn syscall_msync(args: [usize; 6]) -> SyscallResult {
     let start = args[0];
     let len = args[1];
     let process = current_executor();
-    process.memory_set.lock().await.msync(start.into(), len).await;
+    process
+        .memory_set
+        .lock()
+        .await
+        .msync(start.into(), len)
+        .await;
 
     Ok(0)
 }

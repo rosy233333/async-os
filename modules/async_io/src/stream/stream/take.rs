@@ -23,10 +23,7 @@ pin_project! {
 
 impl<S> Take<S> {
     pub(super) fn new(stream: S, remaining: usize) -> Self {
-        Self {
-            stream,
-            remaining,
-        }
+        Self { stream, remaining }
     }
 }
 

@@ -1,11 +1,12 @@
-
+use crate::{
+    self as io, ax_err, AsyncBufRead, AsyncRead, AsyncWrite, IoSlice, IoSliceMut, SeekFrom,
+};
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use axerrno::ax_err_type;
 use core::cmp;
-use crate::{self as io, ax_err, AsyncBufRead, AsyncRead, AsyncWrite, IoSlice, IoSliceMut, SeekFrom};
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use alloc::vec::Vec;
-use alloc::boxed::Box;
-use axerrno::ax_err_type;
 
 /// A `Cursor` wraps an in-memory buffer and provides it with a
 /// [`Seek`] implementation.
@@ -256,7 +257,10 @@ where
 {
     #[inline]
     fn clone(&self) -> Self {
-        Cursor { inner: self.inner.clone(), pos: self.pos }
+        Cursor {
+            inner: self.inner.clone(),
+            pos: self.pos,
+        }
     }
 
     #[inline]
@@ -294,7 +298,6 @@ where
             )),
         }
     }
-    
 }
 
 impl<T> AsyncRead for Cursor<T>
@@ -306,7 +309,11 @@ where
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<axerrno::AxResult<usize>> {
-        let n = futures_core::ready!(AsyncRead::read(Pin::new(&mut self.remaining_slice()), cx, buf))?;
+        let n = futures_core::ready!(AsyncRead::read(
+            Pin::new(&mut self.remaining_slice()),
+            cx,
+            buf
+        ))?;
         self.pos += n as u64;
         Poll::Ready(Ok(n))
     }
@@ -326,17 +333,21 @@ where
         }
         Poll::Ready(Ok(nread))
     }
-    
 }
 
 impl<T> AsyncBufRead for Cursor<T>
 where
     T: AsRef<[u8]> + Unpin,
 {
-    fn fill_buf<'a>(self: Pin<&'a mut Self>, _cx: &mut Context<'_>) -> Poll<axerrno::AxResult<&'a [u8]>> {
+    fn fill_buf<'a>(
+        self: Pin<&'a mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<axerrno::AxResult<&'a [u8]>> {
         let slice = self.remaining_slice();
         // 使用 core::slice::from_raw_parts，可能存在不安全的问题
-        Poll::Ready(Ok(unsafe { core::slice::from_raw_parts::<'a>(slice.as_ptr(), slice.len()) }))
+        Poll::Ready(Ok(unsafe {
+            core::slice::from_raw_parts::<'a>(slice.as_ptr(), slice.len())
+        }))
         // Poll::Ready(Ok(self.remaining_slice()))
     }
 
@@ -378,11 +389,7 @@ fn slice_write_vectored(
 
 #[allow(unused)]
 /// Reserves the required space, and pads the vec with 0s if necessary.
-fn reserve_and_pad(
-    pos_mut: &mut u64,
-    vec: &mut Vec<u8>,
-    buf_len: usize,
-) -> io::Result<usize> {
+fn reserve_and_pad(pos_mut: &mut u64, vec: &mut Vec<u8>, buf_len: usize) -> io::Result<usize> {
     let pos: usize = (*pos_mut).try_into().map_err(|_| {
         ax_err_type!(
             InvalidInput,
@@ -411,7 +418,9 @@ fn reserve_and_pad(
         // Safety: we have allocated enough capacity for this.
         // And we are only writing, not reading
         unsafe {
-            spare.get_unchecked_mut(..diff).fill(core::mem::MaybeUninit::new(0));
+            spare
+                .get_unchecked_mut(..diff)
+                .fill(core::mem::MaybeUninit::new(0));
             vec.set_len(pos);
         }
     }
@@ -495,7 +504,6 @@ fn vec_write_vectored(
 }
 
 impl AsyncWrite for Cursor<&mut [u8]> {
-
     #[inline]
     fn write(
         self: Pin<&mut Self>,
@@ -525,7 +533,6 @@ impl AsyncWrite for Cursor<&mut [u8]> {
     fn close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<axerrno::AxResult<()>> {
         self.flush(cx)
     }
-    
 }
 
 impl AsyncWrite for Cursor<&mut Vec<u8>> {
@@ -555,7 +562,6 @@ impl AsyncWrite for Cursor<&mut Vec<u8>> {
     fn close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<axerrno::AxResult<()>> {
         self.flush(cx)
     }
-    
 }
 
 impl AsyncWrite for Cursor<Vec<u8>> {
@@ -585,11 +591,9 @@ impl AsyncWrite for Cursor<Vec<u8>> {
     fn close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<axerrno::AxResult<()>> {
         self.flush(cx)
     }
-    
 }
 
 impl AsyncWrite for Cursor<Box<[u8]>> {
-
     #[inline]
     fn write(
         self: Pin<&mut Self>,
@@ -616,11 +620,9 @@ impl AsyncWrite for Cursor<Box<[u8]>> {
     fn close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<axerrno::AxResult<()>> {
         self.flush(cx)
     }
-    
 }
 
 impl<const N: usize> AsyncWrite for Cursor<[u8; N]> {
-
     #[inline]
     fn write(
         self: Pin<&mut Self>,
@@ -647,5 +649,4 @@ impl<const N: usize> AsyncWrite for Cursor<[u8; N]> {
     fn close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<axerrno::AxResult<()>> {
         self.flush(cx)
     }
-
 }

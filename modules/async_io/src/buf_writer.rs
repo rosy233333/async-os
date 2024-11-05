@@ -4,8 +4,8 @@ use core::pin::Pin;
 use alloc::vec::Vec;
 use pin_project_lite::pin_project;
 
-use crate::{self as io, AsyncSeek, SeekFrom, AsyncWrite, write::Write, ax_err};
-use core::task::{Context, Poll, ready};
+use crate::{self as io, ax_err, write::Write, AsyncSeek, AsyncWrite, SeekFrom};
+use core::task::{ready, Context, Poll};
 
 const DEFAULT_BUF_SIZE: usize = 1024;
 
@@ -273,16 +273,9 @@ impl<W: Write> BufWriter<W> {
         let len = this.buf.len();
         let mut ret = Ok(());
         while *this.written < len {
-            match this
-                .inner
-                .as_mut()
-                .write(cx, &this.buf[*this.written..])
-            {
+            match this.inner.as_mut().write(cx, &this.buf[*this.written..]) {
                 Poll::Ready(Ok(0)) => {
-                    ret = ax_err!(
-                        WriteZero,
-                        "Failed to write buffered data"
-                    );
+                    ret = ax_err!(WriteZero, "Failed to write buffered data");
                     break;
                 }
                 Poll::Ready(Ok(n)) => *this.written += n,

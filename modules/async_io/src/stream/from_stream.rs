@@ -1,7 +1,7 @@
+use super::into_stream::IntoStream;
+use alloc::boxed::Box;
 use core::future::Future;
 use core::pin::Pin;
-use alloc::boxed::Box;
-use super::into_stream::IntoStream;
 
 /// Conversion from a `Stream`.
 ///

@@ -1,6 +1,6 @@
 use core::cmp::Ordering;
-use core::pin::Pin;
 use core::future::Future;
+use core::pin::Pin;
 
 use pin_project_lite::pin_project;
 

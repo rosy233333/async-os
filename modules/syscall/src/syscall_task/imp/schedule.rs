@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::sync::Arc;
 use axconfig::SMP;
 use axhal::mem::VirtAddr;
-use executor::{current_executor, current_task, PID2PC, TID2TASK, SchedPolicy, SchedStatus};
+use executor::{current_executor, current_task, SchedPolicy, SchedStatus, PID2PC, TID2TASK};
 
 use crate::{SchedParam, SyscallError, SyscallResult};
 /// 获取对应任务的CPU适配集
@@ -31,10 +31,7 @@ pub async fn syscall_sched_getaffinity(args: [usize; 6]) -> SyscallResult {
         Arc::clone(tid2task.get(&pid).unwrap())
     } else if pid2task.contains_key(&pid) {
         let process = pid2task.get(&pid).unwrap();
-        process.main_task.lock()
-            .await
-            .clone()
-            .unwrap()
+        process.main_task.lock().await.clone().unwrap()
         // process
         //     .tasks
         //     .lock()
@@ -88,10 +85,7 @@ pub async fn syscall_sched_setaffinity(args: [usize; 6]) -> SyscallResult {
         Arc::clone(tid2task.get(&pid).unwrap())
     } else if pid2task.contains_key(&pid) {
         let process = pid2task.get(&pid).unwrap();
-        process.main_task.lock()
-            .await
-            .clone()
-            .unwrap()
+        process.main_task.lock().await.clone().unwrap()
         // process
         //     .tasks
         //     .lock()
@@ -144,10 +138,7 @@ pub async fn syscall_sched_setscheduler(args: [usize; 6]) -> SyscallResult {
         Arc::clone(tid2task.get(&pid).unwrap())
     } else if pid2task.contains_key(&pid) {
         let process = pid2task.get(&pid).unwrap();
-        process.main_task.lock()
-            .await
-            .clone()
-            .unwrap()
+        process.main_task.lock().await.clone().unwrap()
         // process
         //     .tasks
         //     .lock()
@@ -213,10 +204,7 @@ pub async fn syscall_sched_getscheduler(args: [usize; 6]) -> SyscallResult {
         Arc::clone(tid2task.get(&pid).unwrap())
     } else if pid2task.contains_key(&pid) {
         let process = pid2task.get(&pid).unwrap();
-        process.main_task.lock()
-            .await
-            .clone()
-            .unwrap()
+        process.main_task.lock().await.clone().unwrap()
         // process
         //     .tasks
         //     .lock()

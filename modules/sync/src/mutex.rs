@@ -1,19 +1,23 @@
 //! 只能在 async 函数以及自定义 Poll 函数中使用的 Mutex 实现。
-//! 
+//!
 //! 该 Mutex 以协程的方式实现，去掉了 force_lock 函数，
 //! 因为协作式不存在强制的释放。
-//! 
+//!
 //! 去掉了 try_lock，因为 try_lock 本身也是一种协作的方式。
 //! 当被锁上时，不等待，暂时去处理其他的事情，
 //! 而这里的实现本身就是协作的方式，因此提供这个函数没有意义
 
+use crate::WaitQueue;
 use core::cell::UnsafeCell;
 use core::fmt;
 use core::ops::{Deref, DerefMut};
 use core::sync::atomic::{AtomicUsize, Ordering};
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 use task_api::current_task;
-use core::{future::Future, pin::Pin, task::{Context, Poll}};
-use crate::WaitQueue;
 
 /// A mutual exclusion primitive useful for protecting shared data, similar to
 /// [`std::sync::Mutex`](https://doc.rust-lang.org/std/sync/struct.Mutex.html).
@@ -34,7 +38,7 @@ unsafe impl<T: ?Sized + Send> Send for Mutex<T> {}
 /// A guard that provides mutable data access.
 ///
 /// When the guard falls out of scope it will release the lock.
-/// 
+///
 /// 这个数据结构可以提供同步和异步的接口，若没有使用 .await，则使用同步的接口
 /// 若使用 .await，则使用异步的接口
 pub struct MutexGuard<'a, T: ?Sized + 'a> {
@@ -125,11 +129,9 @@ impl<T: ?Sized> Mutex<T> {
         let current_task = waker.as_raw().data() as usize;
         // The reason for using a strong compare_exchange is explained here:
         // https://github.com/Amanieu/parking_lot/pull/207#issuecomment-575869107
-        if self.owner_task.compare_exchange(
-            0, 
-            current_task, 
-            Ordering::Acquire, 
-            Ordering::Relaxed)
+        if self
+            .owner_task
+            .compare_exchange(0, current_task, Ordering::Acquire, Ordering::Relaxed)
             .is_ok()
         {
             Some(MutexGuard {

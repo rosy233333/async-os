@@ -1,6 +1,8 @@
 use core::{slice::from_raw_parts_mut, time::Duration};
 
-use axhal::time::{current_time, current_time_nanos, nanos_to_ticks, NANOS_PER_SEC, NANOS_PER_MICROS};
+use axhal::time::{
+    current_time, current_time_nanos, nanos_to_ticks, NANOS_PER_MICROS, NANOS_PER_SEC,
+};
 
 use executor::{current_executor, current_task};
 use rand::{rngs::SmallRng, Fill, SeedableRng};
@@ -86,7 +88,8 @@ pub async fn syscall_sysinfo(args: [usize; 6]) -> SyscallResult {
     let info = args[0] as *mut SysInfo;
     let executor = current_executor();
     if executor
-        .manual_alloc_type_for_lazy(info as *const SysInfo).await
+        .manual_alloc_type_for_lazy(info as *const SysInfo)
+        .await
         .is_err()
     {
         return Err(SyscallError::EFAULT);
@@ -119,7 +122,11 @@ pub async fn syscall_settimer(args: [usize; 6]) -> SyscallResult {
     };
 
     if !old_value.is_null() {
-        if executor.manual_alloc_type_for_lazy(old_value).await.is_err() {
+        if executor
+            .manual_alloc_type_for_lazy(old_value)
+            .await
+            .is_err()
+        {
             return Err(SyscallError::EFAULT);
         }
 
@@ -149,7 +156,8 @@ pub async fn syscall_gettimer(args: [usize; 6]) -> SyscallResult {
     let value = args[1] as *mut ITimerVal;
     let process = current_executor();
     if process
-        .manual_alloc_type_for_lazy(value as *const ITimerVal).await
+        .manual_alloc_type_for_lazy(value as *const ITimerVal)
+        .await
         .is_err()
     {
         return Err(SyscallError::EFAULT);
@@ -201,7 +209,8 @@ pub async fn syscall_getrandom(args: [usize; 6]) -> SyscallResult {
         .manual_alloc_range_for_lazy(
             (buf as usize).into(),
             unsafe { buf.add(len) as usize }.into(),
-        ).await
+        )
+        .await
         .is_err()
     {
         return Err(SyscallError::EFAULT);

@@ -17,7 +17,8 @@ async fn main() -> i32 {
         let a = A.lock().await;
         async_std::println!("spawn Mutex locked: {:?}", *a);
         32
-    }).join();
+    })
+    .join();
     async_std::task::sleep(Duration::from_secs(1)).await;
     drop(b);
     let res = j.await.unwrap();

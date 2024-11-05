@@ -17,10 +17,7 @@ pin_project! {
 
 impl<S, F> Map<S, F> {
     pub(crate) fn new(stream: S, f: F) -> Self {
-        Self {
-            stream,
-            f,
-        }
+        Self { stream, f }
     }
 }
 

@@ -1,4 +1,3 @@
-
 mod bytes;
 mod chain;
 mod read;
@@ -20,50 +19,51 @@ pub use bytes::Bytes;
 pub use chain::Chain;
 pub use take::Take;
 
-use core::{cmp, ops::DerefMut, pin::Pin, task::{Context, Poll}};
+use crate::{IoSliceMut, Result};
 use alloc::{boxed::Box, string::String, vec::Vec};
-use crate::{Result, IoSliceMut};
+use core::{
+    cmp,
+    ops::DerefMut,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 /// 异步读接口
-/// 
+///
 /// 类似于 std::io::Read，但与异步任务系统集成。
 /// read 方法不同于 std::io::Read::read，当数据还没有准备好时，
 /// 会自动将当前任务放入等待队列，并让出 CPU
 pub trait AsyncRead {
     /// 尝试异步的将数据读取到 buf 中
-    /// 
+    ///
     /// 一旦成功，则会返回 `Poll::Ready(Ok(num_bytes_read))`
-    /// 
+    ///
     /// 如果没有数据，则会返回 `Poll::Pending`，当前任务让出 CPU
-    /// 
+    ///
     /// 当对象变得可读或者关闭时，唤醒等待的任务
-    /// 
+    ///
     /// # 实现
-    /// 
+    ///
     /// 这个函数不会返回 `WouldBlock` 或 `Interrupted` 错误，
     /// 而是将这些错误转化为 `Poll::Pending`，并且在内部进行重试
     /// 或者转化为其他错误
-    fn read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize>>;
+    fn read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>>;
 
     /// 尝试异步的将数据读取到 `bufs`
-    /// 
+    ///
     /// 类似于 `read`，但允许在单个函数中将数据读取到多个缓冲区中
-    /// 
+    ///
     /// 一旦成功，则返回 `Poll::Ready(Ok(num_bytes_read))`
-    /// 
+    ///
     /// 如果没有数据，则会返回 `Poll::Pending`，当前任务让出 CPU
-    /// 
+    ///
     /// 当对象变得可读或者关闭时，唤醒等待的任务
-    /// 
+    ///
     /// 默认情况下，这个函数对 `bufs` 中第一个非空的缓冲区使用 `read` 函数，
     /// 或者直接读取到空的缓冲区。支持向量 IO 的对象必须重写这个函数
-    /// 
+    ///
     /// # 实现
-    /// 
+    ///
     /// 这个函数不会返回 `WouldBlock` 或 `Interrupted` 错误，
     /// 而是将这些错误转化为 `Poll::Pending`，并且在内部进行重试
     /// 或者转化为其他错误
@@ -81,7 +81,6 @@ pub trait AsyncRead {
         self.read(cx, &mut [])
     }
 }
-
 
 macro_rules! deref_async_read {
     () => {
@@ -116,11 +115,7 @@ where
     P: DerefMut + Unpin,
     P::Target: AsyncRead,
 {
-    fn read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    fn read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.get_mut().as_mut().read(cx, buf)
     }
 
@@ -143,7 +138,7 @@ impl AsyncRead for &[u8] {
     ) -> Poll<Result<usize>> {
         let amt = cmp::min(buf.len(), self.len());
         let (a, b) = self.split_at(amt);
-        
+
         // 首先检查我们要读取的字节数是否很小：
         // `copy_from_slice` 通常会扩展为对 `memcpy` 的调用，并且对于单个字节来说，开销很大。
         //
@@ -211,12 +206,9 @@ pub trait Read: AsyncRead {
         # Ok(()) }) }
         ```
     "#]
-    fn read<'a>(
-        &'a mut self,
-        buf: &'a mut [u8],
-    ) -> ReadFuture<'a, Self>
+    fn read<'a>(&'a mut self, buf: &'a mut [u8]) -> ReadFuture<'a, Self>
     where
-        Self: Unpin
+        Self: Unpin,
     {
         ReadFuture { reader: self, buf }
     }
@@ -270,10 +262,7 @@ pub trait Read: AsyncRead {
         # Ok(()) }) }
         ```
     "#]
-    fn read_to_end<'a>(
-        &'a mut self,
-        buf: &'a mut Vec<u8>,
-    ) -> ReadToEndFuture<'a, Self>
+    fn read_to_end<'a>(&'a mut self, buf: &'a mut Vec<u8>) -> ReadToEndFuture<'a, Self>
     where
         Self: Unpin,
     {
@@ -309,10 +298,7 @@ pub trait Read: AsyncRead {
         # Ok(()) }) }
         ```
     "#]
-    fn read_to_string<'a>(
-        &'a mut self,
-        buf: &'a mut String,
-    ) -> ReadToStringFuture<'a, Self>
+    fn read_to_string<'a>(&'a mut self, buf: &'a mut String) -> ReadToStringFuture<'a, Self>
     where
         Self: Unpin,
     {
@@ -364,10 +350,7 @@ pub trait Read: AsyncRead {
         # Ok(()) }) }
         ```
     "#]
-    fn read_exact<'a>(
-        &'a mut self,
-        buf: &'a mut [u8],
-    ) -> ReadExactFuture<'a, Self>
+    fn read_exact<'a>(&'a mut self, buf: &'a mut [u8]) -> ReadExactFuture<'a, Self>
     where
         Self: Unpin,
     {
@@ -450,8 +433,12 @@ pub trait Read: AsyncRead {
         # Ok(()) }) }
         ```
     "#]
-    fn by_ref(&mut self) -> &mut Self where Self: Sized { self }
-
+    fn by_ref(&mut self) -> &mut Self
+    where
+        Self: Sized,
+    {
+        self
+    }
 
     #[doc = r#"
         Transforms this `Read` instance to a `Stream` over its bytes.
@@ -483,7 +470,10 @@ pub trait Read: AsyncRead {
         # Ok(()) }) }
         ```
     "#]
-    fn bytes(self) -> Bytes<Self> where Self: Sized {
+    fn bytes(self) -> Bytes<Self>
+    where
+        Self: Sized,
+    {
         Bytes { inner: self }
     }
 
@@ -519,8 +509,15 @@ pub trait Read: AsyncRead {
         # Ok(()) }) }
         ```
     "#]
-    fn chain<R: Read>(self, next: R) -> Chain<Self, R> where Self: Sized {
-        Chain { first: self, second: next, done_first: false }
+    fn chain<R: Read>(self, next: R) -> Chain<Self, R>
+    where
+        Self: Sized,
+    {
+        Chain {
+            first: self,
+            second: next,
+            done_first: false,
+        }
     }
 }
 
@@ -535,15 +532,13 @@ unsafe fn initialize<R: AsyncRead>(_reader: &R, buf: &mut [u8]) {
     core::ptr::write_bytes(buf.as_mut_ptr(), 0, buf.len())
 }
 
-
-
 #[cfg(test)]
 mod tests {
-    use crate::Cursor;
     use crate::read::Read;
+    use crate::Cursor;
+    use alloc::boxed::Box;
     use core::future::Future;
     use core::task::{Context, Waker};
-    use alloc::boxed::Box;
 
     #[test]
     fn test_read_to_end() {
@@ -591,7 +586,6 @@ mod tests {
         };
         let _ = Box::pin(fut).as_mut().poll(&mut cx);
     }
-    
 
     #[test]
     fn test_read_to_string() {
@@ -620,7 +614,7 @@ mod tests {
             let mut buffers = vec![
                 IoSliceMut::new(&mut a),
                 IoSliceMut::new(&mut b),
-                IoSliceMut::new(&mut c)
+                IoSliceMut::new(&mut c),
             ];
             assert_eq!(f.read_vectored(&mut buffers).await.unwrap(), 9);
             println!("buffera: {:?}", a);

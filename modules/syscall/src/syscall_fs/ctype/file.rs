@@ -1,13 +1,13 @@
 extern crate alloc;
 
+use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
-use alloc::boxed::Box;
+use async_fs::api::{async_trait, File, FileIO, FileIOType, Kstat, OpenFlags, SeekFrom};
 use axerrno::AxResult;
-use async_fs::api::{File, FileIO, FileIOType, Kstat, OpenFlags, SeekFrom, async_trait};
 
 use axlog::debug;
 
@@ -46,7 +46,6 @@ pub struct FileMetaData {
 #[async_trait]
 /// 为FileDesc实现 FileIO trait
 impl FileIO for FileDesc {
-
     async fn read(&self, buf: &mut [u8]) -> AxResult<usize> {
         let mut file = self.file.lock().await;
         file.read(buf).await
@@ -92,7 +91,7 @@ impl FileIO for FileDesc {
     async fn get_type(&self) -> FileIOType {
         FileIOType::FileDesc
     }
-    
+
     async fn get_path(&self) -> String {
         self.path.clone()
     }
@@ -187,7 +186,6 @@ impl FileIO for FileDesc {
         self.seek(SeekFrom::Start(now_pos)).await.unwrap();
         now_pos != len
     }
-
 }
 
 impl FileDesc {

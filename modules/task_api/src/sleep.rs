@@ -1,6 +1,10 @@
-use core::{future::Future, task::{Context, Poll}, pin::Pin};
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 #[cfg(feature = "irq")]
-use kernel_guard::{NoPreemptIrqSave, BaseGuard};
+use kernel_guard::{BaseGuard, NoPreemptIrqSave};
 
 #[derive(Debug)]
 pub struct SleepFuture {

@@ -1,6 +1,6 @@
+use core::future::Future;
 use core::marker::PhantomData;
 use core::pin::Pin;
-use core::future::Future;
 
 use super::AsyncStream;
 use core::task::{Context, Poll};

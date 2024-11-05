@@ -27,7 +27,6 @@ unsafe extern "C" fn rust_entry(cpu_id: usize, dtb: usize) {
     unsafe {
         trampoline(0, false, false);
     }
-    
 }
 
 #[cfg(feature = "smp")]

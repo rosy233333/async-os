@@ -1,7 +1,7 @@
+use super::stream::AsyncStream;
+use alloc::boxed::Box;
 use core::future::Future;
 use core::pin::Pin;
-use alloc::boxed::Box;
-use super::stream::AsyncStream;
 
 /// Trait to represent types that can be created by summing up a stream.
 ///

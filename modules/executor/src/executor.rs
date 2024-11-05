@@ -1,36 +1,49 @@
-
-use core::{
-    future::Future, 
-    pin::Pin, 
-    sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering}
+use crate::{
+    current_task,
+    fd_manager::{FdManager, FdTable},
+    flags::CloneFlags,
+    futex::FutexRobustList,
+    load_app,
+    stdio::{Stderr, Stdin, Stdout},
+    ExecutorRef, SignalModule,
 };
 use alloc::{
-    boxed::Box, collections::btree_map::BTreeMap, format, string::{String, ToString}, sync::Arc, vec::Vec, vec
+    boxed::Box,
+    collections::btree_map::BTreeMap,
+    format,
+    string::{String, ToString},
+    sync::Arc,
+    vec,
+    vec::Vec,
 };
-use axerrno::{AxError, AxResult};
 use async_fs::api::{FileIO, OpenFlags};
 use async_mem::MemorySet;
+use axerrno::{AxError, AxResult};
 use axhal::{mem::VirtAddr, time::current_time_nanos};
 use axsignal::signal_no::SignalNo;
+use core::{
+    future::Future,
+    pin::Pin,
+    sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering},
+};
 use lazy_init::LazyInit;
-use taskctx::{BaseScheduler, Task, TaskInner, TaskRef, TrapFrame};
 use spinlock::{SpinNoIrq, SpinNoIrqOnly};
 use sync::Mutex;
-use taskctx::{Scheduler, TaskId};
-use crate::{
-    current_task, fd_manager::{FdManager, FdTable}, flags::CloneFlags, futex::FutexRobustList, load_app, stdio::{Stderr, Stdin, Stdout}, ExecutorRef, SignalModule
-};
 use task_api::yield_now;
+use taskctx::{BaseScheduler, Task, TaskInner, TaskRef, TrapFrame};
+use taskctx::{Scheduler, TaskId};
 
 const FD_LIMIT_ORIGIN: usize = 1025;
 pub const KERNEL_EXECUTOR_ID: u64 = 1;
 pub static TID2TASK: Mutex<BTreeMap<u64, TaskRef>> = Mutex::new(BTreeMap::new());
 pub static PID2PC: Mutex<BTreeMap<u64, Arc<Executor>>> = Mutex::new(BTreeMap::new());
 
-pub static UTRAP_HANDLER: LazyInit<fn() -> Pin<Box<dyn Future<Output = i32> + 'static>>> = LazyInit::new();
+pub static UTRAP_HANDLER: LazyInit<fn() -> Pin<Box<dyn Future<Output = i32> + 'static>>> =
+    LazyInit::new();
 
 pub static KERNEL_EXECUTOR: LazyInit<Arc<Executor>> = LazyInit::new();
-pub(crate) static EXECUTORS: SpinNoIrqOnly<BTreeMap<u64, ExecutorRef>> = SpinNoIrqOnly::new(BTreeMap::new());
+pub(crate) static EXECUTORS: SpinNoIrqOnly<BTreeMap<u64, ExecutorRef>> =
+    SpinNoIrqOnly::new(BTreeMap::new());
 
 extern "C" {
     fn start_signal_trampoline();
@@ -76,7 +89,6 @@ unsafe impl Sync for Executor {}
 unsafe impl Send for Executor {}
 
 impl Executor {
-    
     /// 创建一个新的 Executor（进程）
     pub fn new(
         pid: TaskId,
@@ -126,8 +138,8 @@ impl Executor {
             })),
         ]));
         Executor::new(
-            TaskId::new(), 
-            KERNEL_EXECUTOR_ID, 
+            TaskId::new(),
+            KERNEL_EXECUTOR_ID,
             Arc::new(Mutex::new(MemorySet::new_memory_set())),
             0,
             new_fd_table,
@@ -239,9 +251,7 @@ impl Executor {
     #[inline]
     /// Pick one task from Executor
     pub fn pick_next_task(&self) -> Option<TaskRef> {
-        self.scheduler
-            .lock()
-            .pick_next_task()
+        self.scheduler.lock().pick_next_task()
     }
 
     #[inline]
@@ -291,9 +301,9 @@ impl Executor {
             }
             cx.waker().wake_by_ref();
             Poll::Pending
-        }).await
+        })
+        .await
     }
-
 }
 
 impl Drop for Executor {
@@ -317,7 +327,6 @@ impl Executor {
 }
 
 impl Executor {
-
     /// 获取当前进程的工作目录
     pub async fn get_cwd(&self) -> String {
         self.fd_manager.cwd.lock().await.clone().to_string()
@@ -330,21 +339,33 @@ impl Executor {
 
     /// alloc physical memory for lazy allocation manually
     pub async fn manual_alloc_for_lazy(&self, addr: VirtAddr) -> AxResult<()> {
-        self.memory_set.lock().await.manual_alloc_for_lazy(addr).await
+        self.memory_set
+            .lock()
+            .await
+            .manual_alloc_for_lazy(addr)
+            .await
     }
 
     /// alloc range physical memory for lazy allocation manually
-    pub async fn manual_alloc_range_for_lazy(&self, start: VirtAddr, end: VirtAddr) -> AxResult<()> {
+    pub async fn manual_alloc_range_for_lazy(
+        &self,
+        start: VirtAddr,
+        end: VirtAddr,
+    ) -> AxResult<()> {
         self.memory_set
-            .lock().await
-            .manual_alloc_range_for_lazy(start, end).await
+            .lock()
+            .await
+            .manual_alloc_range_for_lazy(start, end)
+            .await
     }
 
     /// alloc physical memory with the given type size for lazy allocation manually
     pub async fn manual_alloc_type_for_lazy<T: Sized>(&self, obj: *const T) -> AxResult<()> {
         self.memory_set
-            .lock().await
-            .manual_alloc_type_for_lazy(obj).await
+            .lock()
+            .await
+            .manual_alloc_type_for_lazy(obj)
+            .await
     }
 
     /// 为进程分配一个文件描述符
@@ -384,7 +405,8 @@ impl Executor {
     pub async fn have_restart_signals(&self) -> Option<bool> {
         let current_task = current_task();
         self.signal_modules
-            .lock().await
+            .lock()
+            .await
             .get(&current_task.id().as_u64())
             .unwrap()
             .have_restart_signal()
@@ -393,7 +415,6 @@ impl Executor {
 }
 
 impl Executor {
-    
     /// 根据给定参数创建一个新的 Executor
     /// 在这期间如果，如果任务从一个核切换到另一个核就会导致地址空间不正确，产生内核页错误
     pub async fn init_user(args: Vec<String>, envs: &Vec<String>) -> AxResult<TaskRef> {
@@ -463,24 +484,27 @@ impl Executor {
         let scheduler = new_executor.get_scheduler();
         let fut = UTRAP_HANDLER();
         let pid = new_executor.pid().as_u64();
-        let new_task = Arc::new(Task::new(
-            TaskInner::new_user(
-                path,
-                pid,
-                scheduler, 
-                fut,
-                Box::new(TrapFrame::init_user_context(
-                    entry.into(), user_stack_bottom.into()
-                ))
-            )
-        ));
+        let new_task = Arc::new(Task::new(TaskInner::new_user(
+            path,
+            pid,
+            scheduler,
+            fut,
+            Box::new(TrapFrame::init_user_context(
+                entry.into(),
+                user_stack_bottom.into(),
+            )),
+        )));
 
         // let new_task = spawn_raw(|| run_user_task(entry), path);
         // let new_task = new_task(Box::pin(UserTask::new(entry, user_stack_bottom)), path);
         // Executor::add_task(new_task.clone());
-        new_executor.get_scheduler().lock().add_task(new_task.clone());
+        new_executor
+            .get_scheduler()
+            .lock()
+            .add_task(new_task.clone());
         TID2TASK
-            .lock().await
+            .lock()
+            .await
             .insert(new_task.id().as_u64(), Arc::clone(&new_task));
         new_task.set_leader(true);
         new_executor.set_main_task(new_task.clone()).await;
@@ -496,7 +520,8 @@ impl Executor {
             .await
             .insert(new_task.id().as_u64(), FutexRobustList::default());
         PID2PC
-            .lock().await
+            .lock()
+            .await
             .insert(new_executor.pid().as_u64(), Arc::clone(&new_executor));
         // // 将其作为内核进程的子进程
         // match PID2PC.lock().await.get(&KERNEL_PROCESS_ID) {
@@ -529,9 +554,9 @@ impl Executor {
         let new_memory_set = if clone_flags.contains(CloneFlags::CLONE_VM) {
             Arc::clone(&self.memory_set)
         } else {
-            let memory_set = Arc::new(Mutex::new(MemorySet::clone_or_err(
-                &mut *self.memory_set.lock().await,
-            ).await?));
+            let memory_set = Arc::new(Mutex::new(
+                MemorySet::clone_or_err(&mut *self.memory_set.lock().await).await?,
+            ));
 
             {
                 use axhal::mem::virt_to_phys;
@@ -579,15 +604,13 @@ impl Executor {
         let scheduler = self.get_scheduler();
         let fut = UTRAP_HANDLER();
         let utrap_frame = Box::new(*current_task().utrap_frame().unwrap());
-        let new_task = Arc::new(Task::new(
-            TaskInner::new_user(
-                String::from(current_task().name().split('/').last().unwrap()),
-                process_id.as_u64(),
-                scheduler, 
-                fut,
-                utrap_frame,
-            )
-        ));
+        let new_task = Arc::new(Task::new(TaskInner::new_user(
+            String::from(current_task().name().split('/').last().unwrap()),
+            process_id.as_u64(),
+            scheduler,
+            fut,
+            utrap_frame,
+        )));
 
         // When clone a new task, the new task should have the same fs_base as the original task.
         //
@@ -735,18 +758,21 @@ impl Executor {
                 Arc::new(Mutex::new(self.fd_manager.fd_table.lock().await.clone()))
             };
             let new_process = Arc::new(Executor::new(
-                process_id, 
-                parent_id, 
-                new_memory_set, 
-                self.get_heap_bottom(), 
-                fd_table, 
-                cwd_src, 
-                mask_src
+                process_id,
+                parent_id,
+                new_memory_set,
+                self.get_heap_bottom(),
+                fd_table,
+                cwd_src,
+                mask_src,
             ));
             // 复制当前工作文件夹
             new_process.set_cwd(self.get_cwd().await).await;
             // 记录该进程，防止被回收
-            PID2PC.lock().await.insert(process_id.as_u64(), Arc::clone(&new_process));
+            PID2PC
+                .lock()
+                .await
+                .insert(process_id.as_u64(), Arc::clone(&new_process));
             let scheduler = new_process.get_scheduler();
             new_task.set_scheduler(scheduler);
             new_task.set_leader(true);
@@ -783,14 +809,12 @@ impl Executor {
 
             let scheduler = self.get_scheduler();
             let fut = Box::pin(new_process.run());
-            let executor_task = Arc::new(Task::new(
-                TaskInner::new(
-                    "executor".into(),
-                    process_id.as_u64(),
-                    scheduler, 
-                    fut,
-                )
-            ));
+            let executor_task = Arc::new(Task::new(TaskInner::new(
+                "executor".into(),
+                process_id.as_u64(),
+                scheduler,
+                fut,
+            )));
             self.get_scheduler().lock().add_task(executor_task);
         };
 
@@ -848,12 +872,7 @@ impl Executor {
     /// 将当前进程替换为指定的用户程序
     /// args为传入的参数
     /// 任务的统计时间会被重置
-    pub async fn exec(
-        &self, 
-        name: String, 
-        args: Vec<String>, 
-        envs: &Vec<String>
-    ) -> AxResult<()> {
+    pub async fn exec(&self, name: String, args: Vec<String>, envs: &Vec<String>) -> AxResult<()> {
         // 首先要处理原先进程的资源
         // 处理分配的页帧
         // 之后加入额外的东西之后再处理其他的包括信号等因素
@@ -862,9 +881,7 @@ impl Executor {
         if Arc::strong_count(&self.memory_set) == 1 {
             self.memory_set.lock().await.unmap_user_areas();
         } else {
-            let memory_set = MemorySet::clone_or_err(
-                &mut *self.memory_set.lock().await,
-            ).await?;
+            let memory_set = MemorySet::clone_or_err(&mut *self.memory_set.lock().await).await?;
             *self.memory_set.lock().await = memory_set;
             self.memory_set.lock().await.unmap_user_areas();
             let new_page_table = self.memory_set.lock().await.page_table_token();

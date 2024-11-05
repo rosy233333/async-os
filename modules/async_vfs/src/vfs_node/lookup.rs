@@ -1,5 +1,5 @@
-use core::pin::Pin;
 use core::future::Future;
+use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use crate::{VfsNodeOps, VfsNodeRef, VfsResult};
@@ -8,7 +8,7 @@ use crate::{VfsNodeOps, VfsNodeRef, VfsResult};
 #[allow(missing_debug_implementations)]
 pub struct LookupFuture<'a, T: Unpin + ?Sized> {
     pub(crate) vnode: &'a T,
-    pub(crate) path: &'a str, 
+    pub(crate) path: &'a str,
 }
 
 impl<T: VfsNodeOps + Unpin + ?Sized> Future for LookupFuture<'_, T> {

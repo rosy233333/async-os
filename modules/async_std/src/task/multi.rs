@@ -4,12 +4,12 @@ extern crate alloc;
 
 use crate::io;
 use alloc::{string::String, sync::Arc};
-use core::ops::Deref;
-use core::{cell::UnsafeCell, future::Future, num::NonZeroU64};
-use core::task::{Poll, Context};
-use core::pin::Pin;
-use aos_api::task::{self as api, TaskHandle, JoinFuture};
+use aos_api::task::{self as api, JoinFuture, TaskHandle};
 use axerrno::ax_err_type;
+use core::ops::Deref;
+use core::pin::Pin;
+use core::task::{Context, Poll};
+use core::{cell::UnsafeCell, future::Future, num::NonZeroU64};
 
 /// A unique identifier for a running task.
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
@@ -55,9 +55,7 @@ impl Builder {
     /// Generates the base configuration for spawning a task, from which
     /// configuration methods can be chained.
     pub const fn new() -> Builder {
-        Builder {
-            name: None,
-        }
+        Builder { name: None }
     }
 
     /// Names the task-to-be.
@@ -173,19 +171,28 @@ impl<T: Unpin> JoinHandle<T> {
         {
             let res = _inner.map_or_else(
                 || Err(ax_err_type!(BadState)),
-                |_| Arc::get_mut(&mut self.packet)
-                .unwrap()
-                .result
-                .get_mut()
-                .take()
-                .ok_or_else(|| ax_err_type!(BadState)), 
+                |_| {
+                    Arc::get_mut(&mut self.packet)
+                        .unwrap()
+                        .result
+                        .get_mut()
+                        .take()
+                        .ok_or_else(|| ax_err_type!(BadState))
+                },
             );
-            return JoinFutureHandle { res: Some(res), _inner, _packet: self.packet };
+            return JoinFutureHandle {
+                res: Some(res),
+                _inner,
+                _packet: self.packet,
+            };
         }
         #[cfg(not(feature = "thread"))]
-        return JoinFutureHandle { res: None, _inner, _packet: self.packet };
+        return JoinFutureHandle {
+            res: None,
+            _inner,
+            _packet: self.packet,
+        };
     }
-
 }
 
 pub struct JoinFutureHandle<T: Unpin> {
@@ -198,8 +205,13 @@ impl<T: Unpin> Future for JoinFutureHandle<T> {
     type Output = io::Result<T>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let Self { res, _inner, _packet } = self.get_mut();
-        #[cfg(feature = "thread")] {
+        let Self {
+            res,
+            _inner,
+            _packet,
+        } = self.get_mut();
+        #[cfg(feature = "thread")]
+        {
             assert!(res.is_some());
             return Poll::Ready(res.take().unwrap());
         }
@@ -208,13 +220,15 @@ impl<T: Unpin> Future for JoinFutureHandle<T> {
             assert!(res.is_none());
             Pin::new(_inner).as_mut().poll(_cx).map(|res| {
                 res.map_or_else(
-                    || Err(ax_err_type!(BadState)), 
-                    |_| Arc::get_mut(_packet)
+                    || Err(ax_err_type!(BadState)),
+                    |_| {
+                        Arc::get_mut(_packet)
                             .unwrap()
                             .result
                             .get_mut()
                             .take()
                             .ok_or_else(|| ax_err_type!(BadState))
+                    },
                 )
             })
         }

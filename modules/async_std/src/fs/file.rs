@@ -66,7 +66,9 @@ impl OpenOptions {
 
     /// Opens a file at `path` with the options specified by `self`.
     pub async fn open(&self, path: &str) -> Result<File> {
-        api::ax_open_file(path, &self.0).await.map(|inner| File { inner })
+        api::ax_open_file(path, &self.0)
+            .await
+            .map(|inner| File { inner })
     }
 }
 
@@ -135,7 +137,8 @@ impl File {
             .write(true)
             .create(true)
             .truncate(true)
-            .open(path).await
+            .open(path)
+            .await
     }
 
     /// Creates a new file in read-write mode; error if the file exists.
@@ -144,7 +147,8 @@ impl File {
             .read(true)
             .write(true)
             .create_new(true)
-            .open(path).await
+            .open(path)
+            .await
     }
 
     /// Returns a new OpenOptions object.
@@ -164,24 +168,19 @@ impl File {
     }
 }
 
-use core::{pin::Pin, task::{Context, Poll}};
+use core::{
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 impl AsyncRead for File {
-    fn read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    fn read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         AsyncRead::read(Pin::new(&mut self.inner), cx, buf)
     }
 }
 
 impl AsyncWrite for File {
-    fn write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize>> {
+    fn write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize>> {
         AsyncWrite::write(Pin::new(&mut self.inner), cx, buf)
     }
 
@@ -195,11 +194,7 @@ impl AsyncWrite for File {
 }
 
 impl AsyncSeek for File {
-    fn seek(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        pos: SeekFrom,
-    ) -> Poll<Result<u64>> {
+    fn seek(mut self: Pin<&mut Self>, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
         AsyncSeek::seek(Pin::new(&mut self.inner), cx, pos)
     }
 }

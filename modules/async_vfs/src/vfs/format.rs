@@ -1,8 +1,8 @@
-use core::pin::Pin;
 use core::future::Future;
+use core::pin::Pin;
 use core::task::{Context, Poll};
 
-use crate::{VfsResult, VfsOps};
+use crate::{VfsOps, VfsResult};
 
 #[doc(hidden)]
 #[allow(missing_debug_implementations)]

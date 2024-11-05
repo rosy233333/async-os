@@ -2,10 +2,10 @@ use axhal::time::current_ticks;
 use bitflags::bitflags;
 extern crate alloc;
 use alloc::{
+    boxed::Box,
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
     vec::Vec,
-    boxed::Box
 };
 use axerrno::{AxError, AxResult};
 
@@ -228,7 +228,7 @@ impl FileIO for EpollFile {
         false
     }
     /// epoll file也是一个文件描述符
-    async  fn get_type(&self) -> FileIOType {
+    async fn get_type(&self) -> FileIOType {
         FileIOType::FileDesc
     }
 

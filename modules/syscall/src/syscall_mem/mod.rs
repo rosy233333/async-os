@@ -9,7 +9,10 @@ pub use mem_syscall_id::MemSyscallId::{self, *};
 
 use imp::*;
 /// 与内存相关的系统调用
-pub async fn mem_syscall(syscall_id: mem_syscall_id::MemSyscallId, args: [usize; 6]) -> SyscallResult {
+pub async fn mem_syscall(
+    syscall_id: mem_syscall_id::MemSyscallId,
+    args: [usize; 6],
+) -> SyscallResult {
     match syscall_id {
         BRK => syscall_brk(args).await,
         MUNMAP => syscall_munmap(args).await,

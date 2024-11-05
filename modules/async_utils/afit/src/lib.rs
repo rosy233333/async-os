@@ -15,5 +15,6 @@ pub fn async_trait(_args: TokenStream, item: TokenStream) -> TokenStream {
         #trait_item
         #sub_trait
         #impl_wrapper
-    }.into()
+    }
+    .into()
 }

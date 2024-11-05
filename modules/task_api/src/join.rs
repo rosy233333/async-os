@@ -1,4 +1,9 @@
-use core::{future::Future, ops::Deref, pin::Pin, task::{Context, Poll}};
+use core::{
+    future::Future,
+    ops::Deref,
+    pin::Pin,
+    task::{Context, Poll},
+};
 use taskctx::TaskRef;
 
 pub struct JoinFuture {
@@ -37,7 +42,7 @@ impl Future for JoinFuture {
 
 impl Deref for JoinFuture {
     type Target = Option<i32>;
-    
+
     fn deref(&self) -> &Self::Target {
         &self.res
     }

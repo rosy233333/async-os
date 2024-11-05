@@ -3,14 +3,13 @@ extern crate alloc;
 use crate::syscall_fs::solve_path;
 // use crate::syscall_net::Socket;
 use crate::{IoVec, SyscallError, SyscallResult};
-use alloc::{vec, sync::Arc, string::ToString};
+use alloc::{string::ToString, sync::Arc, vec};
+use async_fs::api::{FileIOType, OpenFlags};
 use async_io::SeekFrom;
 use axerrno::AxError;
-use async_fs::api::{FileIOType, OpenFlags};
 use axlog::{debug, info};
 use executor::current_executor;
 use executor::link::{create_link, real_path};
-
 
 use crate::syscall_fs::ctype::{
     dir::new_dir,
@@ -37,10 +36,13 @@ pub async fn syscall_read(args: [usize; 6]) -> SyscallResult {
     let process = current_executor();
 
     // TODO: 左闭右开
-    let buf = match process.manual_alloc_range_for_lazy(
-        (buf as usize).into(),
-        (unsafe { buf.add(count) as usize } - 1).into(),
-    ).await {
+    let buf = match process
+        .manual_alloc_range_for_lazy(
+            (buf as usize).into(),
+            (unsafe { buf.add(count) as usize } - 1).into(),
+        )
+        .await
+    {
         Ok(_) => unsafe { core::slice::from_raw_parts_mut(buf, count) },
         Err(_) => return Err(SyscallError::EFAULT),
     };
@@ -108,10 +110,13 @@ pub async fn syscall_write(args: [usize; 6]) -> SyscallResult {
     let process = current_executor();
 
     // TODO: 左闭右开
-    let buf = match process.manual_alloc_range_for_lazy(
-        (buf as usize).into(),
-        (unsafe { buf.add(count) as usize } - 1).into(),
-    ).await {
+    let buf = match process
+        .manual_alloc_range_for_lazy(
+            (buf as usize).into(),
+            (unsafe { buf.add(count) as usize } - 1).into(),
+        )
+        .await
+    {
         Ok(_) => unsafe { core::slice::from_raw_parts(buf, count) },
         Err(_) => return Err(SyscallError::EFAULT),
     };
@@ -224,7 +229,11 @@ pub async fn syscall_pipe2(args: [usize; 6]) -> SyscallResult {
     let flags = args[1] as u32;
     axlog::info!("Into syscall_pipe2. fd: {} flags: {}", fd as usize, flags);
     let process = current_executor();
-    if process.manual_alloc_for_lazy((fd as usize).into()).await.is_err() {
+    if process
+        .manual_alloc_for_lazy((fd as usize).into())
+        .await
+        .is_err()
+    {
         return Err(SyscallError::EINVAL);
     }
     let (read, write) = make_pipe(OpenFlags::from_bits_truncate(flags)).await;
@@ -363,7 +372,11 @@ pub async fn syscall_dup3(args: [usize; 6]) -> SyscallResult {
     info!("dup3 fd {} to new fd {} with flags {}", fd, new_fd, flags);
     fd_table[new_fd] = fd_table[fd].clone();
     if flags as u32 & crate::ctypes::O_CLOEXEC != 0 {
-        let _ = fd_table[new_fd].as_mut().unwrap().set_close_on_exec(true).await;
+        let _ = fd_table[new_fd]
+            .as_mut()
+            .unwrap()
+            .set_close_on_exec(true)
+            .await;
     }
     Ok(new_fd as isize)
 }
@@ -513,11 +526,16 @@ pub async fn syscall_pread64(args: [usize; 6]) -> SyscallResult {
     let offset = args[3];
     let process = current_executor();
     // todo: 把check fd整合到fd_manager中
-    let file = process.fd_manager.fd_table.lock().await[fd].clone().unwrap();
+    let file = process.fd_manager.fd_table.lock().await[fd]
+        .clone()
+        .unwrap();
 
     let old_offset = file.seek(SeekFrom::Current(0)).await.unwrap();
     let ret = match file.seek(SeekFrom::Start(offset as u64)).await {
-        Ok(_) => file.read(unsafe { core::slice::from_raw_parts_mut(buf, count) }).await,
+        Ok(_) => {
+            file.read(unsafe { core::slice::from_raw_parts_mut(buf, count) })
+                .await
+        }
         Err(e) => return Err(e.into()),
     };
     // let ret = file
@@ -543,7 +561,9 @@ pub async fn syscall_pwrite64(args: [usize; 6]) -> SyscallResult {
     let offset = args[3];
     let process = current_executor();
 
-    let file = process.fd_manager.fd_table.lock().await[fd].clone().unwrap();
+    let file = process.fd_manager.fd_table.lock().await[fd]
+        .clone()
+        .unwrap();
 
     let old_offset = file.seek(SeekFrom::Current(0)).await.unwrap();
 
@@ -552,7 +572,10 @@ pub async fn syscall_pwrite64(args: [usize; 6]) -> SyscallResult {
     //     res
     // });
     let ret = match file.seek(SeekFrom::Start(offset as u64)).await {
-        Ok(_) => file.write(unsafe { core::slice::from_raw_parts(buf, count) }).await,
+        Ok(_) => {
+            file.write(unsafe { core::slice::from_raw_parts(buf, count) })
+                .await
+        }
         Err(e) => return Err(e.into()),
     };
 
@@ -580,15 +603,22 @@ pub async fn syscall_sendfile64(args: [usize; 6]) -> SyscallResult {
     let count = args[3];
     info!("send from {} to {}, count: {}", in_fd, out_fd, count);
     let process = current_executor();
-    let out_file = process.fd_manager.fd_table.lock().await[out_fd].clone().unwrap();
-    let in_file = process.fd_manager.fd_table.lock().await[in_fd].clone().unwrap();
+    let out_file = process.fd_manager.fd_table.lock().await[out_fd]
+        .clone()
+        .unwrap();
+    let in_file = process.fd_manager.fd_table.lock().await[in_fd]
+        .clone()
+        .unwrap();
     let old_in_offset = in_file.seek(SeekFrom::Current(0)).await.unwrap();
 
     let mut buf = vec![0u8; count];
     if !offset.is_null() {
         // 如果offset不为NULL,则从offset指定的位置开始读取
         let in_offset = unsafe { *offset };
-        in_file.seek(SeekFrom::Start(in_offset as u64)).await.unwrap();
+        in_file
+            .seek(SeekFrom::Start(in_offset as u64))
+            .await
+            .unwrap();
         let ret = in_file.read(buf.as_mut_slice()).await;
         unsafe { *offset = in_offset + ret.unwrap() };
         in_file.seek(SeekFrom::Start(old_in_offset)).await.unwrap();
@@ -798,11 +828,17 @@ pub async fn syscall_copyfilerange(args: [usize; 6]) -> SyscallResult {
 
     // set offset
     if !off_in.is_null() {
-        in_file.seek(SeekFrom::Start(in_offset as u64)).await.unwrap();
+        in_file
+            .seek(SeekFrom::Start(in_offset as u64))
+            .await
+            .unwrap();
     }
 
     if !off_out.is_null() {
-        out_file.seek(SeekFrom::Start(out_offset as u64)).await.unwrap();
+        out_file
+            .seek(SeekFrom::Start(out_offset as u64))
+            .await
+            .unwrap();
     }
 
     // copy
@@ -821,7 +857,10 @@ pub async fn syscall_copyfilerange(args: [usize; 6]) -> SyscallResult {
         }
     }
     if !off_out.is_null() {
-        out_file.seek(SeekFrom::Start(old_out_offset)).await.unwrap();
+        out_file
+            .seek(SeekFrom::Start(old_out_offset))
+            .await
+            .unwrap();
         unsafe {
             *off_out += write_len;
         }

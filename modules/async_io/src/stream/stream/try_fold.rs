@@ -1,7 +1,7 @@
 use core::pin::Pin;
 
-use core::future::Future;
 use super::AsyncStream;
+use core::future::Future;
 use core::task::{Context, Poll};
 
 #[doc(hidden)]

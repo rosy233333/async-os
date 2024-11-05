@@ -1,26 +1,43 @@
 use core::{sync::atomic::AtomicI32, time::Duration};
 
-use alloc::{string::{String, ToString}, sync::Arc, vec::Vec};
-use axhal::time::current_time;
+use alloc::{
+    string::{String, ToString},
+    sync::Arc,
+    vec::Vec,
+};
 use async_fs::api::OpenFlags;
+use axhal::time::current_time;
 use axsignal::{info::SigInfo, signal_no::SignalNo};
 // use async_fs::api::OpenFlags;
 // use axhal::time::current_time;
 use executor::{
-    current_executor, current_task, flags::{CloneFlags, WaitStatus}, link::{raw_ptr_to_ref_str, AT_FDCWD}, send_signal_to_process, sleep, wait_pid, yield_now, Executor, SignalModule, PID2PC 
-    // flags::{CloneFlags, WaitStatus}, link::{raw_ptr_to_ref_str, AT_FDCWD}
-    // set_child_tid,
-    // signal::send_signal_to_process,
-    // sleep_now_task, wait_pid, yield_now_task, Process, PID2PC,
+    current_executor,
+    current_task,
+    flags::{CloneFlags, WaitStatus},
+    link::{raw_ptr_to_ref_str, AT_FDCWD},
+    send_signal_to_process,
+    sleep,
+    wait_pid,
+    yield_now,
+    Executor,
+    SignalModule,
+    PID2PC, // flags::{CloneFlags, WaitStatus}, link::{raw_ptr_to_ref_str, AT_FDCWD}
+            // set_child_tid,
+            // signal::send_signal_to_process,
+            // sleep_now_task, wait_pid, yield_now_task, Process, PID2PC,
 };
-use sync::Mutex;
 use executor::{BaseScheduler, TaskId};
+use sync::Mutex;
 // use sync::Mutex;
 // use core::{future::poll_fn, sync::atomic::AtomicI32};
 // use core::time::Duration;
 use crate::{
-    syscall_fs::{ctype::pidfd::{new_pidfd, PidFd}, imp::solve_path}, CloneArgs, RLimit, SyscallError, SyscallResult, TimeSecs, WaitFlags,
-    RLIMIT_AS, RLIMIT_NOFILE, RLIMIT_STACK,
+    syscall_fs::{
+        ctype::pidfd::{new_pidfd, PidFd},
+        imp::solve_path,
+    },
+    CloneArgs, RLimit, SyscallError, SyscallResult, TimeSecs, WaitFlags, RLIMIT_AS, RLIMIT_NOFILE,
+    RLIMIT_STACK,
 };
 use axlog::info;
 // use axtask::TaskId;
@@ -195,14 +212,19 @@ pub async fn syscall_clone(args: [usize; 6]) -> SyscallResult {
     }
 
     // if let Ok(new_task_id) = curr_process.clone_task(flags, stack, ptid, tls, ctid, sig_child).await {
-    if let Ok(new_task_id) = curr_process.clone_task(
-        flags, stack, ptid, tls, ctid, sig_child
-    ).await {
+    if let Ok(new_task_id) = curr_process
+        .clone_task(flags, stack, ptid, tls, ctid, sig_child)
+        .await
+    {
         if clone_flags.contains(CloneFlags::CLONE_PIDFD) {
             if clone_flags.contains(CloneFlags::CLONE_PARENT_SETTID) {
                 return Err(SyscallError::EINVAL);
             }
-            if curr_process.manual_alloc_for_lazy(ptid.into()).await.is_ok() {
+            if curr_process
+                .manual_alloc_for_lazy(ptid.into())
+                .await
+                .is_ok()
+            {
                 unsafe {
                     *(ptid as *mut i32) = new_pidfd(new_task_id, OpenFlags::empty()).await? as i32;
                 }
@@ -226,7 +248,10 @@ pub async fn syscall_clone3(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EINVAL);
     }
     let curr_process = current_executor();
-    let clone_args = match curr_process.manual_alloc_type_for_lazy(args[0] as *const CloneArgs).await {
+    let clone_args = match curr_process
+        .manual_alloc_type_for_lazy(args[0] as *const CloneArgs)
+        .await
+    {
         Ok(_) => unsafe { &mut *(args[0] as *mut CloneArgs) },
         Err(_) => return Err(SyscallError::EFAULT),
     };
@@ -260,15 +285,17 @@ pub async fn syscall_clone3(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EINVAL);
     }
 
-    if let Ok(new_task_id) = curr_process.clone_task(
-        clone_args.flags as usize,
-        stack,
-        clone_args.parent_tid as usize,
-        clone_args.tls as usize,
-        clone_args.child_tid as usize,
-        sig_child,
-    ).await {
-
+    if let Ok(new_task_id) = curr_process
+        .clone_task(
+            clone_args.flags as usize,
+            stack,
+            clone_args.parent_tid as usize,
+            clone_args.tls as usize,
+            clone_args.child_tid as usize,
+            sig_child,
+        )
+        .await
+    {
         if clone_flags.contains(CloneFlags::CLONE_PIDFD) {
             unsafe {
                 *(clone_args.pidfd as *mut u64) =
@@ -541,13 +568,13 @@ pub async fn syscall_setsid() -> SyscallResult {
 
     // 新建 process group 并加入
     let new_process = Executor::new(
-        TaskId::new(), 
-        process.get_parent(), 
-        process.memory_set.clone(), 
-        process.get_heap_bottom(), 
-        Arc::new(Mutex::new(process.fd_manager.fd_table.lock().await.clone())), 
-        Arc::new(Mutex::new(String::from("/").into())), 
-        Arc::new(AtomicI32::new(0o022))
+        TaskId::new(),
+        process.get_parent(),
+        process.memory_set.clone(),
+        process.get_heap_bottom(),
+        Arc::new(Mutex::new(process.fd_manager.fd_table.lock().await.clone())),
+        Arc::new(Mutex::new(String::from("/").into())),
+        Arc::new(AtomicI32::new(0o022)),
     );
 
     new_process

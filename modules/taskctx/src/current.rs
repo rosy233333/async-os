@@ -266,7 +266,6 @@ pub unsafe fn set_current_task_ptr<T>(ptr: *const T) {
     }
 }
 
-
 /// A wrapper of [`TaskRef`] as the current task.
 pub struct CurrentTask(ManuallyDrop<TaskRef>);
 
@@ -318,7 +317,6 @@ impl CurrentTask {
     pub fn waker(&self) -> Waker {
         crate::waker_from_task(self.as_task_ref())
     }
-
 }
 
 impl Deref for CurrentTask {

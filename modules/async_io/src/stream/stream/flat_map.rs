@@ -2,9 +2,9 @@ use core::pin::Pin;
 
 use pin_project_lite::pin_project;
 
-use crate::stream::stream::map::Map;
 use super::Stream;
 use super::{super::into_stream::IntoStream, AsyncStream};
+use crate::stream::stream::map::Map;
 use core::task::{Context, Poll};
 
 pin_project! {

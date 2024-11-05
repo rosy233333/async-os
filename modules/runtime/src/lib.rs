@@ -158,15 +158,17 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
 }
 
 async fn main_fut() -> i32 {
-    extern "C" { static ASYNC_MAIN: usize; }
-    use core::{pin::Pin, future::Future};
+    extern "C" {
+        static ASYNC_MAIN: usize;
+    }
+    use core::{future::Future, pin::Pin};
     extern crate alloc;
     use alloc::boxed::Box;
     type BoxFut = Pin<Box<dyn Future<Output = i32> + Send + 'static>>;
-    
+
     #[cfg(any(feature = "fs", feature = "net", feature = "display"))]
     init_devices().await;
-    unsafe { 
+    unsafe {
         let main_fut: fn() -> BoxFut = core::mem::transmute(ASYNC_MAIN);
         let main_fut = main_fut();
         main_fut.await
@@ -190,7 +192,7 @@ async fn init_devices() -> i32 {
 }
 
 /// exit the main task
-pub fn exit_main() { }
+pub fn exit_main() {}
 
 #[allow(dead_code)]
 fn init_allocator() {
@@ -295,7 +297,7 @@ fn init_interrupt() {
         update_timer();
         trampoline::on_timer_tick();
     });
-    
+
     // Enable IRQs before starting app
     axhal::arch::enable_irqs();
 }

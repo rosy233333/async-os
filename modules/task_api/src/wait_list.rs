@@ -32,7 +32,7 @@ impl WaitWakerNode {
 
 /// A simple FIFO wait waker list
 ///
-/// When a waker is added to the list, it's placed at the end of the waitlist. 
+/// When a waker is added to the list, it's placed at the end of the waitlist.
 /// When picking the next waker to run, the head of the wait list is taken.
 pub struct WaitTaskList {
     list: List<Arc<WaitWakerNode>>,
@@ -41,9 +41,7 @@ pub struct WaitTaskList {
 impl WaitTaskList {
     /// Creates a new empty [WaitList].
     pub const fn new() -> Self {
-        Self {
-            list: List::new(),
-        }
+        Self { list: List::new() }
     }
 
     /// Register a waker to the list.
@@ -58,7 +56,7 @@ impl WaitTaskList {
     /// Callers must ensure that `data` is either on this list or in no list. It being on another
     /// list leads to memory unsafety.
     pub fn remove(&mut self, node: &Arc<WaitWakerNode>) -> Option<Arc<WaitWakerNode>> {
-        unsafe { self.list.remove(node)}
+        unsafe { self.list.remove(node) }
     }
 
     /// notify special task and remove it
@@ -101,4 +99,3 @@ impl WaitTaskList {
         }
     }
 }
-

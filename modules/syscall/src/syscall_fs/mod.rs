@@ -4,8 +4,8 @@ pub mod ctype;
 pub mod imp;
 
 use crate::SyscallResult;
-use axerrno::AxResult;
 use async_fs::api::{File, OpenFlags};
+use axerrno::AxResult;
 pub use ctype::FileDesc;
 mod fs_syscall_id;
 pub use fs_syscall_id::FsSyscallId::{self, *};

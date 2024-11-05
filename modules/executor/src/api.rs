@@ -1,9 +1,10 @@
 use crate::{
-    flags::WaitStatus, send_signal_to_process, send_signal_to_thread, CurrentExecutor, Executor, EXECUTORS, KERNEL_EXECUTOR, KERNEL_EXECUTOR_ID, PID2PC, TID2TASK, UTRAP_HANDLER
+    flags::WaitStatus, send_signal_to_process, send_signal_to_thread, CurrentExecutor, Executor,
+    EXECUTORS, KERNEL_EXECUTOR, KERNEL_EXECUTOR_ID, PID2PC, TID2TASK, UTRAP_HANDLER,
 };
-use core::{future::Future, ops::Deref, pin::Pin};
 use alloc::{boxed::Box, string::String, sync::Arc};
 use axsignal::signal_no::SignalNo;
+use core::{future::Future, ops::Deref, pin::Pin};
 pub use task_api::*;
 
 // Initializes the executor (for the primary CPU).
@@ -42,7 +43,7 @@ pub fn current_executor() -> CurrentExecutor {
 }
 
 /// Spawns a new task with the given parameters.
-/// 
+///
 /// Returns the task reference.
 pub fn spawn_raw<F, T>(f: F, name: String) -> TaskRef
 where
@@ -50,10 +51,13 @@ where
     T: Future<Output = i32> + 'static,
 {
     let scheduler = current_executor().get_scheduler();
-    let task = Arc::new(Task::new(
-        TaskInner::new(name, KERNEL_EXECUTOR_ID, scheduler.clone(), Box::pin(f()))
-    ));
-    scheduler.lock().add_task(task.clone());    
+    let task = Arc::new(Task::new(TaskInner::new(
+        name,
+        KERNEL_EXECUTOR_ID,
+        scheduler.clone(),
+        Box::pin(f()),
+    )));
+    scheduler.lock().add_task(task.clone());
     task
 }
 
@@ -65,7 +69,8 @@ pub async fn exit(exit_code: i32) {
 
     let exit_signal = current_executor
         .signal_modules
-        .lock().await
+        .lock()
+        .await
         .get(&curr_id)
         .unwrap()
         .get_exit_signal();
@@ -79,7 +84,9 @@ pub async fn exit(exit_code: i32) {
             } else {
                 SignalNo::SIGCHLD
             };
-            send_signal_to_process(parent as isize, signal as isize, None).await.unwrap();
+            send_signal_to_process(parent as isize, signal as isize, None)
+                .await
+                .unwrap();
         }
     }
 
@@ -94,7 +101,7 @@ pub async fn exit(exit_code: i32) {
         {
             unsafe {
                 *(clear_child_tid as *mut i32) = 0;
-                // TODO: 
+                // TODO:
                 // let _ = futex_wake(clear_child_tid.into(), 0, 1);
             }
         }
@@ -107,7 +114,8 @@ pub async fn exit(exit_code: i32) {
                 if !task.is_leader() && task.state() != TaskState::Exited {
                     all_exited = false;
                     send_signal_to_thread(task.id().as_u64() as isize, SignalNo::SIGKILL as isize)
-                        .await.unwrap();
+                        .await
+                        .unwrap();
                 }
             }
             if !all_exited {
@@ -136,7 +144,11 @@ pub async fn exit(exit_code: i32) {
         // process.memory_set = Arc::clone(&kernel_process.memory_set);
         for child in current_executor.children.lock().await.deref() {
             child.set_parent(KERNEL_EXECUTOR_ID);
-            kernel_executor.children.lock().await.push(Arc::clone(child));
+            kernel_executor
+                .children
+                .lock()
+                .await
+                .push(Arc::clone(child));
         }
         if let Some(parent_process) = pid2pc.get(&current_executor.get_parent()) {
             parent_process.set_vfork_block(false).await;
@@ -147,15 +159,19 @@ pub async fn exit(exit_code: i32) {
     } else {
         TID2TASK.lock().await.remove(&curr_id);
         // 从进程中删除当前线程
-        current_executor.signal_modules.lock().await.remove(&curr_id);
+        current_executor
+            .signal_modules
+            .lock()
+            .await
+            .remove(&curr_id);
     }
 }
 
 /// Spawns a new task with the default parameters.
-/// 
+///
 /// The default task name is an empty string. The default task stack size is
 /// [`axconfig::TASK_STACK_SIZE`].
-/// 
+///
 /// Returns the task reference.
 pub fn spawn<F, T>(f: F) -> TaskRef
 where
@@ -177,7 +193,6 @@ where
 pub fn set_priority(prio: isize) -> bool {
     current_executor().set_priority(current_task().as_task_ref(), prio)
 }
-
 
 /// 在当前进程找对应的子进程，并等待子进程结束
 /// 若找到了则返回对应的pid
@@ -201,7 +216,11 @@ pub async unsafe fn wait_pid(pid: i32, exit_code_ptr: *mut i32) -> Result<u64, W
             answer_status = WaitStatus::Running;
             if let Some(exit_code) = child.get_code_if_exit() {
                 answer_status = WaitStatus::Exited;
-                info!("wait pid _{}_ with code _{}_", child.pid().as_u64(), exit_code);
+                info!(
+                    "wait pid _{}_ with code _{}_",
+                    child.pid().as_u64(),
+                    exit_code
+                );
                 exit_task_id = index;
                 if !exit_code_ptr.is_null() {
                     unsafe {
@@ -216,7 +235,11 @@ pub async unsafe fn wait_pid(pid: i32, exit_code_ptr: *mut i32) -> Result<u64, W
             // 找到了对应的进程
             if let Some(exit_code) = child.get_code_if_exit() {
                 answer_status = WaitStatus::Exited;
-                info!("wait pid _{}_ with code _{:?}_", child.pid().as_u64(), exit_code);
+                info!(
+                    "wait pid _{}_ with code _{:?}_",
+                    child.pid().as_u64(),
+                    exit_code
+                );
                 exit_task_id = index;
                 if !exit_code_ptr.is_null() {
                     unsafe {

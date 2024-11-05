@@ -15,15 +15,7 @@ macro_rules! print_err {
 }
 
 const CMD_TABLE: &[&str] = &[
-    "cat",
-    "cd",
-    "echo",
-    "help",
-    "ls",
-    "mkdir",
-    "pwd",
-    "rm",
-    "uname",
+    "cat", "cd", "echo", "help", "ls", "mkdir", "pwd", "rm", "uname",
 ];
 
 fn file_type_to_char(ty: FileType) -> char {
@@ -93,9 +85,14 @@ async fn do_ls(args: &str) {
             println!("{}:", name);
         }
         let mut entries = Vec::new();
-        fs::read_dir(name).await?
+        fs::read_dir(name)
+            .await?
             .filter_map(|e| e.ok())
-            .map(|e| e.file_name()).for_each(|e| { entries.push(e); }).await;
+            .map(|e| e.file_name())
+            .for_each(|e| {
+                entries.push(e);
+            })
+            .await;
         entries.sort();
 
         for entry in entries {
@@ -278,7 +275,7 @@ pub async fn run_cmd(line: &[u8]) {
             "pwd" => do_pwd(args).await,
             "rm" => do_rm(args).await,
             "uname" => do_uname(args).await,
-            _ => println!("{}: command not found", cmd)
+            _ => println!("{}: command not found", cmd),
         }
     }
 }

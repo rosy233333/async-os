@@ -126,7 +126,8 @@ impl MemorySet {
                 Some(data),
                 backend,
                 &mut self.page_table,
-            ).await
+            )
+            .await
             .unwrap(),
             // None => match backend {
             //     Some(backend) => {
@@ -240,7 +241,7 @@ impl MemorySet {
         let mut segments: Vec<_> = self
             .owned_mem
             .iter()
-            .map(|(start, mem)| (*start, *start + mem.size()) )
+            .map(|(start, mem)| (*start, *start + mem.size()))
             .collect();
         segments.extend(
             self.attached_mem
@@ -286,7 +287,8 @@ impl MemorySet {
         if fixed {
             self.split_for_area(start, size).await;
 
-            self.new_region(start, size, shared, flags, None, backend).await;
+            self.new_region(start, size, shared, flags, None, backend)
+                .await;
 
             axhal::arch::flush_tlb(None);
 
@@ -298,7 +300,8 @@ impl MemorySet {
             match start {
                 Some(start) => {
                     info!("found area [{:?}, {:?})", start, start + size);
-                    self.new_region(start, size, shared, flags, None, backend).await;
+                    self.new_region(start, size, shared, flags, None, backend)
+                        .await;
                     flush_tlb(None);
                     Ok(start.as_usize())
                 }
@@ -407,7 +410,10 @@ impl MemorySet {
             .find(|area| area.vaddr <= addr && addr < area.end_va())
         {
             Some(area) => {
-                if !area.handle_page_fault(addr, flags, &mut self.page_table).await {
+                if !area
+                    .handle_page_fault(addr, flags, &mut self.page_table)
+                    .await
+                {
                     return Err(AxError::BadAddress);
                 }
                 Ok(())
@@ -537,7 +543,8 @@ impl MemorySet {
                     MappingFlags::USER | MappingFlags::READ | MappingFlags::WRITE,
                     None,
                     None,
-                ).await;
+                )
+                .await;
                 flush_tlb(None);
 
                 let end = start + new_size;
@@ -602,7 +609,10 @@ impl MemorySet {
                     // 若未分配物理页面，则手动为其分配一个页面，写入到对应页表中
                     let entry = self.page_table.get_entry_mut(addr).unwrap().0;
 
-                    if !area.handle_page_fault(addr, entry.flags(), &mut self.page_table).await {
+                    if !area
+                        .handle_page_fault(addr, entry.flags(), &mut self.page_table)
+                        .await
+                    {
                         return Err(AxError::BadAddress);
                     }
                     Ok(())
@@ -615,7 +625,11 @@ impl MemorySet {
     }
     /// 暴力实现区间强制分配
     /// 传入区间左闭右闭
-    pub async fn manual_alloc_range_for_lazy(&mut self, start: VirtAddr, end: VirtAddr) -> AxResult<()> {
+    pub async fn manual_alloc_range_for_lazy(
+        &mut self,
+        start: VirtAddr,
+        end: VirtAddr,
+    ) -> AxResult<()> {
         if start > end {
             return Err(AxError::InvalidInput);
         }
@@ -632,7 +646,8 @@ impl MemorySet {
     pub async fn manual_alloc_type_for_lazy<T: Sized>(&mut self, obj: *const T) -> AxResult<()> {
         let start = obj as usize;
         let end = start + core::mem::size_of::<T>() - 1;
-        self.manual_alloc_range_for_lazy(start.into(), end.into()).await
+        self.manual_alloc_range_for_lazy(start.into(), end.into())
+            .await
     }
 }
 
@@ -657,7 +672,10 @@ impl MemorySet {
         let mut owned_mem: BTreeMap<usize, MapArea> = BTreeMap::new();
         for (vaddr, area) in self.owned_mem.iter_mut() {
             info!("vaddr: {:X?}, new_area: {:X?}", vaddr, area.vaddr);
-            match area.clone_alloc(&mut page_table, &mut self.page_table).await {
+            match area
+                .clone_alloc(&mut page_table, &mut self.page_table)
+                .await
+            {
                 Ok(new_area) => {
                     info!("new area: {:X?}", new_area.vaddr);
                     owned_mem.insert(*vaddr, new_area);

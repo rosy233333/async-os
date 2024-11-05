@@ -16,26 +16,26 @@ mod init_api;
 mod task_api;
 mod trap_api;
 
-use core::task::{Context, Poll};
-pub use fs_api::fs_init;
 use alloc::sync::Arc;
 pub use arch::init_interrupt;
+use core::task::{Context, Poll};
+pub use fs_api::fs_init;
 pub use init_api::*;
 pub use taskctx::TrapFrame;
 
+pub use executor_api::*;
 use riscv::register::scause::{self, Trap};
 pub use task_api::*;
 pub use trap_api::*;
-pub use executor_api::*;
 
 /// 进入 Trampoline 的方式：
 ///   1. 初始化后函数调用：没有 Trap，但存在就绪任务
 ///   2. 内核发生 Trap：存在任务被打断（CurrentTask 不为空），或者没有任务被打断（CurrentTask 为空）
 ///   3. 用户态发生 Trap：任务被打断，CurrentTask 不为空
-/// 
+///
 /// 内核发生 Trap 时，将 TrapFrame 保存在内核栈上
 /// 在用户态发生 Trap 时，将 TrapFrame 直接保存在任务控制块中，而不是在内核栈上
-/// 
+///
 /// 只有通过 trap 进入这个入口时，是处于关中断的状态，剩下的任务切换是没有关中断
 #[no_mangle]
 pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
@@ -45,19 +45,22 @@ pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
             // warn!("here");
             let scause = scause::read();
             match scause.cause() {
-                Trap::Interrupt(_interrupt) => {
-                    handle_irq(tf.get_scause_code(), tf)
-                },
+                Trap::Interrupt(_interrupt) => handle_irq(tf.get_scause_code(), tf),
                 Trap::Exception(e) => {
-                    panic!("Unsupported kernel trap {:?} @ {:#x}:\n{:#x?}", e, tf.sepc, tf)
-                },
+                    panic!(
+                        "Unsupported kernel trap {:?} @ {:#x}:\n{:#x?}",
+                        e, tf.sepc, tf
+                    )
+                }
             }
             return;
         } else {
             // 用户态发生了 Trap 或者需要调度
             if let Some(task) = CurrentTask::try_get().or_else(|| {
                 if let Some(task) = CurrentExecutor::get().pick_next_task() {
-                    unsafe { CurrentTask::init_current(task); }
+                    unsafe {
+                        CurrentTask::init_current(task);
+                    }
                     Some(CurrentTask::get())
                 } else {
                     None
@@ -90,11 +93,15 @@ pub fn run_task(task: &TaskRef) {
             task.set_exit_code(exit_code);
             task.notify_waker_for_exit();
             if task.is_init() {
-                assert!(Arc::strong_count(&task) == 1, "count {}", Arc::strong_count(&task));
+                assert!(
+                    Arc::strong_count(&task) == 1,
+                    "count {}",
+                    Arc::strong_count(&task)
+                );
                 axhal::misc::terminate();
             }
             CurrentTask::clean_current();
-        },
+        }
         Poll::Pending => {
             if let Some(tf) = task.utrap_frame() {
                 if tf.trap_status == TrapStatus::Done {
@@ -102,9 +109,11 @@ pub fn run_task(task: &TaskRef) {
                     tf.scause = 0;
                     // 这里不能打开中断
                     axhal::arch::disable_irqs();
-                    unsafe { tf.user_return(); }
+                    unsafe {
+                        tf.user_return();
+                    }
                 }
-            }     
+            }
             // error!("task pending");
             CurrentTask::clean_current_without_drop();
         }

@@ -1,5 +1,5 @@
 //! Asynchronous streams.
-//! 
+//!
 
 mod all;
 mod any;
@@ -12,10 +12,10 @@ mod count;
 mod cycle;
 mod enumerate;
 mod eq;
-mod filter_map;
 mod filter;
-mod find_map;
+mod filter_map;
 mod find;
+mod find_map;
 mod flat_map;
 mod flatten;
 mod fold;
@@ -28,12 +28,12 @@ mod last;
 mod le;
 mod lt;
 mod map;
-mod max_by_key;
-mod max_by;
 mod max;
-mod min_by_key;
-mod min_by;
+mod max_by;
+mod max_by_key;
 mod min;
+mod min_by;
+mod min_by_key;
 mod ne;
 mod next;
 mod nth;
@@ -41,19 +41,20 @@ mod partial_cmp;
 mod partition;
 mod position;
 mod scan;
-mod skip_while;
 mod skip;
+mod skip_while;
 mod step_by;
-mod take_while;
 mod take;
+mod take_while;
 mod try_fold;
 mod try_for_each;
 mod unzip;
 mod zip;
 
-pub use basic::*;
+use super::{FromStream, IntoStream, Product, Sum};
 pub use all::AllFuture;
 pub use any::AnyFuture;
+pub use basic::*;
 pub use chain::Chain;
 pub use cloned::Cloned;
 pub use cmp::CmpFuture;
@@ -62,10 +63,10 @@ pub use count::CountFuture;
 pub use cycle::Cycle;
 pub use enumerate::Enumerate;
 pub use eq::EqFuture;
-pub use filter_map::FilterMap;
 pub use filter::Filter;
-pub use find_map::FindMapFuture;
+pub use filter_map::FilterMap;
 pub use find::FindFuture;
+pub use find_map::FindMapFuture;
 pub use flat_map::FlatMap;
 pub use flatten::Flatten;
 pub use fold::FoldFuture;
@@ -78,12 +79,12 @@ pub use last::LastFuture;
 pub use le::LeFuture;
 pub use lt::LtFuture;
 pub use map::Map;
-pub use max_by_key::MaxByKeyFuture;
-pub use max_by::MaxByFuture;
 pub use max::MaxFuture;
-pub use min_by_key::MinByKeyFuture;
-pub use min_by::MinByFuture;
+pub use max_by::MaxByFuture;
+pub use max_by_key::MaxByKeyFuture;
 pub use min::MinFuture;
+pub use min_by::MinByFuture;
+pub use min_by_key::MinByKeyFuture;
 pub use ne::NeFuture;
 pub use next::NextFuture;
 pub use nth::NthFuture;
@@ -91,19 +92,18 @@ pub use partial_cmp::PartialCmpFuture;
 pub use partition::PartitionFuture;
 pub use position::PositionFuture;
 pub use scan::Scan;
-pub use skip_while::SkipWhile;
 pub use skip::Skip;
+pub use skip_while::SkipWhile;
 pub use step_by::StepBy;
-pub use take_while::TakeWhile;
 pub use take::Take;
+pub use take_while::TakeWhile;
 pub use try_fold::TryFoldFuture;
 pub use try_for_each::TryForEachFuture;
 pub use unzip::UnzipFuture;
 pub use zip::Zip;
-use super::{FromStream, IntoStream, Product, Sum};
 
-use core::{cmp::Ordering, future::Future, pin::Pin};
 use alloc::boxed::Box;
+use core::{cmp::Ordering, future::Future, pin::Pin};
 
 pub trait Stream: AsyncStream {
     #[doc = r#"
@@ -265,7 +265,7 @@ pub trait Stream: AsyncStream {
         Chain::new(self, other)
     }
 
-        #[doc = r#"
+    #[doc = r#"
         Creates an stream which copies all of its elements.
 
         # Examples
@@ -298,7 +298,6 @@ pub trait Stream: AsyncStream {
     {
         Cloned::new(self)
     }
-
 
     #[doc = r#"
         Creates an stream which copies all of its elements.
@@ -499,9 +498,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn last(
-        self,
-    ) -> LastFuture<Self, Self::Item>
+    fn last(self) -> LastFuture<Self, Self::Item>
     where
         Self: Sized,
     {
@@ -569,7 +566,7 @@ pub trait Stream: AsyncStream {
         Filter::new(self, predicate)
     }
 
-    #[doc= r#"
+    #[doc = r#"
         Creates an stream that works like map, but flattens nested structure.
 
         # Examples
@@ -600,10 +597,10 @@ pub trait Stream: AsyncStream {
         ```
     "#]
     fn flat_map<U, F>(self, f: F) -> FlatMap<Self, U, F>
-        where
-            Self: Sized,
-            U: IntoStream,
-            F: FnMut(Self::Item) -> U,
+    where
+        Self: Sized,
+        U: IntoStream,
+        F: FnMut(Self::Item) -> U,
     {
         FlatMap::new(self, f)
     }
@@ -704,10 +701,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn min_by_key<B, F>(
-        self,
-        key_by: F,
-    ) -> MinByKeyFuture<Self, Self::Item, F>
+    fn min_by_key<B, F>(self, key_by: F) -> MinByKeyFuture<Self, Self::Item, F>
     where
         Self: Sized,
         B: Ord,
@@ -740,10 +734,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn max_by_key<B, F>(
-        self,
-        key_by: F,
-    ) -> MaxByKeyFuture<Self, Self::Item, F>
+    fn max_by_key<B, F>(self, key_by: F) -> MaxByKeyFuture<Self, Self::Item, F>
     where
         Self: Sized,
         B: Ord,
@@ -779,10 +770,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn min_by<F>(
-        self,
-        compare: F,
-    ) -> MinByFuture<Self, F, Self::Item>
+    fn min_by<F>(self, compare: F) -> MinByFuture<Self, F, Self::Item>
     where
         Self: Sized,
         F: FnMut(&Self::Item, &Self::Item) -> Ordering,
@@ -813,9 +801,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn max(
-        self,
-    ) -> MaxFuture<Self, Self::Item>
+    fn max(self) -> MaxFuture<Self, Self::Item>
     where
         Self: Sized,
         Self::Item: Ord,
@@ -823,7 +809,7 @@ pub trait Stream: AsyncStream {
         MaxFuture::new(self)
     }
 
-            #[doc = r#"
+    #[doc = r#"
         Returns the element that gives the minimum value. If several elements are equally minimum,
         the first element is returned. If the stream is empty, `None` is returned.
 
@@ -846,9 +832,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn min(
-        self,
-    ) -> MinFuture<Self, Self::Item>
+    fn min(self) -> MinFuture<Self, Self::Item>
     where
         Self: Sized,
         Self::Item: Ord,
@@ -856,7 +840,7 @@ pub trait Stream: AsyncStream {
         MinFuture::new(self)
     }
 
-     #[doc = r#"
+    #[doc = r#"
         Returns the element that gives the maximum value with respect to the
         specified comparison function. If several elements are equally maximum,
         the first element is returned. If the stream is empty, `None` is returned.
@@ -883,10 +867,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn max_by<F>(
-        self,
-        compare: F,
-    ) -> MaxByFuture<Self, F, Self::Item>
+    fn max_by<F>(self, compare: F) -> MaxByFuture<Self, F, Self::Item>
     where
         Self: Sized,
         F: FnMut(&Self::Item, &Self::Item) -> Ordering,
@@ -947,10 +928,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn nth(
-        &mut self,
-        n: usize,
-    ) -> NthFuture<'_, Self>
+    fn nth(&mut self, n: usize) -> NthFuture<'_, Self>
     where
         Self: Unpin + Sized,
     {
@@ -1003,10 +981,7 @@ pub trait Stream: AsyncStream {
         ```
     "#]
     #[inline]
-    fn all<F>(
-        &mut self,
-        f: F,
-    ) -> AllFuture<'_, Self, F, Self::Item>
+    fn all<F>(&mut self, f: F) -> AllFuture<'_, Self, F, Self::Item>
     where
         Self: Unpin + Sized,
         F: FnMut(Self::Item) -> bool,
@@ -1052,10 +1027,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn find<P>(
-        &mut self,
-        p: P,
-    ) -> FindFuture<'_, Self, P>
+    fn find<P>(&mut self, p: P) -> FindFuture<'_, Self, P>
     where
         Self: Unpin + Sized,
         P: FnMut(&Self::Item) -> bool,
@@ -1080,10 +1052,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn find_map<F, B>(
-        &mut self,
-        f: F,
-    ) -> FindMapFuture<'_, Self, F>
+    fn find_map<F, B>(&mut self, f: F) -> FindMapFuture<'_, Self, F>
     where
         Self: Unpin + Sized,
         F: FnMut(Self::Item) -> Option<B>,
@@ -1113,11 +1082,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn fold<B, F>(
-        self,
-        init: B,
-        f: F,
-    ) -> FoldFuture<Self, F, B>
+    fn fold<B, F>(self, init: B, f: F) -> FoldFuture<Self, F, B>
     where
         Self: Sized,
         F: FnMut(B, Self::Item) -> B,
@@ -1149,10 +1114,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn partition<B, F>(
-        self,
-        f: F,
-    ) -> PartitionFuture<Self, F, B>
+    fn partition<B, F>(self, f: F) -> PartitionFuture<Self, F, B>
     where
         Self: Sized,
         F: FnMut(&Self::Item) -> bool,
@@ -1185,10 +1147,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn for_each<F>(
-        self,
-        f: F,
-    ) -> ForEachFuture<Self, F>
+    fn for_each<F>(self, f: F) -> ForEachFuture<Self, F>
     where
         Self: Sized,
         F: FnMut(Self::Item),
@@ -1241,10 +1200,7 @@ pub trait Stream: AsyncStream {
         ```
     "#]
     #[inline]
-    fn any<F>(
-        &mut self,
-        f: F,
-    ) -> AnyFuture<'_, Self, F, Self::Item>
+    fn any<F>(&mut self, f: F) -> AnyFuture<'_, Self, F, Self::Item>
     where
         Self: Unpin + Sized,
         F: FnMut(Self::Item) -> bool,
@@ -1433,11 +1389,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn try_fold<B, F, T, E>(
-        &mut self,
-        init: T,
-        f: F,
-    ) -> TryFoldFuture<'_, Self, F, T>
+    fn try_fold<B, F, T, E>(&mut self, init: T, f: F) -> TryFoldFuture<'_, Self, F, T>
     where
         Self: Unpin + Sized,
         F: FnMut(B, Self::Item) -> Result<T, E>,
@@ -1479,10 +1431,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn try_for_each<F, E>(
-        &mut self,
-        f: F,
-    ) -> TryForEachFuture<'_, Self, F>
+    fn try_for_each<F, E>(&mut self, f: F) -> TryForEachFuture<'_, Self, F>
     where
         Self: Unpin + Sized,
         F: FnMut(Self::Item) -> Result<(), E>,
@@ -1564,9 +1513,9 @@ pub trait Stream: AsyncStream {
     "#]
     fn unzip<A, B, FromA, FromB>(self) -> UnzipFuture<Self, FromA, FromB>
     where
-    FromA: Default + Extend<A>,
-    FromB: Default + Extend<B>,
-    Self: Stream<Item = (A, B)> + Sized,
+        FromA: Default + Extend<A>,
+        FromB: Default + Extend<B>,
+        Self: Stream<Item = (A, B)> + Sized,
     {
         UnzipFuture::new(self)
     }
@@ -1622,9 +1571,7 @@ pub trait Stream: AsyncStream {
 
         [`into_stream`]: trait.IntoStream.html#tymethod.into_stream
     "#]
-    fn collect<'a, B>(
-        self,
-    ) -> Pin<Box<dyn Future<Output = B> + 'a + Send>>
+    fn collect<'a, B>(self) -> Pin<Box<dyn Future<Output = B> + 'a + Send>>
     where
         Self: Sized + 'a + Send,
         B: FromStream<Self::Item>,
@@ -1660,10 +1607,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn partial_cmp<S>(
-       self,
-       other: S
-    ) -> PartialCmpFuture<Self, S>
+    fn partial_cmp<S>(self, other: S) -> PartialCmpFuture<Self, S>
     where
         Self: Sized + AsyncStream,
         S: AsyncStream,
@@ -1700,10 +1644,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn position<P>(
-       &mut self,
-       predicate: P,
-    ) -> PositionFuture<'_, Self, P>
+    fn position<P>(&mut self, predicate: P) -> PositionFuture<'_, Self, P>
     where
         Self: Unpin + Sized,
         P: FnMut(Self::Item) -> bool,
@@ -1738,14 +1679,11 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn cmp<S>(
-       self,
-       other: S
-    ) -> CmpFuture<Self, S>
+    fn cmp<S>(self, other: S) -> CmpFuture<Self, S>
     where
         Self: Sized + AsyncStream,
         S: AsyncStream,
-        <Self as AsyncStream>::Item: Ord
+        <Self as AsyncStream>::Item: Ord,
     {
         CmpFuture::new(self, other)
     }
@@ -1802,10 +1740,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn ne<S>(
-       self,
-       other: S
-    ) -> NeFuture<Self, S>
+    fn ne<S>(self, other: S) -> NeFuture<Self, S>
     where
         Self: Sized,
         S: Sized + AsyncStream,
@@ -1839,10 +1774,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn ge<S>(
-       self,
-       other: S
-    ) -> GeFuture<Self, S>
+    fn ge<S>(self, other: S) -> GeFuture<Self, S>
     where
         Self: Sized + AsyncStream,
         S: AsyncStream,
@@ -1876,10 +1808,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn eq<S>(
-       self,
-       other: S
-    ) -> EqFuture<Self, S>
+    fn eq<S>(self, other: S) -> EqFuture<Self, S>
     where
         Self: Sized + AsyncStream,
         S: Sized + AsyncStream,
@@ -1913,10 +1842,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn gt<S>(
-       self,
-       other: S
-    ) -> GtFuture<Self, S>
+    fn gt<S>(self, other: S) -> GtFuture<Self, S>
     where
         Self: Sized + AsyncStream,
         S: AsyncStream,
@@ -1950,10 +1876,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn le<S>(
-       self,
-       other: S
-    ) -> LeFuture<Self, S>
+    fn le<S>(self, other: S) -> LeFuture<Self, S>
     where
         Self: Sized + AsyncStream,
         S: AsyncStream,
@@ -1987,10 +1910,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn lt<S>(
-       self,
-       other: S
-    ) -> LtFuture<Self, S>
+    fn lt<S>(self, other: S) -> LtFuture<Self, S>
     where
         Self: Sized + AsyncStream,
         S: AsyncStream,
@@ -2030,9 +1950,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn sum<'a, S>(
-        self,
-    ) -> Pin<Box<dyn Future<Output = S> + 'a>>
+    fn sum<'a, S>(self) -> Pin<Box<dyn Future<Output = S> + 'a>>
     where
         Self: Sized + Stream<Item = S> + 'a,
         S: Sum<Self::Item>,
@@ -2074,9 +1992,7 @@ pub trait Stream: AsyncStream {
         # }) }
         ```
     "#]
-    fn product<'a, P>(
-        self,
-    ) -> Pin<Box<dyn Future<Output = P> + 'a>>
+    fn product<'a, P>(self) -> Pin<Box<dyn Future<Output = P> + 'a>>
     where
         Self: Sized + Stream<Item = P> + 'a,
         P: Product,

@@ -142,10 +142,10 @@ pub use axerrno::{AxError, AxResult};
 //             f: impl core::future::Future<Output = i32> + 'static,
 //             name: alloc::string::String,
 //         ) -> AxTaskHandle;
-        
+
 //         /// Sets the priority of the current task.
 //         pub fn ax_set_current_priority(prio: isize) -> crate::AxResult;
-        
+
 //         /// Wakes up one or more tasks in the wait queue.
 //         ///
 //         /// The maximum number of tasks to wake up is specified by `count`. If
@@ -161,7 +161,7 @@ pub use axerrno::{AxError, AxResult};
 //         /// (if specified).
 //         pub fn ax_wait_queue_wait(
 //             wq: &AxWaitQueueHandle,
-//             cx: &mut Context<'_>, 
+//             cx: &mut Context<'_>,
 //             until_condition: impl Fn() -> bool,
 //             timeout: Option<core::time::Duration>,
 //         ) -> core::task::Poll<bool>;

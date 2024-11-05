@@ -1,7 +1,7 @@
-use pin_project_lite::pin_project;
 use core::default::Default;
 use core::future::Future;
 use core::pin::Pin;
+use pin_project_lite::pin_project;
 
 use super::AsyncStream;
 use core::task::{Context, Poll};

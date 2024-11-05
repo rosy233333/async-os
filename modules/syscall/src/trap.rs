@@ -58,9 +58,12 @@ pub async fn handle_page_fault(addr: VirtAddr, flags: MappingFlags) {
     let current_executor = current_executor();
     if current_executor
         .memory_set
-        .lock().await.
-        handle_page_fault(addr, flags).await
-        .is_ok() {
+        .lock()
+        .await
+        .handle_page_fault(addr, flags)
+        .await
+        .is_ok()
+    {
         axhal::arch::flush_tlb(None);
     }
     time_stat_from_kernel_to_user();

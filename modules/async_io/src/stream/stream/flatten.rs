@@ -3,8 +3,8 @@ use core::pin::Pin;
 
 use pin_project_lite::pin_project;
 
-use super::AsyncStream;
 use super::super::into_stream::IntoStream;
+use super::AsyncStream;
 use core::task::{Context, Poll};
 
 pin_project! {

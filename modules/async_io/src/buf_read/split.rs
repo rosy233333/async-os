@@ -5,8 +5,8 @@ use alloc::{vec, vec::Vec};
 use pin_project_lite::pin_project;
 
 use super::read_until_internal;
-use crate::{self as io, AsyncBufRead};
 use crate::stream::AsyncStream;
+use crate::{self as io, AsyncBufRead};
 use core::task::{Context, Poll};
 
 pin_project! {

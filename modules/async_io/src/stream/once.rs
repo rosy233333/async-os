@@ -49,7 +49,7 @@ impl<T> AsyncStream for Once<T> {
     }
 }
 
-impl <T> DoubleEndedStream for Once<T> {
+impl<T> DoubleEndedStream for Once<T> {
     fn poll_next_back(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(self.project().value.take())
     }

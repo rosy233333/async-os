@@ -1,4 +1,3 @@
-
 use alloc::boxed::Box;
 
 /// Initializes the trampoline (for the primary CPU).

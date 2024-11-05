@@ -1,8 +1,8 @@
+use alloc::vec::Vec;
 use core::{alloc::Layout, ptr::NonNull};
 use lazy_init::LazyInit;
 use memory_addr::VirtAddr;
 use spinlock::SpinNoIrq;
-use alloc::vec::Vec;
 
 pub struct TaskStack {
     ptr: NonNull<u8>,
@@ -17,13 +17,12 @@ extern "C" {
 
 impl TaskStack {
     pub fn new_init() -> Self {
-        let layout = 
-            Layout::from_size_align(axconfig::TASK_STACK_SIZE, 16).unwrap();
+        let layout = Layout::from_size_align(axconfig::TASK_STACK_SIZE, 16).unwrap();
         unsafe {
             Self {
                 ptr: NonNull::new(current_boot_stack()).unwrap(),
                 layout,
-                is_init: true
+                is_init: true,
             }
         }
     }
@@ -33,7 +32,7 @@ impl TaskStack {
         Self {
             ptr: NonNull::new(unsafe { alloc::alloc::alloc(layout) }).unwrap(),
             layout,
-            is_init: false
+            is_init: false,
         }
     }
 
@@ -44,7 +43,6 @@ impl TaskStack {
     pub const fn down(&self) -> VirtAddr {
         unsafe { core::mem::transmute(self.ptr.as_ptr()) }
     }
-
 }
 
 impl Drop for TaskStack {
@@ -54,8 +52,6 @@ impl Drop for TaskStack {
         }
     }
 }
-
-
 
 #[percpu::def_percpu]
 static STACK_POOL: LazyInit<SpinNoIrq<StackPool>> = LazyInit::new();
@@ -82,8 +78,6 @@ pub fn put_prev_stack(kstack: TaskStack) {
     let mut stack_pool = unsafe { STACK_POOL.current_ref_mut_raw().lock() };
     stack_pool.put_prev_stack(kstack)
 }
-
-
 
 /// A simple stack pool
 pub(crate) struct StackPool {
@@ -112,7 +106,7 @@ impl StackPool {
         })
     }
 
-    pub fn pick_current_stack(&mut self) -> TaskStack{
+    pub fn pick_current_stack(&mut self) -> TaskStack {
         assert!(self.current.is_some());
         let new_stack = self.alloc();
         self.current.replace(new_stack).unwrap()
@@ -128,5 +122,4 @@ impl StackPool {
         let curr_stack = self.current.replace(kstack).unwrap();
         self.free_stacks.push(curr_stack);
     }
-
 }

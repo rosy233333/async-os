@@ -1,6 +1,6 @@
-use core::pin::Pin;
-use core::future::Future;
 use alloc::boxed::Box;
+use core::future::Future;
+use core::pin::Pin;
 
 use super::stream::AsyncStream;
 
@@ -22,9 +22,9 @@ pub trait Product<A = Self>: Sized {
         S: AsyncStream<Item = A> + 'a;
 }
 
-use core::ops::Mul;
-use core::num::Wrapping;
 use super::stream::Stream;
+use core::num::Wrapping;
+use core::ops::Mul;
 
 macro_rules! num_product {
     ($one:expr, $($a:ty)*) => ($(
@@ -60,5 +60,5 @@ macro_rules! float_product {
     );
 }
 
-integer_product!{ i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize }
-float_product!{ f32 f64 }
+integer_product! { i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize }
+float_product! { f32 f64 }
