@@ -12,7 +12,23 @@ pub(crate) fn build_subtrait(super_trait: &ItemTrait) -> TokenStream {
     // println!("{:?}", subtrait_vis);
     // println!("{:?}", subtrait_unsafety);
     // println!("{:?}", subtrait_ident);
-    let supertrait_items = &super_trait.items;
+    let supertrait_items = &super_trait.items
+        .iter()
+        .filter(|fn_items| {
+            // fn_items
+            match fn_items {
+                TraitItem::Fn(trait_item_fn) => {
+                    let sig = &trait_item_fn.sig;
+                    let ret = &sig.output;
+                    if ret.to_token_stream().to_string().contains("Poll") {
+                        true
+                    } else {
+                        false
+                    }
+                },
+                _ => false,
+            }
+    }).collect::<Vec<&TraitItem>>();
     let mut subtrait_items = Vec::new();
     for trait_item in supertrait_items {
         match trait_item {
@@ -63,6 +79,14 @@ pub(crate) fn build_subtrait(super_trait: &ItemTrait) -> TokenStream {
                     .filter(|(idx, _args)| *idx > 1)
                     .map(|(_idx, args)| args.clone())
                     .collect::<Vec<FnArg>>();
+                let cx_input = super_inputs.get(1).unwrap();
+                let cx_ident =  match cx_input {
+                    FnArg::Receiver(_receiver) => panic!("Not support self receiver"),
+                    FnArg::Typed(pat_type) => match pat_type.pat.as_ref() {
+                        syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
+                        _ => panic!("Not support other pattern"),
+                    },
+                };
                 // for i in sub_inputs {
                 //     println!("{:?}", i.to_token_stream().to_string());
                 // }
@@ -109,14 +133,14 @@ pub(crate) fn build_subtrait(super_trait: &ItemTrait) -> TokenStream {
                         quote! {
                             async fn #sub_fn_ident(self: #sub_receiver, #(#sub_inputs), *) -> #sub_ret {
                                 let mut pinned = Pin::new(self);
-                                poll_fn(|cx| pinned.as_mut().#super_fn_ident(cx, #(#sub_inputs_ident), *)).await
+                                core::future::poll_fn(|#cx_ident| pinned.as_mut().#super_fn_ident(#cx_ident, #(#sub_inputs_ident), *)).await
                             }
                         }
                     } else {
                         quote! {
                             async fn #sub_fn_ident(self: #sub_receiver, #(#sub_inputs), *) -> #sub_ret {
                                 let mut pinned = Pin::new(self);
-                                poll_fn(|cx| pinned.as_ref().#super_fn_ident(cx, #(#sub_inputs_ident), *)).await
+                                core::future::poll_fn(|#cx_ident| pinned.as_ref().#super_fn_ident(#cx_ident, #(#sub_inputs_ident), *)).await
                             }
                         }
                     }
@@ -126,8 +150,6 @@ pub(crate) fn build_subtrait(super_trait: &ItemTrait) -> TokenStream {
         }
     }
     quote! {
-        use core::future::poll_fn;
-        // #super_trait
         #subtrait_vis trait #subtrait_ident: #supertrait_ident + Unpin {
             #(#subtrait_items)*
         }

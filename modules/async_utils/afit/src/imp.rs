@@ -4,7 +4,24 @@ use syn::{FnArg, Ident, ItemTrait, Signature, TraitItem};
 
 pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
     let trait_ident = &self_trait.ident;
-    let supertrait_items = &self_trait.items;
+    let supertraits = &self_trait.supertraits;
+    let supertrait_items = &self_trait.items
+        .iter()
+        .filter(|fn_items| {
+            // fn_items
+            match fn_items {
+                TraitItem::Fn(trait_item_fn) => {
+                    let sig = &trait_item_fn.sig;
+                    let ret = &sig.output;
+                    if ret.to_token_stream().to_string().contains("Poll") {
+                        true
+                    } else {
+                        false
+                    }
+                },
+                _ => false,
+            }
+    }).collect::<Vec<&TraitItem>>();
 
     let mut impl_pin_items = Vec::new();
     let mut impl_ref_items = Vec::new();
@@ -22,6 +39,14 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
                     quote! {get_mut().as_mut()}
                 } else {
                     quote! {get_ref().as_ref()}
+                };
+                let cx_input = inputs.get(1).unwrap();
+                let cx_ident =  match cx_input {
+                    FnArg::Receiver(_receiver) => panic!("Not support self receiver"),
+                    FnArg::Typed(pat_type) => match pat_type.pat.as_ref() {
+                        syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
+                        _ => panic!("Not support other pattern"),
+                    },
                 };
                 let actual_inputs = inputs
                     .iter()
@@ -44,7 +69,7 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
                     .collect::<Vec<Ident>>();
                 impl_pin_items.push(quote! {
                     #sig {
-                        self.#get_as.#ident(cx, #(#actual_inputs_ident),*)
+                        self.#get_as.#ident(#cx_ident, #(#actual_inputs_ident),*)
                     }
                 });
                 if mutable {
@@ -71,13 +96,13 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
                     };
                     impl_ref_items.push(quote! {
                         #mut_sig {
-                            Pin::new(&mut **self).#ident(cx, #(#actual_inputs_ident),*)
+                            Pin::new(&mut **self).#ident(#cx_ident, #(#actual_inputs_ident),*)
                         }
                     });
                 } else {
                     impl_ref_items.push(quote! {
                         #sig {
-                            Pin::new(&**self).#ident(cx, #(#actual_inputs_ident),*)
+                            Pin::new(&**self).#ident(#cx_ident, #(#actual_inputs_ident),*)
                         }
                     });
                 }
@@ -87,48 +112,37 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
     }
 
     let deref_ident = if mutable {
-        quote! {DerefMut}
+        quote! {core::ops::DerefMut}
     } else {
-        quote! {Deref}
-    };
-
-    let deref_import = if mutable {
-        quote! {use core::ops::DerefMut;}
-    } else {
-        quote! {use core::ops::Deref;}
+        quote! {core::ops::Deref}
     };
 
     let impl_refs = if mutable {
         quote! {
-            extern crate alloc;
-            use alloc::boxed::Box;
-            impl<T: ?Sized + #trait_ident + Unpin> #trait_ident for Box<T> {
+            impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for Box<T> {
                 #(#impl_ref_items)*
             }
 
-            impl<T: ?Sized + #trait_ident + Unpin> #trait_ident for &mut T {
+            impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for &mut T {
                 #(#impl_ref_items)*
             }
         }
     } else {
         quote! {
-            extern crate alloc;
-            use alloc::sync::Arc;
-            impl<T: ?Sized + #trait_ident + Unpin> #trait_ident for Arc<T> {
+            impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for Arc<T> {
                 #(#impl_ref_items)*
             }
 
-            impl<T: ?Sized + #trait_ident + Unpin> #trait_ident for &T {
+            impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for &T {
                 #(#impl_ref_items)*
             }
         }
     };
 
     quote! {
-        #deref_import
         impl<P> #trait_ident for Pin<P>
         where
-            P: #deref_ident + Unpin,
+            P: #deref_ident + Unpin + #supertraits,
             P::Target: #trait_ident,
         {
             #(#impl_pin_items)*
