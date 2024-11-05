@@ -2,7 +2,7 @@ mod signal;
 
 mod futex;
 
-// mod schedule;
+mod schedule;
 
 mod task;
 
@@ -12,7 +12,7 @@ pub use signal::*;
 
 pub use futex::*;
 
-// pub use schedule::*;
+pub use schedule::*;
 
 pub use task::*;
 

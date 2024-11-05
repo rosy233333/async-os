@@ -42,6 +42,61 @@ pub enum TaskState {
     Exited = 4,
 }
 
+#[derive(PartialEq, Eq, Clone, Copy)]
+#[allow(non_camel_case_types)]
+/// The policy of the scheduler
+pub enum SchedPolicy {
+    /// The default time-sharing scheduler
+    SCHED_OTHER = 0,
+    /// The first-in, first-out scheduler
+    SCHED_FIFO = 1,
+    /// The round-robin scheduler
+    SCHED_RR = 2,
+    /// The batch scheduler
+    SCHED_BATCH = 3,
+    /// The idle task scheduler
+    SCHED_IDLE = 5,
+    /// Unknown scheduler
+    SCHED_UNKNOWN,
+}
+
+impl From<usize> for SchedPolicy {
+    #[inline]
+    fn from(policy: usize) -> Self {
+        match policy {
+            0 => SchedPolicy::SCHED_OTHER,
+            1 => SchedPolicy::SCHED_FIFO,
+            2 => SchedPolicy::SCHED_RR,
+            3 => SchedPolicy::SCHED_BATCH,
+            5 => SchedPolicy::SCHED_IDLE,
+            _ => SchedPolicy::SCHED_UNKNOWN,
+        }
+    }
+}
+
+impl From<SchedPolicy> for isize {
+    #[inline]
+    fn from(policy: SchedPolicy) -> Self {
+        match policy {
+            SchedPolicy::SCHED_OTHER => 0,
+            SchedPolicy::SCHED_FIFO => 1,
+            SchedPolicy::SCHED_RR => 2,
+            SchedPolicy::SCHED_BATCH => 3,
+            SchedPolicy::SCHED_IDLE => 5,
+            SchedPolicy::SCHED_UNKNOWN => -1,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+/// The status of the scheduler
+pub struct SchedStatus {
+    /// The policy of the scheduler
+    pub policy: SchedPolicy,
+    /// The priority of the scheduler policy
+    pub priority: usize,
+}
+
 pub struct TaskInner {
     fut: UnsafeCell<Pin<Box<dyn Future<Output = i32> + 'static>>>,
     utrap_frame: UnsafeCell<Option<Box<TrapFrame>>>,
@@ -83,6 +138,10 @@ pub struct TaskInner {
     /// 是否是所属进程下的主线程
     is_leader: AtomicBool,
     process_id: AtomicU64,
+
+    /// The scheduler status of the task, which defines the scheduling policy and priority
+    pub sched_status: UnsafeCell<SchedStatus>,
+    pub cpu_set: AtomicU64,
 }
 
 unsafe impl Send for TaskInner {}
@@ -117,8 +176,14 @@ impl TaskInner {
             is_leader: AtomicBool::new(false),
             process_id: AtomicU64::new(process_id),
             #[cfg(feature = "thread")]
-            stack_ctx: UnsafeCell::new(None)
+            stack_ctx: UnsafeCell::new(None),
+            sched_status: UnsafeCell::new(SchedStatus {
+                policy: SchedPolicy::SCHED_FIFO,
+                priority: 1,
+            }),
+            cpu_set: AtomicU64::new(0),
         };
+        t.set_cpu_set((1 << axconfig::SMP) - 1, 1, axconfig::SMP);
         t
     }
 
@@ -150,8 +215,14 @@ impl TaskInner {
             is_leader: AtomicBool::new(false),
             process_id: AtomicU64::new(process_id),
             #[cfg(feature = "thread")]
-            stack_ctx: UnsafeCell::new(None)
+            stack_ctx: UnsafeCell::new(None),
+            sched_status: UnsafeCell::new(SchedStatus {
+                policy: SchedPolicy::SCHED_FIFO,
+                priority: 1,
+            }),
+            cpu_set: AtomicU64::new(0),
         };
+        t.set_cpu_set((1 << axconfig::SMP) - 1, 1, axconfig::SMP);
         t
     }
 
@@ -186,6 +257,36 @@ impl TaskInner {
     #[inline]
     pub const fn is_init(&self) -> bool {
         self.is_init
+    }
+
+    /// set the scheduling policy and priority
+    pub fn set_sched_status(&self, status: SchedStatus) {
+        let prev_status = self.sched_status.get();
+        unsafe {
+            *prev_status = status;
+        }
+    }
+
+    /// get the scheduling policy and priority
+    pub fn get_sched_status(&self) -> SchedStatus {
+        let status = self.sched_status.get();
+        unsafe { *status }
+    }
+
+    /// 设置CPU set，其中set_size为bytes长度
+    pub fn set_cpu_set(&self, mask: usize, set_size: usize, max_cpu_num: usize) {
+        let len = if set_size * 4 > max_cpu_num {
+            max_cpu_num
+        } else {
+            set_size * 4
+        };
+        let now_mask = mask & 1 << ((len) - 1);
+        self.cpu_set.store(now_mask as u64, Ordering::Release)
+    }
+
+    /// to get the CPU set
+    pub fn get_cpu_set(&self) -> usize {
+        self.cpu_set.load(Ordering::Acquire) as usize
     }
 
     /// Get the exit code

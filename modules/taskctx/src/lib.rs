@@ -21,7 +21,7 @@ pub use kstack::TaskStack;
 pub use kstack::init;
 
 pub type TaskRef = Arc<Task>;
-pub use task::{TaskInner, TaskId, TaskState};
+pub use task::{TaskInner, TaskId, TaskState, SchedPolicy, SchedStatus};
 pub use scheduler::BaseScheduler;
 pub use kstack::*;
 

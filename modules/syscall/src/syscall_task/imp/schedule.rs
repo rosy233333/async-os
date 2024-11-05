@@ -3,10 +3,9 @@ extern crate alloc;
 use alloc::sync::Arc;
 use axconfig::SMP;
 use axhal::mem::VirtAddr;
-use axprocess::{current_process, current_task, PID2PC, TID2TASK};
-use axtask::{SchedPolicy, SchedStatus};
+use executor::{current_executor, current_task, PID2PC, TID2TASK, SchedPolicy, SchedStatus};
 
-use crate::syscall::{SchedParam, SyscallError, SyscallResult};
+use crate::{SchedParam, SyscallError, SyscallResult};
 /// 获取对应任务的CPU适配集
 ///
 /// 若pid是进程ID，则获取对应的进程的主线程的信息
@@ -20,26 +19,29 @@ use crate::syscall::{SchedParam, SyscallError, SyscallResult};
 /// * `pid` - usize
 /// * `cpu_set_size` - usize
 /// * `mask` - *mut usize
-pub fn syscall_sched_getaffinity(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_sched_getaffinity(args: [usize; 6]) -> SyscallResult {
     let pid = args[0];
     let cpu_set_size = args[1];
     let mask = args[2] as *mut usize;
     // let task: LazyInit<AxTaskRef> = LazyInit::new();
-    let tid2task = TID2TASK.lock();
-    let pid2task = PID2PC.lock();
+    let tid2task = TID2TASK.lock().await;
+    let pid2task = PID2PC.lock().await;
     let pid = pid as u64;
     let task = if tid2task.contains_key(&pid) {
         Arc::clone(tid2task.get(&pid).unwrap())
     } else if pid2task.contains_key(&pid) {
         let process = pid2task.get(&pid).unwrap();
-
-        process
-            .tasks
-            .lock()
-            .iter()
-            .find(|task| task.is_leader())
-            .cloned()
+        process.main_task.lock()
+            .await
+            .clone()
             .unwrap()
+        // process
+        //     .tasks
+        //     .lock()
+        //     .iter()
+        //     .find(|task| task.is_leader())
+        //     .cloned()
+        //     .unwrap()
     } else if pid == 0 {
         Arc::clone(current_task().as_task_ref())
     } else {
@@ -50,9 +52,10 @@ pub fn syscall_sched_getaffinity(args: [usize; 6]) -> SyscallResult {
     drop(pid2task);
     drop(tid2task);
 
-    let process = current_process();
+    let process = current_executor();
     if process
         .manual_alloc_for_lazy(VirtAddr::from(mask as usize))
+        .await
         .is_err()
     {
         return Err(SyscallError::EFAULT);
@@ -74,25 +77,28 @@ pub fn syscall_sched_getaffinity(args: [usize; 6]) -> SyscallResult {
 /// * `cpu_set_size` - usize
 /// * `mask` - *const usize
 #[allow(unused)]
-pub fn syscall_sched_setaffinity(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_sched_setaffinity(args: [usize; 6]) -> SyscallResult {
     let pid = args[0];
     let cpu_set_size = args[1];
     let mask = args[2] as *const usize;
-    let tid2task = TID2TASK.lock();
-    let pid2task = PID2PC.lock();
+    let tid2task = TID2TASK.lock().await;
+    let pid2task = PID2PC.lock().await;
     let pid = pid as u64;
     let task = if tid2task.contains_key(&pid) {
         Arc::clone(tid2task.get(&pid).unwrap())
     } else if pid2task.contains_key(&pid) {
         let process = pid2task.get(&pid).unwrap();
-
-        process
-            .tasks
-            .lock()
-            .iter()
-            .find(|task| task.is_leader())
-            .cloned()
+        process.main_task.lock()
+            .await
+            .clone()
             .unwrap()
+        // process
+        //     .tasks
+        //     .lock()
+        //     .iter()
+        //     .find(|task| task.is_leader())
+        //     .cloned()
+        //     .unwrap()
     } else if pid == 0 {
         Arc::clone(current_task().as_task_ref())
     } else {
@@ -103,9 +109,10 @@ pub fn syscall_sched_setaffinity(args: [usize; 6]) -> SyscallResult {
     drop(pid2task);
     drop(tid2task);
 
-    let process = current_process();
+    let process = current_executor();
     if process
         .manual_alloc_for_lazy(VirtAddr::from(mask as usize))
+        .await
         .is_err()
     {
         return Err(SyscallError::EFAULT);
@@ -122,7 +129,7 @@ pub fn syscall_sched_setaffinity(args: [usize; 6]) -> SyscallResult {
 /// * `pid` - usize
 /// * `policy` - usize
 /// * `param` - *const SchedParam
-pub fn syscall_sched_setscheduler(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_sched_setscheduler(args: [usize; 6]) -> SyscallResult {
     let pid = args[0];
     let policy = args[1];
     let param = args[2] as *const SchedParam;
@@ -130,21 +137,24 @@ pub fn syscall_sched_setscheduler(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EINVAL);
     }
 
-    let tid2task = TID2TASK.lock();
-    let pid2task = PID2PC.lock();
+    let tid2task = TID2TASK.lock().await;
+    let pid2task = PID2PC.lock().await;
     let pid = pid as u64;
     let task = if tid2task.contains_key(&pid) {
         Arc::clone(tid2task.get(&pid).unwrap())
     } else if pid2task.contains_key(&pid) {
         let process = pid2task.get(&pid).unwrap();
-
-        process
-            .tasks
-            .lock()
-            .iter()
-            .find(|task| task.is_leader())
-            .cloned()
+        process.main_task.lock()
+            .await
+            .clone()
             .unwrap()
+        // process
+        //     .tasks
+        //     .lock()
+        //     .iter()
+        //     .find(|task| task.is_leader())
+        //     .cloned()
+        //     .unwrap()
     } else if pid == 0 {
         Arc::clone(current_task().as_task_ref())
     } else {
@@ -155,9 +165,10 @@ pub fn syscall_sched_setscheduler(args: [usize; 6]) -> SyscallResult {
     drop(pid2task);
     drop(tid2task);
 
-    let process = current_process();
+    let process = current_executor();
     if process
         .manual_alloc_for_lazy(VirtAddr::from(param as usize))
+        .await
         .is_err()
     {
         return Err(SyscallError::EFAULT);
@@ -189,27 +200,30 @@ pub fn syscall_sched_setscheduler(args: [usize; 6]) -> SyscallResult {
 
 /// # Arguments
 /// * `pid` - usize
-pub fn syscall_sched_getscheduler(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_sched_getscheduler(args: [usize; 6]) -> SyscallResult {
     let pid = args[0];
     if (pid as isize) < 0 {
         return Err(SyscallError::EINVAL);
     }
 
-    let tid2task = TID2TASK.lock();
-    let pid2task = PID2PC.lock();
+    let tid2task = TID2TASK.lock().await;
+    let pid2task = PID2PC.lock().await;
     let pid = pid as u64;
     let task = if tid2task.contains_key(&pid) {
         Arc::clone(tid2task.get(&pid).unwrap())
     } else if pid2task.contains_key(&pid) {
         let process = pid2task.get(&pid).unwrap();
-
-        process
-            .tasks
-            .lock()
-            .iter()
-            .find(|task| task.is_leader())
-            .map(Arc::clone)
+        process.main_task.lock()
+            .await
+            .clone()
             .unwrap()
+        // process
+        //     .tasks
+        //     .lock()
+        //     .iter()
+        //     .find(|task| task.is_leader())
+        //     .map(Arc::clone)
+        //     .unwrap()
     } else if pid == 0 {
         Arc::clone(current_task().as_task_ref())
     } else {
