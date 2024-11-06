@@ -11,7 +11,7 @@ async fn main() -> i32 {
     async_std::println!("user_boot");
     // 初始化文件系统
     trampoline::fs_init().await;
-    let task = trampoline::init_user(vec!["busybox".into(), "sh".into()], &get_envs())
+    let task = trampoline::init_user(vec!["busybox".into(), "sh".into()], &get_envs().await)
         .await
         .unwrap();
     // let task = trampoline::init_user(vec!["hello".into()], &get_envs()).await.unwrap();
@@ -21,9 +21,9 @@ async fn main() -> i32 {
 }
 
 /// Now the environment variables are hard coded, we need to read the file "/etc/environment" to get the environment variables
-pub fn get_envs() -> Vec<String> {
+pub async fn get_envs() -> Vec<String> {
     // Const string for environment variables
-    let envs:Vec<String> = vec![
+    let mut envs:Vec<String> = vec![
         "SHLVL=1".into(),
         "PWD=/".into(),
         "GCC_EXEC_PREFIX=/riscv64-linux-musl-native/bin/../lib/gcc/".into(),
@@ -34,13 +34,13 @@ pub fn get_envs() -> Vec<String> {
         "LD_LIBRARY_PATH=/lib/".into(),
         "LD_DEBUG=files".into(),
     ];
-    // // read the file "/etc/environment"
-    // // if exist, then append the content to envs
-    // // else set the environment variable to default value
-    // if let Some(environment_vars) = read_file("/etc/environment") {
-    //     envs.push(environment_vars);
-    // } else {
-    //     envs.push("PATH=/usr/sbin:/usr/bin:/sbin:/bin".into());
-    // }
+    // read the file "/etc/environment"
+    // if exist, then append the content to envs
+    // else set the environment variable to default value
+    if let Some(environment_vars) = async_std::fs::read_to_string("/etc/environment").await.ok() {
+        envs.push(environment_vars);
+    } else {
+        envs.push("PATH=/usr/sbin:/usr/bin:/sbin:/bin".into());
+    }
     envs
 }

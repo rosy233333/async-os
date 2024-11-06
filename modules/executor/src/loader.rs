@@ -104,7 +104,8 @@ pub async fn load_app(
         let stack_top = VirtAddr::from(USER_STACK_TOP);
         let stack_size = MAX_USER_STACK_SIZE;
 
-        let (stack_data, stack_bottom) = get_app_stack_region(args, envs, auxv, stack_top, stack_size);
+        let (stack_data, stack_bottom) =
+            get_app_stack_region(args, envs, auxv, stack_top, stack_size);
         memory_set
             .new_region(
                 stack_top,
