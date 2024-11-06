@@ -13,11 +13,29 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
             match fn_items {
                 TraitItem::Fn(trait_item_fn) => {
                     let sig = &trait_item_fn.sig;
-                    let ret = &sig.output;
-                    if ret.to_token_stream().to_string().contains("Poll") {
+                    if sig.to_token_stream().to_string().contains("Pin") {
                         true
                     } else {
                         false
+                    }
+                }
+                _ => false,
+            }
+        })
+        .collect::<Vec<&TraitItem>>();
+
+    let normal_traits = &self_trait
+        .items
+        .iter()
+        .filter(|fn_items| {
+            // fn_items
+            match fn_items {
+                TraitItem::Fn(trait_item_fn) => {
+                    let sig = &trait_item_fn.sig;
+                    if sig.to_token_stream().to_string().contains("Pin") {
+                        false
+                    } else {
+                        true
                     }
                 }
                 _ => false,
@@ -116,30 +134,98 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
         }
     }
 
+    let mut impl_norm_items = Vec::new();
+    let mut norm_mutable = false;
+    for trait_item in normal_traits {
+        match trait_item {
+            TraitItem::Fn(trait_item_fn) => {
+                let sig = &trait_item_fn.sig;
+                let ident = &sig.ident;
+                let inputs = &sig.inputs;
+                let receiver = inputs.first().unwrap().to_token_stream().to_string();
+                norm_mutable = receiver.contains("mut");
+                let get_inner = if norm_mutable {
+                    quote! {as_mut()}
+                } else {
+                    quote! {as_ref()}
+                };
+                let actual_inputs = inputs
+                    .iter()
+                    .enumerate()
+                    .filter(|(idx, _args)| *idx > 0)
+                    .map(|(_idx, args)| args.clone())
+                    .collect::<Vec<FnArg>>();
+                let actual_inputs_ident = actual_inputs
+                    .iter()
+                    .map(|arg| {
+                        let arg_ident = match arg {
+                            FnArg::Receiver(_receiver) => panic!("Not support self receiver"),
+                            FnArg::Typed(pat_type) => match pat_type.pat.as_ref() {
+                                syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
+                                _ => panic!("Not support other pattern"),
+                            },
+                        };
+                        arg_ident
+                    })
+                    .collect::<Vec<Ident>>();
+                impl_norm_items.push(quote! {
+                    #[inline]
+                    #sig {
+                        self.#get_inner.#ident(#(#actual_inputs_ident),*)
+                    }
+                });
+            }
+            _ => panic!("Only support trait item function"),
+        }
+    }
+
     let deref_ident = if mutable {
         quote! {core::ops::DerefMut}
     } else {
         quote! {core::ops::Deref}
     };
-
-    let impl_refs = if mutable {
-        quote! {
-            impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for Box<T> {
-                #(#impl_ref_items)*
-            }
-
-            impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for &mut T {
-                #(#impl_ref_items)*
+    let impl_refs = match (mutable, norm_mutable) {
+        (true, true) => {
+            quote! {
+                impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for Box<T> {
+                    #(#impl_ref_items)*
+                    #(#impl_norm_items)*
+                }
+                impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for &mut T {
+                    #(#impl_ref_items)*
+                }
             }
         }
-    } else {
-        quote! {
-            impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for Arc<T> {
-                #(#impl_ref_items)*
+        (true, false) => {
+            quote! {
+                impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for Box<T> {
+                    #(#impl_ref_items)*
+                }
+                impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for &mut T {
+                    #(#impl_ref_items)*
+                }
             }
+        }
+        (false, true) => {
+            quote! {
+                impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for Arc<T> {
+                    #(#impl_ref_items)*
+                }
+                impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for &T {
+                    #(#impl_ref_items)*
+                }
+            }
+        }
+        (false, false) => {
+            quote! {
+                impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for Arc<T> {
+                    #(#impl_ref_items)*
+                    #(#impl_norm_items)*
+                }
 
-            impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for &T {
-                #(#impl_ref_items)*
+                impl<T: ?Sized + #trait_ident + Unpin + #supertraits> #trait_ident for &T {
+                    #(#impl_ref_items)*
+                }
             }
         }
     };

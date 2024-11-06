@@ -20,8 +20,7 @@ pub(crate) fn build_subtrait(super_trait: &ItemTrait) -> TokenStream {
             match fn_items {
                 TraitItem::Fn(trait_item_fn) => {
                     let sig = &trait_item_fn.sig;
-                    let ret = &sig.output;
-                    if ret.to_token_stream().to_string().contains("Poll") {
+                    if sig.to_token_stream().to_string().contains("Pin") {
                         true
                     } else {
                         false
@@ -56,7 +55,6 @@ pub(crate) fn build_subtrait(super_trait: &ItemTrait) -> TokenStream {
                                 if let syn::PathArguments::AngleBracketed(args) = args {
                                     // 例如，将T更改为u32
                                     let new_args = args.clone().args; // 这里需要根据需要修改args
-                                                                      // println!("{:?}", new_args.last().unwrap());
                                     let new_args_string =
                                         new_args.last().unwrap().to_token_stream().to_string();
                                     if new_args_string.contains("mut") {
