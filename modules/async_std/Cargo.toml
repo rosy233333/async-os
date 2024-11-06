@@ -7,7 +7,7 @@ edition = "2021"
 
 thread = ["trampoline/thread"]
 
-monolithic = ["feat/monolithic", "multitask"]
+monolithic = ["feat/monolithic", "multitask", "alloc", "fs"]
 
 img = ["feat/img"]
 

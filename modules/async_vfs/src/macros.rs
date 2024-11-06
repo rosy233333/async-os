@@ -81,7 +81,7 @@ macro_rules! impl_vfs_non_dir_default {
             self: core::pin::Pin<&Self>,
             _cx: &mut core::task::Context<'_>,
             _start_idx: usize,
-            _dirents: &mut [VfsDirEntry],
+            _dirents: &mut [$crate::VfsDirEntry],
         ) -> core::task::Poll<$crate::VfsResult<usize>> {
             core::task::Poll::Ready($crate::__priv::ax_err!(NotADirectory))
         }

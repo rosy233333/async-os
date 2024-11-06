@@ -306,10 +306,8 @@ impl<R: AsyncSeek> AsyncSeek for BufReader<R> {
                     .get_pin_mut()
                     .seek(cx, SeekFrom::Current(-remainder)))?;
                 self.as_mut().discard_buffer();
-                result = core::task::ready!(self
-                    .as_mut()
-                    .get_pin_mut()
-                    .seek(cx, SeekFrom::Current(n)))?;
+                result =
+                    core::task::ready!(self.as_mut().get_pin_mut().seek(cx, SeekFrom::Current(n)))?;
             }
         } else {
             // Seeking with Start/End doesn't care about our buffer length.

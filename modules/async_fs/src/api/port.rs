@@ -389,8 +389,9 @@ pub trait FileIO: {
     }
 
     /// debug
-    fn print_content(self: Pin<&Self>, _cx: &mut Context<'_>) {
+    fn print_content(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<()> {
         debug!("Function print_content not implemented");
+        Poll::Ready(())
     }
 
     /// 设置文件状态

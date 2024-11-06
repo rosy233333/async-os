@@ -1,0 +1,18 @@
+[package]
+name = "axfs_ramfs"
+version = "0.1.0"
+edition = "2021"
+authors = ["Yuekai Jia <equation618@gmail.com>"]
+description = "RAM filesystem used by ArceOS"
+license = "GPL-3.0-or-later OR Apache-2.0"
+homepage = "https://github.com/rcore-os/arceos"
+repository = "https://github.com/rcore-os/arceos/tree/main/crates/axfs_ramfs"
+documentation = "https://rcore-os.github.io/arceos/axfs_ramfs/index.html"
+keywords = ["Starry"]
+
+[dependencies]
+async_vfs = { path = "../async_vfs" }
+spin = "0.9"
+log = "0.4"
+lazy_static = { version = "1.4", features = ["spin_no_std"] }
+axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }

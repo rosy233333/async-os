@@ -14,7 +14,7 @@ use lazy_init::LazyInit;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-use crate::{api::FileType, fs};
+use crate::{api::FileType, fs, mounts};
 
 static CURRENT_DIR_PATH: Mutex<String> = Mutex::new(String::new());
 static CURRENT_DIR: LazyInit<Mutex<VfsNodeRef>> = LazyInit::new();
@@ -204,7 +204,45 @@ pub(crate) async fn init_rootfs(disk: crate::dev::Disk) {
             let main_fs = FAT_FS.clone();
         }
     }
-    let root_dir = RootDirectory::new(main_fs);
+    let mut root_dir = RootDirectory::new(main_fs);
+
+    #[cfg(feature = "devfs")]
+    root_dir
+        .mount("/dev", mounts::devfs())
+        .await
+        .expect("failed to mount devfs at /dev");
+
+    #[cfg(feature = "ramfs")]
+    root_dir
+        .mount("/dev/shm", mounts::ramfs())
+        .await
+        .expect("failed to mount devfs at /dev/shm");
+
+    #[cfg(feature = "ramfs")]
+    root_dir
+        .mount("/tmp", mounts::ramfs())
+        .await
+        .expect("failed to mount ramfs at /tmp");
+
+    #[cfg(feature = "ramfs")]
+    root_dir
+        .mount("/var", mounts::ramfs())
+        .await
+        .expect("failed to mount ramfs at /tmp");
+
+    // Mount another ramfs as procfs
+    #[cfg(feature = "procfs")]
+    root_dir // should not fail
+        .mount("/proc", mounts::procfs().await.unwrap())
+        .await
+        .expect("fail to mount procfs at /proc");
+
+    // Mount another ramfs as sysfs
+    #[cfg(feature = "sysfs")]
+    root_dir // should not fail
+        .mount("/sys", mounts::sysfs().await.unwrap())
+        .await
+        .expect("fail to mount sysfs at /sys");
 
     ROOT_DIR.init_by(Arc::new(root_dir));
     CURRENT_DIR.init_by(Mutex::new(ROOT_DIR.clone()));

@@ -7,7 +7,10 @@ use crate::io;
 use async_io::Write;
 
 #[cfg(feature = "alloc")]
-use alloc::{string::String, vec::Vec};
+use {
+    alloc::{string::String, vec::Vec},
+    async_io::Read,
+};
 
 pub use self::dir::{DirBuilder, DirEntry, ReadDir};
 pub use self::file::{File, FileType, Metadata, OpenOptions, Permissions};

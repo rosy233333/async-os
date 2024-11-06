@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["fatfs"]
+default = ["fatfs", "devfs", "ramfs", "procfs", "sysfs"]
 
 fatfs = ["dep:fatfs"]
 myfs = []
@@ -12,10 +12,11 @@ ext4_rs = []
 another_ext4 = []
 use-ramdisk = []
 lwext4_rust = []
-devfs = []
-ramfs = []
-procfs = []
-sysfs = []
+devfs = ["dep:axfs_devfs"]
+ramfs = ["dep:axfs_ramfs"]
+procfs = ["dep:axfs_ramfs"]
+sysfs = ["dep:axfs_ramfs", "dep:axconfig"]
+monolithic = []
 
 [dependencies]
 log = "0.4"
@@ -27,8 +28,11 @@ axdriver = { git = "https://github.com/Starry-OS/axdriver.git", features = ["blo
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 capability = { git = "https://github.com/Starry-OS/capability.git" }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git", optional = true }
 bitflags = "2.6"
 async_utils = { path = "../async_utils" }
+axfs_devfs = { path = "../axfs_devfs", optional = true }
+axfs_ramfs = { path = "../axfs_ramfs", optional = true }
 
 [dependencies.fatfs]
 git = "https://github.com/rafalh/rust-fatfs"
