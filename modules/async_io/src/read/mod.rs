@@ -523,14 +523,14 @@ pub trait Read: AsyncRead {
 
 impl<T: AsyncRead + ?Sized> Read for T {}
 
-/// Initializes a buffer if necessary.
-///
-/// Currently, a buffer is always initialized because `read_initializer`
-/// feature is not stable.
-#[inline]
-unsafe fn initialize<R: AsyncRead>(_reader: &R, buf: &mut [u8]) {
-    core::ptr::write_bytes(buf.as_mut_ptr(), 0, buf.len())
-}
+// /// Initializes a buffer if necessary.
+// ///
+// /// Currently, a buffer is always initialized because `read_initializer`
+// /// feature is not stable.
+// #[inline]
+// unsafe fn initialize<R: AsyncRead>(_reader: &R, buf: &mut [u8]) {
+//     core::ptr::write_bytes(buf.as_mut_ptr(), 0, buf.len())
+// }
 
 #[cfg(test)]
 mod tests {

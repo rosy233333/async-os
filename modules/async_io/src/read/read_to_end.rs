@@ -42,46 +42,54 @@ pub fn read_to_end_internal<R: AsyncRead + ?Sized>(
     buf: &mut Vec<u8>,
     start_len: usize,
 ) -> Poll<io::Result<usize>> {
-    struct Guard<'a> {
-        buf: &'a mut Vec<u8>,
-        len: usize,
-    }
-
-    impl Drop for Guard<'_> {
-        fn drop(&mut self) {
-            unsafe {
-                self.buf.set_len(self.len);
-            }
-        }
-    }
-
-    let mut g = Guard {
-        len: buf.len(),
-        buf,
-    };
-    let ret;
+    let mut probe = [0u8; 32];
     loop {
-        if g.len == g.buf.len() {
-            unsafe {
-                g.buf.reserve(32);
-                let capacity = g.buf.capacity();
-                g.buf.set_len(capacity);
-                super::initialize(&rd, &mut g.buf[g.len..]);
-            }
-        }
-
-        match core::task::ready!(rd.as_mut().read(cx, &mut g.buf[g.len..])) {
-            Ok(0) => {
-                ret = Poll::Ready(Ok(g.len - start_len));
-                break;
-            }
-            Ok(n) => g.len += n,
-            Err(e) => {
-                ret = Poll::Ready(Err(e));
-                break;
-            }
+        match core::task::ready!(rd.as_mut().read(cx, &mut probe)) {
+            Ok(0) => return Poll::Ready(Ok(buf.len() - start_len)),
+            Ok(n) => buf.extend_from_slice(&probe[..n]),
+            Err(e) => return Poll::Ready(Err(e)),
         }
     }
+    // struct Guard<'a> {
+    //     buf: &'a mut Vec<u8>,
+    //     len: usize,
+    // }
 
-    ret
+    // impl Drop for Guard<'_> {
+    //     fn drop(&mut self) {
+    //         unsafe {
+    //             self.buf.set_len(self.len);
+    //         }
+    //     }
+    // }
+
+    // let mut g = Guard {
+    //     len: buf.len(),
+    //     buf,
+    // };
+    // let ret;
+    // loop {
+    //     if g.len == g.buf.len() {
+    //         unsafe {
+    //             g.buf.reserve(32);
+    //             let capacity = g.buf.capacity();
+    //             g.buf.set_len(capacity);
+    //             super::initialize(&rd, &mut g.buf[g.len..]);
+    //         }
+    //     }
+
+    //     match core::task::ready!(rd.as_mut().read(cx, &mut g.buf[g.len..])) {
+    //         Ok(0) => {
+    //             ret = Poll::Ready(Ok(g.len - start_len));
+    //             break;
+    //         }
+    //         Ok(n) => g.len += n,
+    //         Err(e) => {
+    //             ret = Poll::Ready(Err(e));
+    //             break;
+    //         }
+    //     }
+    // }
+
+    // ret
 }
