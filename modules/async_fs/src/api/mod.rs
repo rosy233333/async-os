@@ -2,7 +2,6 @@
 
 mod dir;
 mod file;
-// mod fileio;
 
 pub mod port;
 
