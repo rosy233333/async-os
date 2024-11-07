@@ -43,6 +43,7 @@ pub static UTRAP_HANDLER: LazyInit<fn() -> Pin<Box<dyn Future<Output = i32> + 's
     LazyInit::new();
 
 pub static KERNEL_EXECUTOR: LazyInit<Arc<Executor>> = LazyInit::new();
+pub static KERNEL_PAGE_TABLE_TOKEN: LazyInit<usize> = LazyInit::new();
 
 extern "C" {
     fn start_signal_trampoline();
@@ -137,10 +138,12 @@ impl Executor {
                 flags: Mutex::new(OpenFlags::empty()),
             })),
         ]));
+        let memory_set = MemorySet::new_memory_set();
+        KERNEL_PAGE_TABLE_TOKEN.init_by(memory_set.page_table_token());
         Executor::new(
             KERNEL_EXECUTOR_ID,
             KERNEL_EXECUTOR_ID,
-            Arc::new(Mutex::new(MemorySet::new_memory_set())),
+            Arc::new(Mutex::new(memory_set)),
             0,
             new_fd_table,
             Arc::new(Mutex::new(String::from("/"))),
@@ -489,6 +492,7 @@ impl Executor {
             path,
             pid,
             scheduler,
+            page_table_token,
             fut,
             Box::new(TrapFrame::init_user_context(
                 entry.into(),
@@ -496,9 +500,6 @@ impl Executor {
             )),
         )));
 
-        // let new_task = spawn_raw(|| run_user_task(entry), path);
-        // let new_task = new_task(Box::pin(UserTask::new(entry, user_stack_bottom)), path);
-        // Executor::add_task(new_task.clone());
         new_executor
             .get_scheduler()
             .lock()
@@ -531,17 +532,7 @@ impl Executor {
             .insert(KERNEL_EXECUTOR_ID, KERNEL_EXECUTOR.clone());
         // 将其作为内核进程的子进程
         KERNEL_EXECUTOR.children.lock().await.push(new_executor.clone());
-        // match PID2PC.lock().await.get(&KERNEL_EXECUTOR_ID) {
-        //     Some(kernel_process) => {
-        //         kernel_process.children.lock().await.push(new_executor.clone());
-        //     }
-        //     None => {
-        //         warn!("no kernel executor");
-        //         return Err(AxError::NotFound);
-        //     }
-        // }
-        // spawn_raw(|| new_executor.run_self(), "executor".into());
-        let executor_task = crate::spawn_raw(|| new_executor.run(), "executor".into());
+        let executor_task = crate::spawn_raw(|| new_executor.run(), "executor.run".into());
         TID2TASK
             .lock()
             .await
@@ -606,13 +597,7 @@ impl Executor {
             // 创建父子关系，此时以self作为父进程
             self.pid
         };
-        // let new_task = new_task(
-        //     || {},
-        //     String::from(executor.tasks.lock()[0].name().split('/').last().unwrap()),
-        //     executor.get_stack_limit() as usize,
-        //     process_id,
-        //     new_memory_set.lock().await.page_table_token(),
-        // );
+        let page_table_token = new_memory_set.lock().await.page_table_token();
         let scheduler = self.get_scheduler();
         let fut = UTRAP_HANDLER();
         let utrap_frame = Box::new(*current_task().utrap_frame().unwrap());
@@ -620,6 +605,7 @@ impl Executor {
             String::from(current_task().name().split('/').last().unwrap()),
             process_id,
             scheduler,
+            page_table_token,
             fut,
             utrap_frame,
         )));
@@ -821,10 +807,12 @@ impl Executor {
 
             let scheduler = self.get_scheduler();
             let fut = Box::pin(new_process.run());
+            let page_table_token = self.memory_set.lock().await.page_table_token();
             let executor_task = Arc::new(Task::new(TaskInner::new(
-                "executor".into(),
+                "executor.run".into(),
                 self.pid,
                 scheduler,
+                page_table_token,
                 fut,
             )));
             TID2TASK
@@ -848,10 +836,6 @@ impl Executor {
         // if !clone_flags.contains(CloneFlags::CLONE_THREAD) {
         //     new_task.set_leader(true);
         // }
-        // 复制原有的trap上下文
-        // let mut trap_frame = unsafe { *(current_task.get_first_trap_frame()) };
-        // let mut trap_frame =
-        //     read_trapframe_from_kstack(current_task.get_kernel_stack_top().unwrap());
         // drop(current_task);
         // 新开的进程/线程返回值为0
         let utrap_frame = new_task.utrap_frame().unwrap();
@@ -877,8 +861,6 @@ impl Executor {
             //     trap_frame.sepc, trap_frame.regs.sp
             // );
         }
-        // write_trapframe_to_kstack(new_task.get_kernel_stack_top().unwrap(), &trap_frame);
-        // Processor::first_add_task(new_task);
         // 判断是否为VFORK
         if clone_flags.contains(CloneFlags::CLONE_VFORK) {
             self.set_vfork_block(true).await;
@@ -906,11 +888,16 @@ impl Executor {
             *self.memory_set.lock().await = memory_set;
             self.memory_set.lock().await.unmap_user_areas();
             let new_page_table = self.memory_set.lock().await.page_table_token();
+            while let Some(task) = self.pick_next_task() {
+                task.inner().set_page_table_token(new_page_table);
+                self.put_prev_task(task, false);
+            }
             // let mut tasks = self.tasks.lock();
             // for task in tasks.iter_mut() {
             //     task.inner().set_page_table_token(new_page_table);
             // }
-            // 切换到新的页表上
+            // 切换到新的页表上，并且重新设置当前任务的页表
+            current_task().set_page_table_token(new_page_table);
             unsafe {
                 axhal::arch::write_page_table_root0(new_page_table.into());
             }
