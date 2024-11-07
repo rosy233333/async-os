@@ -59,7 +59,7 @@ pub async fn current_check_user_preempt_pending(_tf: &mut TrapFrame) {
                 curr.can_preempt()
             );
             taskctx::CurrentTask::clean_current_without_drop();
-            _tf.trap_status = TrapStatus::Unknown;
+            _tf.trap_status = TrapStatus::Blocked;
             yield_now().await;
         }
     }
