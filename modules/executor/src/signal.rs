@@ -161,7 +161,7 @@ pub async fn handle_signals() {
         exit(0).await;
     }
 
-    if process.pid().as_u64() == KERNEL_EXECUTOR_ID {
+    if process.pid() == KERNEL_EXECUTOR_ID {
         // 内核进程不处理信号
         return;
     }

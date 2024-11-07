@@ -28,7 +28,7 @@ impl PidFd {
 
     #[allow(unused)]
     pub fn pid(&self) -> u64 {
-        self.process.pid().as_u64()
+        self.process.pid()
     }
 }
 impl FileIO for PidFd {

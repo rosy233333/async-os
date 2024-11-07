@@ -58,7 +58,7 @@ pub fn get_futex_key(uaddr: VirtAddr, flags: i32) -> FutexKey {
         let offset = uaddr.align_offset_4k() as u32;
         return FutexKey::new(pid, aligned, offset);
     } else {
-        let pid = current_executor().pid().as_u64();
+        let pid = current_executor().pid();
         let aligned = uaddr.align_down_4k().as_usize();
         let offset = uaddr.align_offset_4k() as u32;
         return FutexKey::new(pid, aligned, offset);

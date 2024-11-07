@@ -282,7 +282,7 @@ impl<'a, T: ?Sized + 'a> Future for MutexGuard<'a, T> {
                 } else {
                     Poll::Ready(MutexGuard {
                         lock,
-                        data: data.clone(),
+                        data: data.take(),
                     })
                 }
             }

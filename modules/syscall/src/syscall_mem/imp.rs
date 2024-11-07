@@ -273,7 +273,7 @@ pub async fn syscall_shmget(args: [usize; 6]) -> SyscallResult {
     let size = args[1];
     let flags = args[2] as i32;
 
-    let pid = current_executor().pid().as_u64();
+    let pid = current_executor().pid();
 
     // 9 bits for permission
     let mode: u16 = (flags as u16) & ((1 << 10) - 1);

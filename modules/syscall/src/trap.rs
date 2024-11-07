@@ -1,6 +1,7 @@
 //! Define the trap handler for the whole kernel
 pub use axhal::{mem::VirtAddr, paging::MappingFlags, time::current_time_nanos};
-use executor::{current_executor, current_task};
+use axsignal::signal_no::SignalNo;
+use executor::{current_executor, current_task, send_signal_to_thread};
 
 use super::syscall::syscall;
 
@@ -65,6 +66,8 @@ pub async fn handle_page_fault(addr: VirtAddr, flags: MappingFlags) {
         .is_ok()
     {
         axhal::arch::flush_tlb(None);
+    } else {
+        let _ = send_signal_to_thread(current_task().id().as_u64() as isize, SignalNo::SIGSEGV as isize);
     }
     time_stat_from_kernel_to_user();
 }

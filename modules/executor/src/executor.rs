@@ -5,7 +5,7 @@ use crate::{
     futex::FutexRobustList,
     load_app,
     stdio::{Stderr, Stdin, Stdout},
-    ExecutorRef, SignalModule,
+    SignalModule,
 };
 use alloc::{
     boxed::Box,
@@ -28,7 +28,7 @@ use core::{
     sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering},
 };
 use lazy_init::LazyInit;
-use spinlock::{SpinNoIrq, SpinNoIrqOnly};
+use spinlock::SpinNoIrq;
 use sync::Mutex;
 use task_api::yield_now;
 use taskctx::{BaseScheduler, Task, TaskInner, TaskRef, TrapFrame};
@@ -43,15 +43,13 @@ pub static UTRAP_HANDLER: LazyInit<fn() -> Pin<Box<dyn Future<Output = i32> + 's
     LazyInit::new();
 
 pub static KERNEL_EXECUTOR: LazyInit<Arc<Executor>> = LazyInit::new();
-pub(crate) static EXECUTORS: SpinNoIrqOnly<BTreeMap<u64, ExecutorRef>> =
-    SpinNoIrqOnly::new(BTreeMap::new());
 
 extern "C" {
     fn start_signal_trampoline();
 }
 
 pub struct Executor {
-    pub pid: TaskId,
+    pub pid: u64,
     pub parent: AtomicU64,
     /// 子进程
     pub children: Mutex<Vec<Arc<Executor>>>,
@@ -92,7 +90,7 @@ unsafe impl Send for Executor {}
 impl Executor {
     /// 创建一个新的 Executor（进程）
     pub fn new(
-        pid: TaskId,
+        pid: u64,
         parent: u64,
         memory_set: Arc<Mutex<MemorySet>>,
         heap_bottom: u64,
@@ -140,7 +138,7 @@ impl Executor {
             })),
         ]));
         Executor::new(
-            TaskId::new(),
+            KERNEL_EXECUTOR_ID,
             KERNEL_EXECUTOR_ID,
             Arc::new(Mutex::new(MemorySet::new_memory_set())),
             0,
@@ -156,7 +154,7 @@ impl Executor {
     }
 
     /// 获取 Executor（进程）id
-    pub fn pid(&self) -> TaskId {
+    pub fn pid(&self) -> u64 {
         self.pid
     }
 
@@ -310,7 +308,7 @@ impl Executor {
 
 impl Drop for Executor {
     fn drop(&mut self) {
-        log::debug!("drop executor");
+        log::debug!("drop executor {}", self.pid);
     }
 }
 
@@ -469,7 +467,7 @@ impl Executor {
             })),
         ]));
         let new_executor = Arc::new(Executor::new(
-            TaskId::new(),
+            TaskId::new().as_u64(),
             KERNEL_EXECUTOR_ID,
             Arc::new(Mutex::new(memory_set)),
             heap_bottom.as_usize() as u64,
@@ -486,7 +484,7 @@ impl Executor {
         new_executor.set_file_path(path.clone()).await;
         let scheduler = new_executor.get_scheduler();
         let fut = UTRAP_HANDLER();
-        let pid = new_executor.pid().as_u64();
+        let pid = new_executor.pid();
         let new_task = Arc::new(Task::new(TaskInner::new_user(
             path,
             pid,
@@ -525,18 +523,29 @@ impl Executor {
         PID2PC
             .lock()
             .await
-            .insert(new_executor.pid().as_u64(), Arc::clone(&new_executor));
-        // // 将其作为内核进程的子进程
-        // match PID2PC.lock().await.get(&KERNEL_PROCESS_ID) {
+            .insert(new_executor.pid(), Arc::clone(&new_executor));
+        // 记录内核 executor
+        PID2PC
+            .lock()
+            .await
+            .insert(KERNEL_EXECUTOR_ID, KERNEL_EXECUTOR.clone());
+        // 将其作为内核进程的子进程
+        KERNEL_EXECUTOR.children.lock().await.push(new_executor.clone());
+        // match PID2PC.lock().await.get(&KERNEL_EXECUTOR_ID) {
         //     Some(kernel_process) => {
-        //         kernel_process.children.lock().await.push(new_process);
+        //         kernel_process.children.lock().await.push(new_executor.clone());
         //     }
         //     None => {
-        //         return Err(Error::NotFound);
+        //         warn!("no kernel executor");
+        //         return Err(AxError::NotFound);
         //     }
         // }
         // spawn_raw(|| new_executor.run_self(), "executor".into());
-        crate::spawn_raw(|| new_executor.run(), "executor".into());
+        let executor_task = crate::spawn_raw(|| new_executor.run(), "executor".into());
+        TID2TASK
+            .lock()
+            .await
+            .insert(executor_task.id().as_u64(), executor_task);
 
         Ok(new_task)
     }
@@ -586,7 +595,7 @@ impl Executor {
             self.pid
         } else {
             // 新建一个进程，并且设计进程之间的父子关系
-            TaskId::new()
+            TaskId::new().as_u64()
         };
         // 决定父进程是谁
         let parent_id = if clone_flags.contains(CloneFlags::CLONE_PARENT) {
@@ -595,7 +604,7 @@ impl Executor {
             self.get_parent()
         } else {
             // 创建父子关系，此时以self作为父进程
-            self.pid.as_u64()
+            self.pid
         };
         // let new_task = new_task(
         //     || {},
@@ -609,7 +618,7 @@ impl Executor {
         let utrap_frame = Box::new(*current_task().utrap_frame().unwrap());
         let new_task = Arc::new(Task::new(TaskInner::new_user(
             String::from(current_task().name().split('/').last().unwrap()),
-            process_id.as_u64(),
+            process_id,
             scheduler,
             fut,
             utrap_frame,
@@ -775,7 +784,7 @@ impl Executor {
             PID2PC
                 .lock()
                 .await
-                .insert(process_id.as_u64(), Arc::clone(&new_process));
+                .insert(process_id, Arc::clone(&new_process));
             let scheduler = new_process.get_scheduler();
             new_task.set_scheduler(scheduler);
             new_task.set_leader(true);
@@ -799,7 +808,7 @@ impl Executor {
                 .lock()
                 .await
                 .insert(new_task.id().as_u64(), FutexRobustList::default());
-            return_id = new_process.pid.as_u64();
+            return_id = new_process.pid;
             PID2PC
                 .lock()
                 .await
@@ -814,10 +823,25 @@ impl Executor {
             let fut = Box::pin(new_process.run());
             let executor_task = Arc::new(Task::new(TaskInner::new(
                 "executor".into(),
-                process_id.as_u64(),
+                self.pid,
                 scheduler,
                 fut,
             )));
+            TID2TASK
+                .lock()
+                .await
+                .insert(executor_task.id().as_u64(), executor_task.clone());
+            let signal_module = SignalModule::init_signal(None);
+            self
+                .signal_modules
+                .lock()
+                .await
+                .insert(executor_task.id().as_u64(), signal_module);
+            self
+                .robust_list
+                .lock()
+                .await
+                .insert(executor_task.id().as_u64(), FutexRobustList::default());
             self.get_scheduler().lock().add_task(executor_task);
         };
 
@@ -937,7 +961,7 @@ impl Executor {
             return Err(AxError::NotFound);
         };
         // 切换了地址空间， 需要切换token
-        let page_table_token = if self.pid.as_u64() == KERNEL_EXECUTOR_ID {
+        let page_table_token = if self.pid == KERNEL_EXECUTOR_ID {
             0
         } else {
             self.memory_set.lock().await.page_table_token()

@@ -440,7 +440,7 @@ pub fn syscall_prlimit64(args: [usize; 6]) -> SyscallResult {
     let old_limit = args[3] as *mut RLimit;
     // 当pid不为0，其实没有权利去修改其他的进程的资源限制
     let curr_process = current_executor();
-    if pid == 0 || pid == curr_process.pid().as_u64() as usize {
+    if pid == 0 || pid == curr_process.pid() as usize {
         match resource {
             // TODO: 改变了新创建的任务栈大小，但未实现当前任务的栈扩展
             RLIMIT_STACK => {
@@ -509,7 +509,7 @@ pub fn syscall_setpgid(args: [usize; 6]) -> SyscallResult {
 
 /// 当前不涉及多核情况
 pub fn syscall_getpid() -> SyscallResult {
-    Ok(current_executor().pid().as_u64() as isize)
+    Ok(current_executor().pid() as isize)
 }
 
 /// To get the parent process id
@@ -559,7 +559,7 @@ pub async fn syscall_setsid() -> SyscallResult {
     let task_id = task.id().as_u64();
 
     // 当前 process 已经是 process group leader
-    if process.pid().as_u64() == task_id {
+    if process.pid() == task_id {
         return Err(SyscallError::EPERM);
     }
 
@@ -568,7 +568,7 @@ pub async fn syscall_setsid() -> SyscallResult {
 
     // 新建 process group 并加入
     let new_process = Executor::new(
-        TaskId::new(),
+        TaskId::new().as_u64(),
         process.get_parent(),
         process.memory_set.clone(),
         process.get_heap_bottom(),
@@ -586,13 +586,13 @@ pub async fn syscall_setsid() -> SyscallResult {
     // new_process.tasks.lock().push(task.as_task_ref().clone());
     new_process.get_scheduler().lock().add_task(task.clone());
     task.set_leader(true);
-    task.set_process_id(new_process.pid().as_u64());
+    task.set_process_id(new_process.pid());
 
     // 修改 PID2PC
     PID2PC
         .lock()
         .await
-        .insert(new_process.pid().as_u64(), Arc::new(new_process));
+        .insert(new_process.pid(), Arc::new(new_process));
 
     Ok(task_id as isize)
 }
@@ -724,7 +724,7 @@ pub async fn syscall_pidfd_send_signal(args: [usize; 6]) -> SyscallResult {
             si_code: 0,
             si_errno: 0,
             si_signo: signum,
-            pid: curr_process.pid().as_u64() as i32,
+            pid: curr_process.pid() as i32,
             uid: 0,
             ..Default::default()
         }

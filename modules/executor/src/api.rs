@@ -1,6 +1,5 @@
 use crate::{
-    flags::WaitStatus, send_signal_to_process, send_signal_to_thread, CurrentExecutor, Executor,
-    EXECUTORS, KERNEL_EXECUTOR, KERNEL_EXECUTOR_ID, PID2PC, TID2TASK, UTRAP_HANDLER,
+    flags::WaitStatus, futex::futex_wake, send_signal_to_process, send_signal_to_thread, CurrentExecutor, Executor, KERNEL_EXECUTOR, KERNEL_EXECUTOR_ID, PID2PC, TID2TASK, UTRAP_HANDLER
 };
 use alloc::{boxed::Box, string::String, sync::Arc};
 use axsignal::signal_no::SignalNo;
@@ -14,7 +13,6 @@ pub fn init(utrap_handler: fn() -> Pin<Box<dyn Future<Output = i32> + 'static>>)
     UTRAP_HANDLER.init_by(utrap_handler);
     let kexecutor = Arc::new(Executor::new_init());
     KERNEL_EXECUTOR.init_by(kexecutor.clone());
-    EXECUTORS.lock().insert(0, kexecutor.clone());
     unsafe { CurrentExecutor::init_current(kexecutor) };
     #[cfg(feature = "irq")]
     task_api::init();
@@ -66,6 +64,7 @@ pub async fn exit(exit_code: i32) {
     let curr_id = curr.id().as_u64();
 
     let current_executor = current_executor();
+    info!("exit task id {} with code _{}_", curr_id, exit_code);
 
     let exit_signal = current_executor
         .signal_modules
@@ -102,7 +101,7 @@ pub async fn exit(exit_code: i32) {
             unsafe {
                 *(clear_child_tid as *mut i32) = 0;
                 // TODO:
-                // let _ = futex_wake(clear_child_tid.into(), 0, 1);
+                let _ = futex_wake(clear_child_tid.into(), 0, 1).await;
             }
         }
     }
@@ -153,7 +152,7 @@ pub async fn exit(exit_code: i32) {
         if let Some(parent_process) = pid2pc.get(&current_executor.get_parent()) {
             parent_process.set_vfork_block(false).await;
         }
-        pid2pc.remove(&current_executor.pid().as_u64());
+        pid2pc.remove(&current_executor.pid());
         drop(pid2pc);
         drop(current_executor);
     } else {
@@ -218,7 +217,7 @@ pub async unsafe fn wait_pid(pid: i32, exit_code_ptr: *mut i32) -> Result<u64, W
                 answer_status = WaitStatus::Exited;
                 info!(
                     "wait pid _{}_ with code _{}_",
-                    child.pid().as_u64(),
+                    child.pid(),
                     exit_code
                 );
                 exit_task_id = index;
@@ -228,16 +227,16 @@ pub async unsafe fn wait_pid(pid: i32, exit_code_ptr: *mut i32) -> Result<u64, W
                         *exit_code_ptr = exit_code << 8;
                     }
                 }
-                answer_id = child.pid().as_u64();
+                answer_id = child.pid();
                 break;
             }
-        } else if child.pid().as_u64() == pid as u64 {
+        } else if child.pid() == pid as u64 {
             // 找到了对应的进程
             if let Some(exit_code) = child.get_code_if_exit() {
                 answer_status = WaitStatus::Exited;
                 info!(
                     "wait pid _{}_ with code _{:?}_",
-                    child.pid().as_u64(),
+                    child.pid(),
                     exit_code
                 );
                 exit_task_id = index;
@@ -247,7 +246,7 @@ pub async unsafe fn wait_pid(pid: i32, exit_code_ptr: *mut i32) -> Result<u64, W
                         // 用于WEXITSTATUS设置编码
                     }
                 }
-                answer_id = child.pid().as_u64();
+                answer_id = child.pid();
             } else {
                 answer_status = WaitStatus::Running;
             }
