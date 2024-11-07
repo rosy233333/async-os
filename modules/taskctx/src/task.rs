@@ -144,6 +144,7 @@ pub struct TaskInner {
     /// 是否是所属进程下的主线程
     is_leader: AtomicBool,
     process_id: AtomicU64,
+    pub page_table_token: UnsafeCell<usize>,
 
     /// The scheduler status of the task, which defines the scheduling policy and priority
     pub sched_status: UnsafeCell<SchedStatus>,
@@ -158,6 +159,7 @@ impl TaskInner {
         name: String,
         process_id: u64,
         scheduler: Arc<SpinNoIrq<Scheduler>>,
+        page_table_token: usize,
         fut: Pin<Box<dyn Future<Output = i32> + 'static>>,
     ) -> Self {
         let is_init = &name == "main";
@@ -180,6 +182,7 @@ impl TaskInner {
             preempt_disable_count: AtomicUsize::new(0),
             is_leader: AtomicBool::new(false),
             process_id: AtomicU64::new(process_id),
+            page_table_token: UnsafeCell::new(page_table_token),
             #[cfg(feature = "thread")]
             stack_ctx: UnsafeCell::new(None),
             sched_status: UnsafeCell::new(SchedStatus {
@@ -196,6 +199,7 @@ impl TaskInner {
         name: String,
         process_id: u64,
         scheduler: Arc<SpinNoIrq<Scheduler>>,
+        page_table_token: usize,
         fut: Pin<Box<dyn Future<Output = i32> + 'static>>,
         utrap_frame: Box<TrapFrame>,
     ) -> Self {
@@ -219,6 +223,7 @@ impl TaskInner {
             preempt_disable_count: AtomicUsize::new(0),
             is_leader: AtomicBool::new(false),
             process_id: AtomicU64::new(process_id),
+            page_table_token: UnsafeCell::new(page_table_token),
             #[cfg(feature = "thread")]
             stack_ctx: UnsafeCell::new(None),
             sched_status: UnsafeCell::new(SchedStatus {
@@ -385,6 +390,20 @@ impl TaskInner {
     /// set the process ID of the task
     pub fn set_process_id(&self, process_id: u64) {
         self.process_id.store(process_id, Ordering::Release);
+    }
+
+    #[inline]
+    /// get the page table token of the process which the task belongs to
+    pub fn get_page_table_token(&self) -> usize {
+        unsafe { *self.page_table_token.get() }
+    }
+
+    #[inline]
+    /// force to set the page table token of the process UNSAFELY
+    pub fn set_page_table_token(&self, token: usize) {
+        unsafe {
+            *self.page_table_token.get() = token;
+        }
     }
 }
 
