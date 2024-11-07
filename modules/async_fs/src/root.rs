@@ -64,8 +64,8 @@ impl RootDirectory {
             return ax_err!(InvalidInput, "mount point already exists");
         }
         // create the mount point in the main filesystem if it does not exist
-        self.main_fs.root_dir().await.create(path, FileType::Dir).await?;
-        fs.mount(path, &self.main_fs.root_dir().await.lookup(path).await?).await?;
+        self.main_fs.root_dir().create(path, FileType::Dir).await?;
+        fs.mount(path, &self.main_fs.root_dir().lookup(path)?).await?;
         self.mounts.push(MountPoint::new(path, fs));
         Ok(())
     }
@@ -120,19 +120,19 @@ impl VfsNodeOps for RootDirectory {
     async_vfs::impl_vfs_dir_default! {}
 
     fn poll_get_attr(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<VfsResult<VfsNodeAttr>> {
-        let root_dir = core::task::ready!(
-            VfsOps::poll_root_dir(Pin::new(&self.main_fs), cx)
-        );
+        let root_dir = self.main_fs.root_dir();
         VfsNodeOps::poll_get_attr(Pin::new(&root_dir), cx)    
     }
 
-    fn poll_lookup(self: Pin<&Self>, cx: &mut Context<'_>, _path: &str) -> Poll<VfsResult<VfsNodeRef>> {
-        self.lookup_mounted_fs(_path, |fs, rest_path| {
-            let root_dir = core::task::ready!(
-                VfsOps::poll_root_dir(Pin::new(&fs), cx)
-            );
-            VfsNodeOps::poll_lookup(Pin::new(&root_dir), cx, rest_path)
-        })
+    fn lookup(self: Arc<Self>, _path: &str) -> VfsResult<VfsNodeRef> {
+        if let Poll::Ready(res) = self.lookup_mounted_fs(_path, |fs, rest_path| {
+            let root_dir = fs.root_dir();
+            Poll::Ready(root_dir.lookup(rest_path))
+        }) {
+            res
+        } else {
+            panic!("lookup_mounted_fs should always return Poll::Ready")
+        }
     }
 
     fn poll_create(self: Pin<&Self>, cx: &mut Context<'_>, path: &str, ty: VfsNodeType) -> Poll<VfsResult> {
@@ -140,9 +140,7 @@ impl VfsNodeOps for RootDirectory {
             if rest_path.is_empty() {
                 Poll::Ready(Ok(())) // already exists
             } else {
-                let root_dir = core::task::ready!(
-                    VfsOps::poll_root_dir(Pin::new(&fs), cx)
-                );
+                let root_dir = fs.root_dir();
                 VfsNodeOps::poll_create(Pin::new(&root_dir), cx, rest_path, ty)
             }
         })
@@ -153,9 +151,7 @@ impl VfsNodeOps for RootDirectory {
             if rest_path.is_empty() {
                 Poll::Ready(ax_err!(PermissionDenied)) // cannot remove mount points
             } else {
-                let root_dir = core::task::ready!(
-                    VfsOps::poll_root_dir(Pin::new(&fs), cx)
-                );
+                let root_dir = fs.root_dir();
                 VfsNodeOps::poll_remove(Pin::new(&root_dir), cx, rest_path)
             }
         })
@@ -171,9 +167,7 @@ impl VfsNodeOps for RootDirectory {
             if rest_path.is_empty() {
                 Poll::Ready(ax_err!(PermissionDenied)) // cannot rename mount points
             } else {
-                let root_dir = core::task::ready!(
-                    VfsOps::poll_root_dir(Pin::new(&fs), cx)
-                );
+                let root_dir = fs.root_dir();
                 VfsNodeOps::poll_rename(Pin::new(&root_dir), cx, rest_path, dst_path)
             }
         })
@@ -274,7 +268,7 @@ pub(crate) async fn lookup(dir: Option<&VfsNodeRef>, path: &str) -> AxResult<Vfs
     if path.is_empty() {
         return ax_err!(NotFound);
     }
-    let node = parent_node_of(dir, path).await.lookup(path).await?;
+    let node = parent_node_of(dir, path).await.lookup(path)?;
     if path.ends_with('/') && !node.get_attr().await?.is_dir() {
         ax_err!(NotADirectory)
     } else {
@@ -290,7 +284,7 @@ pub(crate) async fn create_file(dir: Option<&VfsNodeRef>, path: &str) -> AxResul
     }
     let parent = parent_node_of(dir, path).await;
     parent.create(path, VfsNodeType::File).await?;
-    parent.lookup(path).await
+    parent.lookup(path)
 }
 
 pub(crate) async fn create_dir(dir: Option<&VfsNodeRef>, path: &str) -> AxResult {
@@ -371,7 +365,7 @@ pub(crate) async fn set_current_dir(path: &str) -> AxResult {
 }
 
 pub(crate) async fn rename(old: &str, new: &str) -> AxResult {
-    if parent_node_of(None, new).await.lookup(new).await.is_ok() {
+    if parent_node_of(None, new).await.lookup(new).is_ok() {
         warn!("dst file already exist, now remove it");
         remove_file(None, new).await?;
     }

@@ -18,10 +18,6 @@ use crate::Interrupts;
 /// It implements [`axfs_vfs::VfsNodeOps`].
 pub struct DirNode {
     this: Weak<DirNode>,
-    inner: Arc<DirNodeInner>,
-}
-
-pub struct DirNodeInner {
     parent: RwLock<Weak<dyn VfsNodeOps + Unpin + Send + Sync>>,
     children: RwLock<BTreeMap<String, VfsNodeRef>>,
 }
@@ -30,25 +26,23 @@ impl DirNode {
     pub(super) fn new(parent: Option<Weak<dyn VfsNodeOps + Unpin + Send + Sync>>) -> Arc<Self> {
         Arc::new_cyclic(|this| Self {
             this: this.clone(),
-            inner: Arc::new(DirNodeInner {
-                parent: RwLock::new(parent.unwrap_or_else(|| Weak::<Self>::new())),
-                children: RwLock::new(BTreeMap::new()),
-            }),
+            parent: RwLock::new(parent.unwrap_or_else(|| Weak::<Self>::new())),
+            children: RwLock::new(BTreeMap::new()),
         })
     }
 
     pub(super) fn set_parent(&self, parent: Option<&VfsNodeRef>) {
-        *self.inner.parent.write() = parent.map_or(Weak::<Self>::new() as _, Arc::downgrade);
+        *self.parent.write() = parent.map_or(Weak::<Self>::new() as _, Arc::downgrade);
     }
 
     /// Returns a string list of all entries in this directory.
     pub fn get_entries(&self) -> Vec<String> {
-        self.inner.children.read().keys().cloned().collect()
+        self.children.read().keys().cloned().collect()
     }
 
     /// Checks whether a node with the given name exists in this directory.
     pub fn exist(&self, name: &str) -> bool {
-        self.inner.children.read().contains_key(name)
+        self.children.read().contains_key(name)
     }
 
     /// Creates a new node with the given name and type in this directory.
@@ -70,16 +64,16 @@ impl DirNode {
             _ => return Err(VfsError::Unsupported),
         };
         // let a = node.as_any().downcast_ref::<DirNode>();
-        self.inner.children.write().insert(name.into(), node);
+        self.children.write().insert(name.into(), node);
         Ok(())
     }
 
     /// Removes a node by the given name in this directory.
     pub fn remove_node(&self, name: &str) -> VfsResult {
-        let mut children = self.inner.children.write();
+        let mut children = self.children.write();
         let node = children.get(name).ok_or(VfsError::NotFound)?;
         if let Some(dir) = node.as_any().downcast_ref::<DirNode>() {
-            if !dir.inner.children.read().is_empty() {
+            if !dir.children.read().is_empty() {
                 return Err(VfsError::DirectoryNotEmpty);
             }
         }
@@ -93,37 +87,27 @@ impl VfsNodeOps for DirNode {
         Poll::Ready(Ok(VfsNodeAttr::new_dir(4096, 0)))
     }
 
-    fn poll_parent(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<Option<VfsNodeRef>> {
-        Poll::Ready(self.inner.parent.read().upgrade())
+    fn parent(&self) -> Option<VfsNodeRef> {
+        self.parent.read().upgrade()
     }
 
-    fn poll_lookup(
-        self: Pin<&Self>,
-        cx: &mut Context<'_>,
-        path: &str,
-    ) -> Poll<VfsResult<VfsNodeRef>> {
+    fn lookup(self: Arc<Self>, path: &str) -> VfsResult<VfsNodeRef> {
         let (name, rest) = split_path(path);
-        let node = core::task::ready!(match name {
-            "" | "." => Poll::Ready(Ok(Arc::new(Self {
-                this: self.this.clone(),
-                inner: self.inner.clone()
-            }) as VfsNodeRef)),
-            ".." => self
-                .poll_parent(cx)
-                .map(|inner| inner.ok_or(VfsError::NotFound)),
-            _ => Poll::Ready(
-                self.inner
+        let node = match name {
+            "" | "." => Ok(self.clone() as VfsNodeRef),
+            ".." => self.parent().ok_or(VfsError::NotFound),
+            _ => self
                     .children
                     .read()
                     .get(name)
                     .cloned()
                     .ok_or(VfsError::NotFound)
-            ),
-        })?;
+            ,
+        }?;
         if let Some(rest) = rest {
-            VfsNodeOps::poll_lookup(Pin::new(&node), cx, rest)
+            node.lookup(rest)
         } else {
-            Poll::Ready(Ok(node))
+            Ok(node)
         }
     }
 
@@ -133,7 +117,7 @@ impl VfsNodeOps for DirNode {
         start_idx: usize,
         dirents: &mut [VfsDirEntry],
     ) -> Poll<VfsResult<usize>> {
-        let children = self.inner.children.read();
+        let children = self.children.read();
         let mut children = children.iter().skip(start_idx.max(2) - 2);
         for (i, ent) in dirents.iter_mut().enumerate() {
             match i + start_idx {
@@ -168,13 +152,11 @@ impl VfsNodeOps for DirNode {
             match name {
                 "" | "." => self.poll_create(cx, rest, ty),
                 ".." => {
-                    let node = core::task::ready!(self
-                        .poll_parent(cx)
-                        .map(|inner| inner.ok_or(VfsError::NotFound)))?;
+                    let node = self.parent().ok_or(VfsError::NotFound)?;
                     VfsNodeOps::poll_create(Pin::new(&node), cx, rest, ty)
                 }
                 _ => {
-                    let children = self.inner.children.read();
+                    let children = self.children.read();
                     let node = children.get(name).ok_or(VfsError::NotFound)?;
                     VfsNodeOps::poll_create(Pin::new(node), cx, rest, ty)
                 }
@@ -193,13 +175,11 @@ impl VfsNodeOps for DirNode {
             match name {
                 "" | "." => self.poll_remove(cx, rest),
                 ".." => {
-                    let node = core::task::ready!(self
-                        .poll_parent(cx)
-                        .map(|inner| inner.ok_or(VfsError::NotFound)))?;
+                    let node = self.parent().ok_or(VfsError::NotFound)?;
                     VfsNodeOps::poll_remove(Pin::new(&node), cx, rest)
                 }
                 _ => {
-                    let children = self.inner.children.read();
+                    let children = self.children.read();
                     let node = children.get(name).ok_or(VfsError::NotFound)?;
                     VfsNodeOps::poll_remove(Pin::new(node), cx, rest)
                 }

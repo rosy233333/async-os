@@ -251,9 +251,10 @@ impl<'a, T: ?Sized + 'a> Future for MutexGuard<'a, T> {
                     data: data.take(),
                 })
             } else if #[cfg(not(feature = "thread"))] {
-                if data.is_none() {
-                    let curr = current_task();
-                    let current_task = _cx.waker().data() as usize;
+                assert!(data.is_none());
+                let curr = current_task();
+                let current_task = _cx.waker().data() as usize;
+                loop {
                     match lock.owner_task.compare_exchange_weak(
                         0,
                         current_task,
@@ -261,10 +262,10 @@ impl<'a, T: ?Sized + 'a> Future for MutexGuard<'a, T> {
                         Ordering::Relaxed,
                     ) {
                         Ok(_) => {
-                            Poll::Ready(MutexGuard {
+                            return Poll::Ready(MutexGuard {
                                 lock,
                                 data: Some(lock.data.get()),
-                            })
+                            });
                         },
                         Err(owner_task) => {
                             assert_ne!(
@@ -272,19 +273,13 @@ impl<'a, T: ?Sized + 'a> Future for MutexGuard<'a, T> {
                                 "{} tried to acquire mutex it already owns.",
                                 curr.id_name(),
                             );
+                            log::warn!("mutex is occupied, task {} is waiting", curr.id_name());
                             // 当前线程让权，并将 cx 注册到等待队列上
-                            let a = Pin::new(&mut lock.wq.wait_until(|| !lock.is_locked())).poll(_cx);
-                            // 进入这个分支一定是属于 Poll::Pending 的情况
-                            assert_eq!(&a, &Poll::Pending);
-                            Poll::Pending
+                            let _ = core::task::ready!(Pin::new(&mut lock.wq.wait_until(|| !lock.is_locked())).poll(_cx));
                         }
                     }
-                } else {
-                    Poll::Ready(MutexGuard {
-                        lock,
-                        data: data.take(),
-                    })
                 }
+                
             }
         }
     }

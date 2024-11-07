@@ -88,12 +88,14 @@ pub trait VfsOps: Send + Sync {
     }
 
     /// Get the root directory of the filesystem.
-    fn poll_root_dir(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsNodeRef>;
+    fn root_dir(&self) -> VfsNodeRef {
+        unimplemented!()
+    }
 }
 
 /// Node (file/directory) operations.
 #[async_trait]
-pub trait VfsNodeOps: Send + Sync {
+pub trait VfsNodeOps: Send + Sync + Unpin {
     /// Do something when the node is opened.
     fn poll_open(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsResult> {
         Poll::Ready(Ok(()))
@@ -146,19 +148,18 @@ pub trait VfsNodeOps: Send + Sync {
     /// Get the parent directory of this directory.
     ///
     /// Return `None` if the node is a file.
-    fn poll_parent(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<Option<VfsNodeRef>> {
-        Poll::Ready(None)
+    fn parent(&self) -> Option<VfsNodeRef> {
+        None
     }
 
     /// Lookup the node with given `path` in the directory.
     ///
     /// Return the node if found.
-    fn poll_lookup(
-        self: Pin<&Self>,
-        _cx: &mut Context<'_>,
+    fn lookup(
+        self: Arc<Self>,
         _path: &str,
-    ) -> Poll<VfsResult<VfsNodeRef>> {
-        Poll::Ready(ax_err!(Unsupported))
+    ) -> VfsResult<VfsNodeRef> {
+        ax_err!(Unsupported)
     }
 
     /// Create a new node with the given `path` in the directory

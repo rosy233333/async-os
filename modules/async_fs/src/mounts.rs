@@ -39,20 +39,20 @@ pub(crate) fn ramfs() -> Arc<fs::ramfs::RamFileSystem> {
 #[cfg(feature = "procfs")]
 pub(crate) async fn procfs() -> VfsResult<Arc<fs::ramfs::RamFileSystem>> {
     let procfs = fs::ramfs::RamFileSystem::new();
-    let proc_root = procfs.root_dir().await;
+    let proc_root = procfs.root_dir();
 
     // Create /proc/sys/net/core/somaxconn
     proc_root.create("sys", VfsNodeType::Dir).await?;
     proc_root.create("sys/net", VfsNodeType::Dir).await?;
     proc_root.create("sys/net/core", VfsNodeType::Dir).await?;
     proc_root.create("sys/net/core/somaxconn", VfsNodeType::File).await?;
-    let file_somaxconn = proc_root.clone().lookup("./sys/net/core/somaxconn").await?;
+    let file_somaxconn = proc_root.clone().lookup("./sys/net/core/somaxconn")?;
     file_somaxconn.write_at(0, b"4096\n").await?;
 
     // Create /proc/sys/vm/overcommit_memory
     proc_root.create("sys/vm", VfsNodeType::Dir).await?;
     proc_root.create("sys/vm/overcommit_memory", VfsNodeType::File).await?;
-    let file_over = proc_root.clone().lookup("./sys/vm/overcommit_memory").await?;
+    let file_over = proc_root.clone().lookup("./sys/vm/overcommit_memory")?;
     file_over.write_at(0, b"0\n").await?;
 
     // Create /proc/self/stat
@@ -78,7 +78,7 @@ pub(crate) async fn procfs() -> VfsResult<Arc<fs::ramfs::RamFileSystem>> {
 #[cfg(feature = "sysfs")]
 pub(crate) async fn sysfs() -> VfsResult<Arc<fs::ramfs::RamFileSystem>> {
     let sysfs = fs::ramfs::RamFileSystem::new();
-    let sys_root = sysfs.root_dir().await;
+    let sys_root = sysfs.root_dir();
 
     // Create /sys/kernel/mm/transparent_hugepage/enabled
     sys_root.create("kernel", VfsNodeType::Dir).await?;
@@ -87,7 +87,7 @@ pub(crate) async fn sysfs() -> VfsResult<Arc<fs::ramfs::RamFileSystem>> {
     sys_root.create("kernel/mm/transparent_hugepage/enabled", VfsNodeType::File).await?;
     let file_hp = sys_root
         .clone()
-        .lookup("./kernel/mm/transparent_hugepage/enabled").await?;
+        .lookup("./kernel/mm/transparent_hugepage/enabled")?;
     file_hp.write_at(0, b"always [madvise] never\n").await?;
 
     // Create /sys/devices/system/clocksource/clocksource0/current_clocksource
@@ -101,13 +101,13 @@ pub(crate) async fn sysfs() -> VfsResult<Arc<fs::ramfs::RamFileSystem>> {
     ).await?;
     let file_cc = sys_root
         .clone()
-        .lookup("devices/system/clocksource/clocksource0/current_clocksource").await?;
+        .lookup("devices/system/clocksource/clocksource0/current_clocksource")?;
     file_cc.write_at(0, b"tsc\n").await?;
 
     // create /sys/devices/system/cpu/online
     sys_root.create("devices/system/cpu", VfsNodeType::Dir).await?;
     sys_root.create("devices/system/cpu/online", VfsNodeType::File).await?;
-    let cpu_online = sys_root.clone().lookup("devices/system/cpu/online").await?;
+    let cpu_online = sys_root.clone().lookup("devices/system/cpu/online")?;
     let smp = axconfig::SMP;
     cpu_online.write_at(0, alloc::format!("0-{}", smp - 1).as_bytes()).await?;
     for cpu_id in 0..smp {
@@ -115,7 +115,7 @@ pub(crate) async fn sysfs() -> VfsResult<Arc<fs::ramfs::RamFileSystem>> {
         sys_root.create(path.as_str(), VfsNodeType::Dir).await?;
         let path = path + "/online";
         sys_root.create(path.as_str(), VfsNodeType::File).await?;
-        let file = sys_root.clone().lookup(path.as_str()).await?;
+        let file = sys_root.clone().lookup(path.as_str())?;
         file.write_at(0, b"1").await?;
     }
     Ok(Arc::new(sysfs))

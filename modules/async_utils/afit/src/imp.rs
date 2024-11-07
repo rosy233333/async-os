@@ -13,7 +13,7 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
             match fn_items {
                 TraitItem::Fn(trait_item_fn) => {
                     let sig = &trait_item_fn.sig;
-                    if sig.to_token_stream().to_string().contains("Pin") {
+                    if sig.to_token_stream().to_string().contains("Poll") {
                         true
                     } else {
                         false
@@ -32,7 +32,7 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
             match fn_items {
                 TraitItem::Fn(trait_item_fn) => {
                     let sig = &trait_item_fn.sig;
-                    if sig.to_token_stream().to_string().contains("Pin") {
+                    if sig.to_token_stream().to_string().contains("Poll") {
                         false
                     } else {
                         true
@@ -144,8 +144,11 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
                 let inputs = &sig.inputs;
                 let receiver = inputs.first().unwrap().to_token_stream().to_string();
                 norm_mutable = receiver.contains("mut");
+                let arc = receiver.contains("Arc");
                 let get_inner = if norm_mutable {
                     quote! {as_mut()}
+                } else if arc {
+                    quote! {clone()}
                 } else {
                     quote! {as_ref()}
                 };
@@ -184,6 +187,9 @@ pub(crate) fn impl_wrapper(self_trait: &ItemTrait) -> TokenStream {
     } else {
         quote! {core::ops::Deref}
     };
+    // for items in impl_norm_items.iter() {
+    //     println!("{}", items.to_token_stream().to_string());
+    // }
     let impl_refs = match (mutable, norm_mutable) {
         (true, true) => {
             quote! {

@@ -52,12 +52,11 @@ macro_rules! impl_vfs_dir_default {
 #[macro_export]
 macro_rules! impl_vfs_non_dir_default {
     () => {
-        fn poll_lookup(
-            self: core::pin::Pin<&Self>,
-            _cx: &mut core::task::Context<'_>,
+        fn lookup(
+            self: alloc::sync::Arc<Self>,
             _path: &str,
-        ) -> core::task::Poll<$crate::VfsResult<$crate::VfsNodeRef>> {
-            core::task::Poll::Ready($crate::__priv::ax_err!(NotADirectory))
+        ) -> $crate::VfsResult<$crate::VfsNodeRef> {
+            $crate::__priv::ax_err!(NotADirectory)
         }
 
         fn poll_create(

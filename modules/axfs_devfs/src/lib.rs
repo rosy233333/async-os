@@ -22,7 +22,7 @@ use alloc::sync::Arc;
 use async_vfs::{VfsNodeOps, VfsNodeRef, VfsOps, VfsResult};
 use core::{
     pin::Pin,
-    task::{ready, Context, Poll},
+    task::{Context, Poll},
 };
 use spin::once::Once;
 
@@ -57,11 +57,11 @@ impl DeviceFileSystem {
 impl VfsOps for DeviceFileSystem {
     fn poll_mount(
         self: Pin<&Self>,
-        cx: &mut Context<'_>,
+        _cx: &mut Context<'_>,
         _path: &str,
         mount_point: &VfsNodeRef,
     ) -> Poll<VfsResult> {
-        if let Some(parent) = ready!(Pin::new(mount_point).poll_parent(cx)) {
+        if let Some(parent) = mount_point.parent() {
             self.root.set_parent(Some(self.parent.call_once(|| parent)));
         } else {
             self.root.set_parent(None);
@@ -69,8 +69,8 @@ impl VfsOps for DeviceFileSystem {
         Poll::Ready(Ok(()))
     }
 
-    fn poll_root_dir(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsNodeRef> {
-        Poll::Ready(self.root.clone())
+    fn root_dir(&self) -> VfsNodeRef {
+        self.root.clone()
     }
 }
 

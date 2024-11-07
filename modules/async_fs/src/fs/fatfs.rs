@@ -150,46 +150,42 @@ impl VfsNodeOps for DirWrapper<'static> {
         )))
     }
 
-    fn poll_parent(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<Option<VfsNodeRef>> {
-        Poll::Ready(self.0
+    fn parent(&self) -> Option<VfsNodeRef> {
+        self.0
             .open_dir("..")
             .map_or(None, |dir| Some(FatFileSystem::new_dir(dir)))
-        )
     }
 
-    fn poll_lookup(self: Pin<&Self>, cx: &mut Context<'_>, path: &str) -> Poll<VfsResult<VfsNodeRef>> {
+    fn lookup(self: Arc<Self>, path: &str) -> VfsResult<VfsNodeRef> {
         debug!("lookup at fatfs: {}", path);
         let path = path.trim_matches('/');
         if path.is_empty() || path == "." {
-            let dir = self.0.clone();
-            let dir_wrapper = FatFileSystem::new_dir(dir);
-            return Poll::Ready(Ok(dir_wrapper));
+            return Ok(self.clone());
         }
 
         if let Some(rest) = path.strip_prefix("./") {
-            return self.poll_lookup(cx, rest);
+            return self.lookup(rest);
         }
 
         // TODO: use `fatfs::Dir::find_entry`, but it's not public.
         if let Some((dir, rest)) = path.split_once('/') {
-            let dir = core::task::ready!(self.poll_lookup(cx, dir))?;
-            return VfsNodeOps::poll_lookup(Pin::new(&dir), cx, rest);
+            return self.lookup(dir)?.lookup(rest);
         }
 
         for entry in self.0.iter() {
             let Ok(entry) = entry else {
-                return Poll::Ready(Err(VfsError::Io));
+                return Err(VfsError::Io);
             };
 
             if entry.file_name() == path {
                 if entry.is_file() {
-                    return Poll::Ready(Ok(FatFileSystem::new_file(entry.to_file())));
+                    return Ok(FatFileSystem::new_file(entry.to_file()));
                 } else if entry.is_dir() {
-                    return Poll::Ready(Ok(FatFileSystem::new_dir(entry.to_dir())));
+                    return Ok(FatFileSystem::new_dir(entry.to_dir()));
                 }
             }
         }
-        Poll::Ready(Err(VfsError::NotFound))
+        Err(VfsError::NotFound)
     }
 
     fn poll_create(self: Pin<&Self>, cx: &mut Context<'_>, path: &str, ty: VfsNodeType) -> Poll<VfsResult> {
@@ -271,9 +267,9 @@ impl VfsNodeOps for DirWrapper<'static> {
 }
 
 impl VfsOps for FatFileSystem {
-    fn poll_root_dir(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<VfsNodeRef> {
+    fn root_dir(&self) -> VfsNodeRef {
         let root_dir = unsafe { (*self.root_dir.get()).as_ref().unwrap() };
-        Poll::Ready(root_dir.clone())
+        root_dir.clone()
     }
 }
 

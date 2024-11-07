@@ -7,3 +7,14 @@
 
 pub use afit::async_trait;
 pub use async_main::async_main;
+
+extern crate alloc;
+use core::pin::Pin;
+use alloc::sync::Arc;
+
+#[async_trait]
+pub trait Test {
+    fn root_dir(&self) -> u32 {
+        unimplemented!("root_dir")
+    }
+}
