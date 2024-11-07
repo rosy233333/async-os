@@ -81,6 +81,12 @@ pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
 pub fn run_task(task: &TaskRef) {
     let waker = taskctx::waker_from_task(task);
     let cx = &mut Context::from_waker(&waker);
+    let page_table_token = task.get_page_table_token();
+    if page_table_token != 0 {
+        unsafe {
+            axhal::arch::write_page_table_root0(page_table_token.into());
+        };
+    }
     #[cfg(any(feature = "thread", feature = "preempt"))]
     restore_from_stack_ctx(&task);
     // warn!("run task {} count {}", task.id_name(), Arc::strong_count(task));

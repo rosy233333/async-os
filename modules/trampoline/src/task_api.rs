@@ -8,6 +8,9 @@ pub fn turn_to_kernel_executor() {
     if current_executor().ptr_eq(&KERNEL_EXECUTOR) {
         return;
     }
+    unsafe {
+        axhal::arch::write_page_table_root0((*KERNEL_PAGE_TABLE_TOKEN).into());
+    };
     CurrentExecutor::clean_current();
     unsafe { CurrentExecutor::init_current(KERNEL_EXECUTOR.clone()) };
 }
@@ -41,7 +44,7 @@ pub fn current_check_preempt_pending(tf: &mut TrapFrame) {
 /// Checks if the current task should be preempted.
 /// This api called after handle irq,it may be on a
 /// disable_preempt ctx
-pub async fn current_check_user_preempt_pending(_tf: &TrapFrame) {
+pub async fn current_check_user_preempt_pending(_tf: &mut TrapFrame) {
     if let Some(curr) = current_task_may_uninit() {
         // if task is already exited or blocking,
         // no need preempt, they are rescheduling
@@ -56,6 +59,7 @@ pub async fn current_check_user_preempt_pending(_tf: &TrapFrame) {
                 curr.can_preempt()
             );
             taskctx::CurrentTask::clean_current_without_drop();
+            _tf.trap_status = TrapStatus::Unknown;
             yield_now().await;
         }
     }

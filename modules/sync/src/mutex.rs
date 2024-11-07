@@ -273,7 +273,7 @@ impl<'a, T: ?Sized + 'a> Future for MutexGuard<'a, T> {
                                 "{} tried to acquire mutex it already owns.",
                                 curr.id_name(),
                             );
-                            log::warn!("mutex is occupied, task {} is waiting", curr.id_name());
+
                             // 当前线程让权，并将 cx 注册到等待队列上
                             let _ = core::task::ready!(Pin::new(&mut lock.wq.wait_until(|| !lock.is_locked())).poll(_cx));
                         }

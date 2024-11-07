@@ -439,11 +439,14 @@ impl Executor {
             )?;
         }
         let page_table_token = memory_set.page_table_token();
+        // 注意：这里需要关中断，直到 load_app 结束再开中断
+        axhal::arch::disable_irqs();
         if page_table_token != 0 {
             unsafe {
                 axhal::arch::write_page_table_root0(page_table_token.into());
                 #[cfg(target_arch = "riscv64")]
                 riscv::register::sstatus::set_sum();
+                axhal::arch::flush_tlb(None);
             };
         }
         log::debug!("write page table done");
@@ -454,6 +457,7 @@ impl Executor {
                 error!("Failed to load app {}", path);
                 return Err(AxError::NotFound);
             };
+        axhal::arch::enable_irqs();
         let new_fd_table: FdTable = Arc::new(Mutex::new(vec![
             // 标准输入
             Some(Arc::new(Stdin {
@@ -880,7 +884,7 @@ impl Executor {
         // 处理分配的页帧
         // 之后加入额外的东西之后再处理其他的包括信号等因素
         // 不是直接删除原有地址空间，否则构建成本较高。
-
+        axhal::arch::disable_irqs();
         if Arc::strong_count(&self.memory_set) == 1 {
             self.memory_set.lock().await.unmap_user_areas();
         } else {
@@ -900,6 +904,9 @@ impl Executor {
             current_task().set_page_table_token(new_page_table);
             unsafe {
                 axhal::arch::write_page_table_root0(new_page_table.into());
+                #[cfg(target_arch = "riscv64")]
+                riscv::register::sstatus::set_sum();
+                axhal::arch::flush_tlb(None);
             }
         }
         // 清空用户堆，重置堆顶
@@ -956,6 +963,9 @@ impl Executor {
         if page_table_token != 0 {
             unsafe {
                 axhal::arch::write_page_table_root0(page_table_token.into());
+                #[cfg(target_arch = "riscv64")]
+                riscv::register::sstatus::set_sum();
+                axhal::arch::flush_tlb(None);
             };
             // 清空用户堆，重置堆顶
         }
@@ -998,15 +1008,9 @@ impl Executor {
             drop(memory_set);
         }
 
-        // // user_stack_top = user_stack_top / PAGE_SIZE_4K * PAGE_SIZE_4K;
-        // let new_trap_frame =
-        //     TrapFrame::app_init_context(entry.as_usize(), user_stack_bottom.as_usize());
-        // write_trapframe_to_kstack(
-        //     current_task.get_kernel_stack_top().unwrap(),
-        //     &new_trap_frame,
-        // );
         let utrap_frame = current_task.utrap_frame().unwrap();
         *utrap_frame = TrapFrame::init_user_context(entry.as_usize(), user_stack_bottom.as_usize());
+        axhal::arch::enable_irqs();
 
         // release vfork for parent process
         {
