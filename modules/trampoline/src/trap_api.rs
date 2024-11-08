@@ -7,11 +7,11 @@ use taskctx::{TrapFrame, TrapStatus};
 ///
 /// For example, advance scheduler states, checks timed events, etc.
 pub fn on_timer_tick() {
-    use executor::CurrentExecutor;
+    use taskctx::BaseScheduler;
     task_api::check_events();
     // warn!("on_timer_tick");
     if let Some(curr) = current_task_may_uninit() {
-        if CurrentExecutor::get().task_tick(curr.as_task_ref()) {
+        if curr.get_scheduler().lock().task_tick(curr.as_task_ref()) {
             #[cfg(feature = "preempt")]
             curr.set_preempt_pending(true);
         }
