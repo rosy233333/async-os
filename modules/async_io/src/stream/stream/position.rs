@@ -39,8 +39,8 @@ where
                 if (&mut self.predicate)(v) {
                     Poll::Ready(Some(self.index))
                 } else {
-                    cx.waker().wake_by_ref();
                     self.index += 1;
+                    cx.waker().wake_by_ref();
                     Poll::Pending
                 }
             }

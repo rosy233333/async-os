@@ -46,8 +46,6 @@ where
         match next {
             Some(new) => {
                 let (key, value) = key(this.key_by)(new);
-                cx.waker().wake_by_ref();
-
                 match this.max.take() {
                     None => *this.max = Some((key, value)),
 
@@ -56,6 +54,7 @@ where
                         _ => *this.max = Some(old),
                     },
                 }
+                cx.waker().wake_by_ref();
                 Poll::Pending
             }
             None => Poll::Ready(this.max.take().map(|max| max.1)),

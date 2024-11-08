@@ -51,8 +51,8 @@ impl Future for SleepFuture {
                 Poll::Pending
             } else {
                 // 恢复中断状态
-                NoPreemptIrqSave::release(self._irq_state);
                 crate::cancel_alarm(_cx.waker());
+                NoPreemptIrqSave::release(self._irq_state);
                 Poll::Ready(axhal::time::current_time() >= deadline)
             }
             #[cfg(not(feature = "irq"))]

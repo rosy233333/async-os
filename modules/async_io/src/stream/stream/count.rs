@@ -33,8 +33,8 @@ where
 
         match next {
             Some(_) => {
-                cx.waker().wake_by_ref();
                 *this.count += 1;
+                cx.waker().wake_by_ref();
                 Poll::Pending
             }
             None => Poll::Ready(*this.count),

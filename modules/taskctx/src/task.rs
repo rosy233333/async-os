@@ -596,7 +596,7 @@ impl TaskInner {
         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
         assert!(
             stack_ctx.is_none(),
-            "cannot use thread api to do task switch"
+            "{} cannot use thread api to do task switch", self.id_name()
         );
         let kstack = crate::pick_current_stack();
         stack_ctx.replace(StackCtx {

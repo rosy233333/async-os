@@ -36,7 +36,6 @@ where
 
         match next {
             Some(new) => {
-                cx.waker().wake_by_ref();
                 match this.max.take() {
                     None => *this.max = Some(new),
 
@@ -45,6 +44,7 @@ where
                         _ => *this.max = Some(old),
                     },
                 }
+                cx.waker().wake_by_ref();
                 Poll::Pending
             }
             None => Poll::Ready(this.max.take()),

@@ -5,15 +5,19 @@ use core::{
     task::{Context, Poll},
 };
 use taskctx::TaskRef;
+use kernel_guard::{BaseGuard, NoPreemptIrqSave};
 
 pub struct JoinFuture {
     _task: TaskRef,
     res: Option<i32>,
+    _irq_state: <NoPreemptIrqSave as BaseGuard>::State,
+
 }
 
 impl JoinFuture {
     pub fn new(_task: TaskRef, res: Option<i32>) -> Self {
-        Self { _task, res }
+        let _irq_state = Default::default();
+        Self { _task, res, _irq_state }
     }
 }
 
@@ -28,12 +32,15 @@ impl Future for JoinFuture {
         {
             if this.res.is_none() {
                 if this._task.state() == taskctx::TaskState::Exited {
+                    NoPreemptIrqSave::release(this._irq_state);
                     Poll::Ready(Some(this._task.get_exit_code()))
                 } else {
                     this._task.join(_cx.waker().clone());
+                    this._irq_state = NoPreemptIrqSave::acquire();
                     Poll::Pending
                 }
             } else {
+                NoPreemptIrqSave::release(this._irq_state);
                 Poll::Ready(this.res.take())
             }
         }

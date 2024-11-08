@@ -36,7 +36,6 @@ where
 
         match next {
             Some(new) => {
-                cx.waker().wake_by_ref();
                 match this.min.take() {
                     None => *this.min = Some(new),
 
@@ -45,6 +44,7 @@ where
                         _ => *this.min = Some(old),
                     },
                 }
+                cx.waker().wake_by_ref();
                 Poll::Pending
             }
             None => Poll::Ready(this.min.take()),
