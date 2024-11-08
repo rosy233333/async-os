@@ -31,11 +31,12 @@ pub fn current_check_preempt_pending(tf: &mut TrapFrame) {
             && !curr.is_blocking()
         {
             trace!(
-                "current {} is to be preempted , allow {}",
+                "current {} is to be preempted in kernel, allow {}",
                 curr.id_name(),
                 curr.can_preempt()
             );
-            preempt(curr.as_task_ref(), tf)
+            curr.set_preempt_pending(false);
+            set_task_tf(tf, CtxType::Interrupt);
         }
     }
 }
@@ -54,33 +55,21 @@ pub async fn current_check_user_preempt_pending(_tf: &mut TrapFrame) {
             && !curr.is_blocking()
         {
             trace!(
-                "current {} is to be preempted , allow {}",
+                "current {} is to be preempted in user mode, allow {}",
                 curr.id_name(),
                 curr.can_preempt()
             );
-            taskctx::CurrentTask::clean_current_without_drop();
+            curr.set_preempt_pending(false);
             _tf.trap_status = TrapStatus::Blocked;
             yield_now().await;
         }
     }
 }
 
-#[cfg(feature = "preempt")]
-pub fn preempt(task: &TaskRef, tf: &mut TrapFrame) {
-    task.set_preempt_pending(false);
-    set_task_tf(tf, CtxType::Interrupt);
-}
 
+/// 这个接口还没有统一，后续还需要统一成两种接口都可以使用的形式
 pub async fn wait(task: &TaskRef) -> Option<i32> {
-    poll_fn(|cx| {
-        if task.is_exited() {
-            Poll::Ready(Some(task.get_exit_code()))
-        } else {
-            task.join(cx.waker().clone());
-            Poll::Pending
-        }
-    })
-    .await
+    JoinFuture::new(task.clone(), None).await
 }
 
 pub async fn user_task_top() -> i32 {
@@ -106,6 +95,8 @@ pub async fn user_task_top() -> i32 {
                     .await;
                     // 判断任务是否退出
                     if curr.is_exited() {
+                        // 任务结束，需要切换至其他任务，关中断
+                        axhal::arch::disable_irqs();
                         return curr.get_exit_code();
                     }
                     if -result == syscall::SyscallError::ERESTART as isize {
@@ -161,18 +152,21 @@ impl task_api::TaskApi for TaskApiImpl {
     }
 
     fn yield_now() -> YieldFuture {
+        current_task().set_state(TaskState::Runable);
         #[cfg(feature = "thread")]
         thread_yield();
         YieldFuture::new()
     }
 
     fn block_current() -> BlockFuture {
+        current_task().set_state(TaskState::Blocked);
         #[cfg(feature = "thread")]
         thread_blocked();
         BlockFuture::new()
     }
 
     fn exit_current() -> ExitFuture {
+        current_task().set_state(TaskState::Exited);
         #[cfg(feature = "thread")]
         thread_exit();
         ExitFuture::new()
@@ -202,16 +196,12 @@ impl task_api::TaskApi for TaskApiImpl {
 #[cfg(feature = "thread")]
 pub fn thread_yield() {
     let _guard = kernel_guard::NoPreemptIrqSave::acquire();
-    let curr = current_task();
-    curr.set_state(TaskState::Runable);
     TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
 }
 
 #[cfg(feature = "thread")]
 pub fn thread_blocked() {
     let _guard = kernel_guard::NoPreemptIrqSave::acquire();
-    let curr = current_task();
-    curr.set_state(TaskState::Blocked);
     TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
 }
 
@@ -226,8 +216,6 @@ pub fn thread_sleep(deadline: TimeValue) {
 #[cfg(feature = "thread")]
 pub fn thread_exit() {
     let _guard = kernel_guard::NoPreemptIrqSave::acquire();
-    let curr = current_task();
-    curr.set_state(TaskState::Exited);
     TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
 }
 
@@ -238,6 +226,7 @@ pub fn thread_join(_task: &TaskRef) -> Option<i32> {
             return Some(_task.get_exit_code());
         }
         _task.join(current_task().waker());
+        current_task().set_state(TaskState::Blocked);
         thread_blocked();
     }
 }

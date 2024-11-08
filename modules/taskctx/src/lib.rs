@@ -46,11 +46,13 @@ cfg_if::cfg_if! {
 pub fn wakeup_task(task: TaskRef) {
     task.set_state(TaskState::Runable);
     // log::debug!("wakeup task {}, count {}", task.id_name(), Arc::strong_count(&task));
-    task.clone()
-        .scheduler
-        .lock()
-        .lock()
-        .put_prev_task(task, false);
+    // #[cfg(feature = "preempt")]
+    // let preempt = task.get_preempt_pending();
+    // #[cfg(not(feature = "preempt"))]
+    // let preempt = false;
+    // task.clone().scheduler.lock().lock().put_prev_task(task, preempt);
+    task.clone().scheduler.lock().lock().add_task(task);
+
 }
 
 #[cfg(feature = "preempt")]
