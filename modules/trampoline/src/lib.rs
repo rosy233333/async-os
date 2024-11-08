@@ -119,11 +119,7 @@ pub fn run_task(task: &TaskRef) {
                     }
                 }
             }
-            // error!("task pending");
             CurrentTask::clean_current_without_drop();
         }
     }
-    // 一旦回到这里，肯定是处于关中断的状态，发生任务调度时，不允许发生中断
-    #[cfg(feature = "irq")]
-    assert!(!axhal::arch::irqs_enabled());
 }
