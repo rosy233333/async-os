@@ -49,7 +49,6 @@ impl Future for SleepFuture {
             if !this._has_sleep {
                 this._has_sleep = true;
                 crate::set_alarm_wakeup(deadline, _cx.waker().clone());
-                this._irq_state = NoPreemptIrqSave::acquire();
                 Poll::Pending
             } else {
                 // 恢复中断状态
