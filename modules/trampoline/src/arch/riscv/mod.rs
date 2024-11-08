@@ -76,6 +76,9 @@ macro_rules! include_save_regs_macros {
                 csrr    t1, stval                   
                 STR     t0, sp, 35                  // save scause
                 STR     t1, sp, 36                  // save stval
+                
+                li      t0, 1
+                STR     t0, sp, 37                  // update trap status
             .endm
             ",
         );

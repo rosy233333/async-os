@@ -158,6 +158,8 @@ pub async fn exit(exit_code: i32) {
         drop(current_executor);
     } else {
         TID2TASK.lock().await.remove(&curr_id);
+        curr.set_exit_code(exit_code);
+        curr.set_state(TaskState::Exited);
         // 从进程中删除当前线程
         current_executor
             .signal_modules

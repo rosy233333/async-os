@@ -101,7 +101,7 @@ pub async fn syscall_set_robust_list(args: [usize; 6]) -> SyscallResult {
     }
     let curr_id = current_task().id().as_u64();
     if process.manual_alloc_for_lazy(head.into()).await.is_ok() {
-        let mut robust_list = process.robust_list.lock();
+        let mut robust_list = process.robust_list.lock().await;
         robust_list.insert(curr_id, FutexRobustList::new(head, len));
         Ok(0)
     } else {
@@ -127,7 +127,7 @@ pub async fn syscall_get_robust_list(args: [usize; 6]) -> SyscallResult {
             .await
             .is_ok()
         {
-            let robust_list = process.robust_list.lock();
+            let robust_list = process.robust_list.lock().await;
             if robust_list.contains_key(&curr_id) {
                 let list = robust_list.get(&curr_id).unwrap();
                 unsafe {

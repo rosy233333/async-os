@@ -552,7 +552,7 @@ impl Executor {
         flags: usize,
         stack: Option<usize>,
         ptid: usize,
-        _tls: usize,
+        tls: usize,
         ctid: usize,
         exit_signal: Option<SignalNo>,
     ) -> AxResult<u64> {
@@ -845,14 +845,14 @@ impl Executor {
         let utrap_frame = new_task.utrap_frame().unwrap();
         utrap_frame.set_ret_code(0);
         utrap_frame.trap_status = taskctx::TrapStatus::Done;
-        // if clone_flags.contains(CloneFlags::CLONE_SETTLS) {
-        //     #[cfg(not(target_arch = "x86_64"))]
-        //     trap_frame.set_tls(tls);
-        //     #[cfg(target_arch = "x86_64")]
-        //     unsafe {
-        //         new_task.set_tls_force(tls);
-        //     }
-        // }
+        if clone_flags.contains(CloneFlags::CLONE_SETTLS) {
+            #[cfg(not(target_arch = "x86_64"))]
+            utrap_frame.set_tls(tls);
+            #[cfg(target_arch = "x86_64")]
+            unsafe {
+                new_task.set_tls_force(tls);
+            }
+        }
 
         // 设置用户栈
         // 若给定了用户栈，则使用给定的用户栈
