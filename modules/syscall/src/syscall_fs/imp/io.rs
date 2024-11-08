@@ -427,7 +427,7 @@ pub async fn syscall_openat(args: [usize; 6]) -> SyscallResult {
         if let Ok(file) = new_fd(path.path().to_string(), flags.into()).await {
             debug!("new file_desc successfully allocated");
             fd_table[fd_num] = Some(Arc::new(file));
-            let _ = create_link(&path, &path); // 不需要检查是否成功,因为如果成功,说明是新建的文件,如果失败,说明已经存在了
+            let _ = create_link(&path, &path).await; // 不需要检查是否成功,因为如果成功,说明是新建的文件,如果失败,说明已经存在了
             Ok(fd_num as isize)
         } else {
             debug!("open file failed");
