@@ -33,12 +33,14 @@ impl Future for YieldFuture {
         return Poll::Ready(());
         #[cfg(not(feature = "thread"))]
         {
-            if self._has_polled {
+            let this = self.get_mut();
+            if this._has_polled {
                 // 恢复原来的中断状态
-                NoPreemptIrqSave::release(self._irq_state);
+                NoPreemptIrqSave::release(this._irq_state);
                 Poll::Ready(())
             } else {
-                self.get_mut()._has_polled = true;
+                this._has_polled = true;
+                this._irq_state = NoPreemptIrqSave::acquire();
                 _cx.waker().wake_by_ref();
                 Poll::Pending
             }

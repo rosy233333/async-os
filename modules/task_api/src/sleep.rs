@@ -39,20 +39,22 @@ impl SleepFuture {
 impl Future for SleepFuture {
     type Output = bool;
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let deadline = self.deadline;
+        let this = self.get_mut();
+        let deadline = this.deadline;
         #[cfg(feature = "thread")]
         return Poll::Ready(axhal::time::current_time() >= deadline);
         #[cfg(not(feature = "thread"))]
         {
             #[cfg(feature = "irq")]
-            if !self._has_sleep {
-                self.get_mut()._has_sleep = true;
+            if !this._has_sleep {
+                this._has_sleep = true;
                 crate::set_alarm_wakeup(deadline, _cx.waker().clone());
+                this._irq_state = NoPreemptIrqSave::acquire();
                 Poll::Pending
             } else {
                 // 恢复中断状态
                 crate::cancel_alarm(_cx.waker());
-                NoPreemptIrqSave::release(self._irq_state);
+                NoPreemptIrqSave::release(this._irq_state);
                 Poll::Ready(axhal::time::current_time() >= deadline)
             }
             #[cfg(not(feature = "irq"))]

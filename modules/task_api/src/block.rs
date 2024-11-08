@@ -8,6 +8,7 @@ use kernel_guard::{BaseGuard, NoPreemptIrqSave};
 
 #[derive(Debug)]
 pub struct BlockFuture {
+    _has_polled: bool,
     _irq_state: <NoPreemptIrqSave as BaseGuard>::State,
 }
 
@@ -18,7 +19,10 @@ impl BlockFuture {
         let _irq_state = Default::default();
         #[cfg(not(feature = "thread"))]
         let _irq_state = NoPreemptIrqSave::acquire();
-        Self { _irq_state }
+        Self {
+            _has_polled: false,
+            _irq_state,
+        }
     }
 }
 
@@ -29,8 +33,17 @@ impl Future for BlockFuture {
         return Poll::Ready(());
         #[cfg(not(feature = "thread"))]
         {
-            self.get_mut()._irq_state = NoPreemptIrqSave::acquire();
-            Poll::Pending
+            let this = self.get_mut();
+            if this._has_polled {
+                // 恢复原来的中断状态
+                NoPreemptIrqSave::release(this._irq_state);
+                Poll::Ready(())
+            } else {
+                this._has_polled = true;
+                this._irq_state = NoPreemptIrqSave::acquire();
+                _cx.waker().wake_by_ref();
+                Poll::Pending
+            }
         }
     }
 }
