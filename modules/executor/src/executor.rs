@@ -289,7 +289,9 @@ impl Executor {
         use core::{future::poll_fn, task::Poll};
         let page_table_token = self.memory_set.lock().await.page_table_token();
         poll_fn(|cx| {
+            #[cfg(feature = "preempt")]
             use kernel_guard::BaseGuard;
+            #[cfg(feature = "preempt")]
             let _ = kernel_guard::NoPreemptIrqSave::acquire();
             if self.is_zombie.load(Ordering::Acquire) {
                 return Poll::Ready(0);
