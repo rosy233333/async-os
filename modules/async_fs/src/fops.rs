@@ -31,7 +31,12 @@ pub struct File {
     offset: u64,
 }
 
-impl FileExtTrait for File {}
+impl FileExtTrait for File {
+
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
+    }
+}
 
 impl AsyncRead for File {
     fn read(

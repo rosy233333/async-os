@@ -1,7 +1,6 @@
 use crate::{syscall_fs::FileDesc, MMAPFlags, MREMAPFlags, SyscallError, SyscallResult, MMAPPROT};
 extern crate alloc;
 
-use async_fs::api::AsAny;
 use async_mem::{BackEndFile, MemorySet};
 use axerrno::AxError;
 use axhal::{arch::flush_tlb, mem::VirtAddr, paging::MappingFlags};

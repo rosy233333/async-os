@@ -83,6 +83,10 @@ impl FileIO for DirDesc {
         };
         Poll::Ready(Ok(kstat))
     }
+
+    fn as_any(&self) ->  &dyn core::any::Any {
+        self
+    }
 }
 
 pub async fn new_dir(dir_path: String, _flags: OpenFlags) -> AxResult<DirDesc> {

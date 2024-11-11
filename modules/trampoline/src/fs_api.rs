@@ -234,6 +234,15 @@ pub async fn fs_init() {
             .unwrap(),
     )
     .await;
+    create_link(
+        &FilePath::new("/lib/libgcc_s.so.1")
+            .await
+            .unwrap(),
+        &FilePath::new("/libgcc_s.so.1")
+            .await
+            .unwrap(),
+    )
+    .await;
 }
 
 // fn meminfo() -> &'static str {

@@ -211,6 +211,10 @@ impl FileIO for FileDesc {
         ready!(self.seek(cx, SeekFrom::Start(now_pos))).unwrap();
         Poll::Ready(now_pos != len)
     }
+
+    fn as_any(&self) ->  &dyn core::any::Any {
+        self
+    }
 }
 
 impl FileDesc {

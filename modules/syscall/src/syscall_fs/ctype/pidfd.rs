@@ -82,6 +82,10 @@ impl FileIO for PidFd {
         }
         Poll::Ready(true)
     }
+
+    fn as_any(&self) ->  &dyn core::any::Any {
+        self
+    }
 }
 
 pub async fn new_pidfd(pid: u64, mut flags: OpenFlags) -> SyscallResult {

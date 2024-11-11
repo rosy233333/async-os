@@ -1,5 +1,5 @@
 use alloc::boxed::Box;
-use async_fs::api::{AsAny, File, FileExt};
+use async_fs::api::{File, FileExt};
 use async_io::{AsyncRead, AsyncSeek, Seek, SeekFrom};
 use core::{
     pin::Pin,

@@ -840,6 +840,10 @@ impl FileIO for Socket {
             .store(_is_set, core::sync::atomic::Ordering::Release);
         true
     }
+
+    fn as_any(&self) ->  &dyn core::any::Any {
+        self
+    }
 }
 
 /// Turn a socket address buffer into a SocketAddr

@@ -193,6 +193,10 @@ impl FileIO for Stdin {
         }
         Poll::Ready(true)
     }
+
+    fn as_any(&self) ->  &dyn core::any::Any {
+        self
+    }
 }
 
 impl FileIO for Stdout {
@@ -295,6 +299,10 @@ impl FileIO for Stdout {
             _ => Err(AxError::Unsupported),
         })
     }
+
+    fn as_any(&self) ->  &dyn core::any::Any {
+        self
+    }
 }
 
 impl FileIO for Stderr {
@@ -370,5 +378,9 @@ impl FileIO for Stderr {
             FIOCLEX => Ok(0),
             _ => Err(AxError::Unsupported),
         })
+    }
+
+    fn as_any(&self) ->  &dyn core::any::Any {
+        self
     }
 }

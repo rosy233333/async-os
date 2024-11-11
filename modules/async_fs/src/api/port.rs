@@ -199,7 +199,11 @@ pub enum FileIOType {
     Other,
 }
 
-pub trait FileExtTrait: FilePremTrait + AsyncRead + AsyncWrite + AsyncSeek + Send + Sync + Unpin + AsAny {}
+pub trait FileExtTrait: FilePremTrait + AsyncRead + AsyncWrite + AsyncSeek + Send + Sync + Unpin {
+    fn as_any(&self) -> &dyn Any;
+}
+
+
 
 #[async_trait]
 pub trait FilePremTrait {
@@ -333,7 +337,7 @@ impl FileExt {
 }
 
 #[async_trait]
-pub trait FileIO: {
+pub trait FileIO: Send + Sync {
     /// 读取操作
     fn read(self: Pin<&Self>, _cx: &mut Context<'_>, _buf: &mut [u8]) -> Poll<AxResult<usize>> {
         Poll::Ready(Err(AxError::Unsupported)) // 如果没有实现, 则返回Unsupported
@@ -436,6 +440,10 @@ pub trait FileIO: {
     /// To control the file descriptor
     fn ioctl(self: Pin<&Self>, _cx: &mut Context<'_>, _request: usize, _arg1: usize) -> Poll<AxResult<isize>> {
         Poll::Ready(Err(AxError::Unsupported))
+    }
+
+    fn as_any(&self) -> &dyn core::any::Any {
+        unimplemented!()
     }
 }
 
