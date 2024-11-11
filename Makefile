@@ -170,7 +170,13 @@ endif
 pre_update:
 	cargo update
 
-build: $(OUT_DIR) $(OUT_BIN)
+user_apps:
+ifeq ($(A), apps/user_boot)
+	$(shell cd user_apps && make build_uapps)
+	sh ./build_img.sh -a $(ARCH)
+endif
+
+build: user_apps $(OUT_DIR) $(OUT_BIN)
 
 disasm:
 	$(OBJDUMP) $(OUT_ELF) | less
@@ -229,4 +235,4 @@ clean_c::
 	rm -rf tools/axlibc/build_*
 	rm -rf $(app-objs)
 
-.PHONY: all build disasm run justrun debug clippy fmt fmt_c test test_no_fail_fast clean clean_c doc disk_image make_bin
+.PHONY: all build disasm run justrun debug clippy fmt fmt_c test test_no_fail_fast clean clean_c doc disk_image make_bin user_apps
