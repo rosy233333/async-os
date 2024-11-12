@@ -129,8 +129,14 @@ pub async fn user_task_top() -> i32 {
                     );
                 }
             }
-            syscall::trap::handle_signals().await;
             tf.trap_status = TrapStatus::Done;
+            syscall::trap::handle_signals().await;
+            // 判断任务是否退出
+            if curr.is_exited() {
+                // 任务结束，需要切换至其他任务，关中断
+                axhal::arch::disable_irqs();
+                return curr.get_exit_code();
+            }
         }
         poll_fn(|_cx| {
             if tf.trap_status == TrapStatus::Done {
