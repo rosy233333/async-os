@@ -33,7 +33,7 @@ impl Future for JoinFuture {
             if this.res.is_none() {
                 if this._task.state() == taskctx::TaskState::Exited {
                     NoPreemptIrqSave::release(this._irq_state);
-                    Poll::Ready(Some(this._task.get_exit_code()))
+                    Poll::Ready(Some(this._task.get_exit_code() as i32))
                 } else {
                     this._task.join(_cx.waker().clone());
                     this._irq_state = NoPreemptIrqSave::acquire();

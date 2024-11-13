@@ -123,7 +123,7 @@ async fn terminate_process(signal: SignalNo, info: Option<SigInfo>) {
     warn!("Terminate process: {}", current_task.get_process_id());
     if current_task.is_leader() {
         // exit_current_task(signal as i32);
-        exit(signal as i32).await;
+        exit(signal as isize).await;
     } else {
         // 此时应当关闭当前进程
         // 选择向主线程发送信号内部来关闭

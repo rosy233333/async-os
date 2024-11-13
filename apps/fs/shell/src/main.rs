@@ -32,7 +32,7 @@ async fn print_prompt() {
 }
 
 #[async_main]
-async fn main() -> i32 {
+async fn main() -> isize {
     let mut stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
 

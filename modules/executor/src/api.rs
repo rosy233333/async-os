@@ -7,7 +7,7 @@ use core::{future::Future, ops::Deref, pin::Pin};
 pub use task_api::*;
 
 // Initializes the executor (for the primary CPU).
-pub fn init(utrap_handler: fn() -> Pin<Box<dyn Future<Output = i32> + 'static>>) {
+pub fn init(utrap_handler: fn() -> Pin<Box<dyn Future<Output = isize> + 'static>>) {
     info!("Initialize executor...");
     taskctx::init();
     UTRAP_HANDLER.init_by(utrap_handler);
@@ -46,7 +46,7 @@ pub fn current_executor() -> CurrentExecutor {
 pub fn spawn_raw<F, T>(f: F, name: String) -> TaskRef
 where
     F: FnOnce() -> T,
-    T: Future<Output = i32> + 'static,
+    T: Future<Output = isize> + 'static,
 {
     let scheduler = current_executor().get_scheduler();
     let task = Arc::new(Task::new(TaskInner::new(
@@ -60,7 +60,7 @@ where
     task
 }
 
-pub async fn exit(exit_code: i32) {
+pub async fn exit(exit_code: isize) {
     let curr = current_task();
     let curr_id = curr.id().as_u64();
 
@@ -178,7 +178,7 @@ pub async fn exit(exit_code: i32) {
 pub fn spawn<F, T>(f: F) -> TaskRef
 where
     F: FnOnce() -> T,
-    T: Future<Output = i32> + 'static,
+    T: Future<Output = isize> + 'static,
 {
     spawn_raw(f, "".into())
 }
@@ -227,7 +227,7 @@ pub async unsafe fn wait_pid(pid: i32, exit_code_ptr: *mut i32) -> Result<u64, W
                 if !exit_code_ptr.is_null() {
                     unsafe {
                         // 因为没有切换页表，所以可以直接填写
-                        *exit_code_ptr = exit_code << 8;
+                        *exit_code_ptr = (exit_code as i32) << 8;
                     }
                 }
                 answer_id = child.pid();
@@ -245,7 +245,7 @@ pub async unsafe fn wait_pid(pid: i32, exit_code_ptr: *mut i32) -> Result<u64, W
                 exit_task_id = index;
                 if !exit_code_ptr.is_null() {
                     unsafe {
-                        *exit_code_ptr = exit_code << 8;
+                        *exit_code_ptr = (exit_code as i32) << 8;
                         // 用于WEXITSTATUS设置编码
                     }
                 }

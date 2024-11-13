@@ -157,14 +157,14 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
     INITED_CPUS.fetch_add(1, Ordering::Relaxed);
 }
 
-async fn main_fut() -> i32 {
+async fn main_fut() -> isize {
     extern "C" {
         static ASYNC_MAIN: usize;
     }
     use core::{future::Future, pin::Pin};
     extern crate alloc;
     use alloc::boxed::Box;
-    type BoxFut = Pin<Box<dyn Future<Output = i32> + Send + 'static>>;
+    type BoxFut = Pin<Box<dyn Future<Output = isize> + Send + 'static>>;
 
     #[cfg(any(feature = "fs", feature = "net", feature = "display"))]
     init_devices().await;
@@ -176,7 +176,7 @@ async fn main_fut() -> i32 {
 }
 
 #[cfg(any(feature = "fs", feature = "net", feature = "display"))]
-async fn init_devices() -> i32 {
+async fn init_devices() -> isize {
     #[allow(unused_variables)]
     let all_devices = axdriver::init_drivers();
 

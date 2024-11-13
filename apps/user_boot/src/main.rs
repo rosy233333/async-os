@@ -7,7 +7,7 @@ extern crate async_std;
 extern crate trampoline;
 
 #[async_std::async_main]
-async fn main() -> i32 {
+async fn main() -> isize {
     async_std::println!("user_boot");
     // 初始化文件系统
     trampoline::fs_init().await;

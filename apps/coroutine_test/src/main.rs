@@ -8,7 +8,7 @@ static A: Mutex<i32> = Mutex::new(23);
 use core::time::Duration;
 
 #[async_std::async_main]
-async fn main() -> i32 {
+async fn main() -> isize {
     let mut b = A.lock().await;
     async_std::println!("Mutex locked: {:?}", *b);
     *b = 34;

@@ -25,7 +25,7 @@ use core::{
     cell::UnsafeCell,
     future::Future,
     pin::Pin,
-    sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering},
+    sync::atomic::{AtomicBool, AtomicI32, AtomicIsize, AtomicU64, Ordering},
 };
 use lazy_init::LazyInit;
 use spinlock::SpinNoIrq;
@@ -39,7 +39,7 @@ pub const KERNEL_EXECUTOR_ID: u64 = 1;
 pub static TID2TASK: Mutex<BTreeMap<u64, TaskRef>> = Mutex::new(BTreeMap::new());
 pub static PID2PC: Mutex<BTreeMap<u64, Arc<Executor>>> = Mutex::new(BTreeMap::new());
 
-pub static UTRAP_HANDLER: LazyInit<fn() -> Pin<Box<dyn Future<Output = i32> + 'static>>> =
+pub static UTRAP_HANDLER: LazyInit<fn() -> Pin<Box<dyn Future<Output = isize> + 'static>>> =
     LazyInit::new();
 
 pub static KERNEL_EXECUTOR: LazyInit<Arc<Executor>> = LazyInit::new();
@@ -60,7 +60,7 @@ pub struct Executor {
     /// 进程状态
     pub is_zombie: AtomicBool,
     /// 退出状态码
-    pub exit_code: AtomicI32,
+    pub exit_code: AtomicIsize,
 
     /// 地址空间
     pub memory_set: Arc<Mutex<MemorySet>>,
@@ -108,7 +108,7 @@ impl Executor {
             scheduler: Arc::new(SpinNoIrq::new(scheduler)),
             fd_manager: FdManager::new(fd_table, cwd, mask, FD_LIMIT_ORIGIN),
             is_zombie: AtomicBool::new(false),
-            exit_code: AtomicI32::new(0),
+            exit_code: AtomicIsize::new(0),
             memory_set,
             heap_bottom: AtomicU64::new(heap_bottom),
             heap_top: AtomicU64::new(heap_bottom),
@@ -172,12 +172,12 @@ impl Executor {
     }
 
     /// 获取 Executor（进程）退出码
-    pub fn get_exit_code(&self) -> i32 {
+    pub fn get_exit_code(&self) -> isize {
         self.exit_code.load(Ordering::Acquire)
     }
 
     /// 设置 Executor（进程）退出码
-    pub fn set_exit_code(&self, exit_code: i32) {
+    pub fn set_exit_code(&self, exit_code: isize) {
         self.exit_code.store(exit_code, Ordering::Release)
     }
 
@@ -244,7 +244,7 @@ impl Executor {
 
     /// 若进程运行完成，则获取其返回码
     /// 若正在运行（可能上锁或没有上锁），则返回None
-    pub fn get_code_if_exit(&self) -> Option<i32> {
+    pub fn get_code_if_exit(&self) -> Option<isize> {
         if self.get_zombie() {
             return Some(self.get_exit_code());
         }
@@ -285,7 +285,7 @@ impl Executor {
     /// TODO：这里需要存在问题，当进程结束时，这个任务也会结束，需要将这个任务删除，目前 wait 等待进程结束时，退出的操作还不正确
     /// 在这里还需要回收 Executor 的操作
     #[inline]
-    pub async fn run(self: Arc<Self>) -> i32 {
+    pub async fn run(self: Arc<Self>) -> isize {
         use core::{future::poll_fn, task::Poll};
         let page_table_token = self.memory_set.lock().await.page_table_token();
         poll_fn(|cx| {

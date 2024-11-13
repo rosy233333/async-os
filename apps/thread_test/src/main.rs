@@ -14,7 +14,7 @@ extern crate async_std;
 static A: Mutex<i32> = Mutex::new(23);
 
 #[async_std::async_main]
-async fn main() -> i32 {
+async fn main() -> isize {
     yield_now();
     println!("yield end");
     let a = A.lock();

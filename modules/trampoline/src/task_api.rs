@@ -73,7 +73,7 @@ pub async fn wait(task: &TaskRef) -> Option<i32> {
     JoinFuture::new(task.clone(), None).await
 }
 
-pub async fn user_task_top() -> i32 {
+pub async fn user_task_top() -> isize {
     loop {
         let curr = current_task();
         let mut tf = curr.utrap_frame().unwrap();
@@ -119,7 +119,7 @@ pub async fn user_task_top() -> i32 {
                     if curr.is_exited() {
                         // 任务结束，需要切换至其他任务，关中断
                         axhal::arch::disable_irqs();
-                        return curr.get_exit_code();
+                        return curr.get_exit_code() as isize;
                     }
                     if -result == syscall::SyscallError::ERESTART as isize {
                         // Restart the syscall
@@ -157,7 +157,7 @@ pub async fn user_task_top() -> i32 {
             if curr.is_exited() {
                 // 任务结束，需要切换至其他任务，关中断
                 axhal::arch::disable_irqs();
-                return curr.get_exit_code();
+                return curr.get_exit_code() as isize;
             }
         }
         poll_fn(|_cx| {
@@ -251,7 +251,7 @@ pub fn thread_exit() {
 pub fn thread_join(_task: &TaskRef) -> Option<i32> {
     loop {
         if _task.state() == TaskState::Exited {
-            return Some(_task.get_exit_code());
+            return Some(_task.get_exit_code() as i32);
         }
         _task.join(current_task().waker());
         current_task().set_state(TaskState::Blocked);

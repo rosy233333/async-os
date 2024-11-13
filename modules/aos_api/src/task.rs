@@ -64,7 +64,7 @@ pub fn set_current_priority(prio: isize) -> crate::AxResult {
 
 pub fn spawn<F>(f: F, name: alloc::string::String) -> TaskHandle
 where
-    F: Future<Output = i32> + 'static,
+    F: Future<Output = isize> + 'static,
 {
     let inner = trampoline::spawn_raw(move || f, name);
     TaskHandle {

@@ -57,7 +57,7 @@ extern crate alloc;
 /// # Arguments
 /// * `exit_code` - i32
 pub async fn syscall_exit(args: [usize; 6]) -> SyscallResult {
-    let exit_code = args[0] as i32;
+    let exit_code = args[0] as isize;
     info!("exit: exit_code = {}", exit_code);
     executor::exit(exit_code).await;
     Ok(exit_code as isize)
