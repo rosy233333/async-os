@@ -78,6 +78,8 @@ pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
     }
 }
 
+const IS_ASYNC: usize = 0x5f5f5f5f;
+
 pub fn run_task(task: &TaskRef) {
     let waker = taskctx::waker_from_task(task);
     let cx = &mut Context::from_waker(&waker);
@@ -116,6 +118,18 @@ pub fn run_task(task: &TaskRef) {
                     axhal::arch::disable_irqs();
                     unsafe {
                         tf.user_return();
+                    }
+                } else {
+                    if tf.get_syscall_args().iter().find(|&&x| x == IS_ASYNC).is_some() {
+                        tf.trap_status = TrapStatus::Done;
+                        tf.regs.a0 = axerrno::LinuxError::EAGAIN as usize;
+                        tf.kernel_sp = taskctx::current_stack_top();
+                        tf.scause = 0;
+                        // 这里不能打开中断
+                        axhal::arch::disable_irqs();
+                        unsafe {
+                            tf.user_return();
+                        }
                     }
                 }
             }

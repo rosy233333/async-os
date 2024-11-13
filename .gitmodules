@@ -1,3 +1,4 @@
 [submodule "testcases"]
 	path = testcases
 	url = https://github.com/Starry-OS/testcases.git
+	ignore = dirty

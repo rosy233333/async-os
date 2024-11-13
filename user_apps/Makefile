@@ -6,6 +6,6 @@ TESTCASE_DIR := ../testcases/riscv64_linux_musl
 UAPPS := $(filter-out config.toml target Makefile, $(notdir $(wildcard ./*)))
 
 build_uapps: $(UAPPS)
-	@$(foreach uapp, $(UAPPS), cd $(uapp) && cargo build --$(MODE);)
-	@$(foreach uapp, $(UAPPS), cp $(TARGET_DIR)/$(uapp) $(TESTCASE_DIR);)
+	@$(foreach uapp, $(UAPPS), cd $(CURDIR)/$(uapp) && cargo build --$(MODE) && cd ..;)
+	@$(foreach uapp, $(UAPPS), cp $(CURDIR)/$(TARGET_DIR)/$(uapp) $(TESTCASE_DIR);)
 
