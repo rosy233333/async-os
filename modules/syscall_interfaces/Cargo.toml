@@ -1,8 +1,0 @@
-[package]
-name = "syscall_interfaces"
-version = "0.1.0"
-edition = "2021"
-authors = ["Fangliang Zhao <1491657576@qq.com>"]
-description = "The interfaces of syscall."
-
-[dependencies]
