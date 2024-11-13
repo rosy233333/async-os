@@ -119,18 +119,6 @@ pub fn run_task(task: &TaskRef) {
                     unsafe {
                         tf.user_return();
                     }
-                } else {
-                    if tf.get_syscall_args().iter().find(|&&x| x == IS_ASYNC).is_some() {
-                        tf.trap_status = TrapStatus::Done;
-                        tf.regs.a0 = axerrno::LinuxError::EAGAIN as usize;
-                        tf.kernel_sp = taskctx::current_stack_top();
-                        tf.scause = 0;
-                        // 这里不能打开中断
-                        axhal::arch::disable_irqs();
-                        unsafe {
-                            tf.user_return();
-                        }
-                    }
                 }
             }
             CurrentTask::clean_current_without_drop();

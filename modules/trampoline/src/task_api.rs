@@ -3,6 +3,7 @@ use core::{future::{poll_fn, Future}, task::Poll, time::Duration};
 pub use executor::*;
 use riscv::register::scause::{Exception, Trap};
 use syscall::trap::{handle_page_fault, MappingFlags};
+use alloc::boxed::Box;
 
 pub fn turn_to_kernel_executor() {
     if current_executor().ptr_eq(&KERNEL_EXECUTOR) {
@@ -89,14 +90,13 @@ pub async fn user_task_top() -> i32 {
                     // 简单的方式是根据参数的值进行不同的处理，根据参数进行不同的处理
                     let result = if tf.get_syscall_args().iter().find(|&&x| x == crate::IS_ASYNC).is_none() {
                         // 若没有传递指定的参数，则会按照阻塞的方式进行
-                        let result = syscall::trap::handle_syscall(
+                        syscall::trap::handle_syscall(
                             tf.regs.a7,
                             [
                                 tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
                             ],
                         )
-                        .await;
-                        result
+                        .await
                     } else {
                         // 使用这种方式，则会导致上一次执行 read 系统调用，回到用户态执行下一个 write 系统调用进入内核时
                         // 能够正确的处理 write 系统调用
@@ -104,29 +104,16 @@ pub async fn user_task_top() -> i32 {
                         // 只会根据 trap_frame 中的参数来重新生成系统调用，而这些参数是不正确的。
                         let waker = waker_from_task(curr.as_task_ref());
                         let mut cx = core::task::Context::from_waker(&waker);
-                        let result = alloc::boxed::Box::pin(syscall::trap::handle_syscall(
+                        if let Poll::Ready(res) = Box::pin(syscall::trap::handle_syscall(
                             tf.regs.a7,
                             [
                                 tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
                             ],
-                        )).as_mut().poll(&mut cx);
-                        let result = if let Poll::Ready(res) = result {
+                        )).as_mut().poll(&mut cx) {
                             res
                         } else {
-                            let mut flag = false;
-                            poll_fn(|_cx| {
-                                if !flag {
-                                    flag = true;
-                                    Poll::Pending
-                                } else {
-                                    flag = false;
-                                    Poll::Ready(())
-                                }
-                            })
-                            .await;
-                            continue;
-                        };
-                        result
+                            axerrno::LinuxError::EAGAIN as isize
+                        }
                     };
                     // 判断任务是否退出
                     if curr.is_exited() {
