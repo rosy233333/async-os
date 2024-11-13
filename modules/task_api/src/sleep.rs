@@ -22,7 +22,7 @@ impl SleepFuture {
             #[cfg(feature = "irq")]
             _has_sleep: false,
             #[cfg(feature = "irq")]
-            _irq_state: (),
+            _irq_state: Default::default(),
             deadline,
         };
         #[cfg(not(feature = "thread"))]
