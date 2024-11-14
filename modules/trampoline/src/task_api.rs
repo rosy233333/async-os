@@ -88,7 +88,7 @@ pub async fn user_task_top() -> isize {
                     axhal::arch::enable_irqs();
                     tf.sepc += 4;
                     // 简单的方式是根据参数的值进行不同的处理，根据参数进行不同的处理
-                    let result = if tf.get_syscall_args().iter().find(|&&x| x == crate::IS_ASYNC).is_none() {
+                    let result = if tf.regs.t0 != crate::IS_ASYNC {
                         // 若没有传递指定的参数，则会按照阻塞的方式进行
                         syscall::trap::handle_syscall(
                             tf.regs.a7,
@@ -110,12 +110,20 @@ pub async fn user_task_top() -> isize {
                             2. 当这个内核协程返回 Ready 时，会将内核协程的返回值传给用户态，用户态继续当前的协程
                         
                         */
-                        let fut = Box::pin(syscall::trap::handle_syscall(
-                            tf.regs.a7,
-                            [
-                                tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
-                            ],
-                        ));
+                        let syscall_id = tf.regs.a7;
+                        let args = [
+                            tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
+                        ];
+                        let ret_ptr = tf.regs.t1;
+                        let fut = Box::pin(async move { 
+                            let res = syscall::trap::handle_syscall(syscall_id, args).await;
+                            // 将结果写回到用户态 SyscallFuture 的 res 中
+                            unsafe {
+                                let ret = ret_ptr as *mut Option<Result<usize, syscalls::Errno>>;
+                                (*ret).replace(syscalls::Errno::from_ret(res as _));
+                            }
+                            0
+                        });
                         let ktask = current_executor().new_ktask(
                             format!("syscall {}", tf.regs.a7), 
                             fut

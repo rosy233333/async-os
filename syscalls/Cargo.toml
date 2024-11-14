@@ -6,4 +6,4 @@ edition = "2021"
 [dependencies]
 cfg-if = "1.0"
 libc = "0.2.151"
-syscalls = "0.6"
+syscalls = { version = "0.6", default-features = false }

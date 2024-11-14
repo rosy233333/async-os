@@ -32,6 +32,7 @@ axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git"}
 spin = "0.9"
 crate_interface = "0.1"
+syscalls = { version = "0.6", default-features = false }
 
 task_api = { path = "../task_api" }
 sync = { path = "../sync" }
