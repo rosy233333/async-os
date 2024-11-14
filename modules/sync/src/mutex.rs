@@ -158,8 +158,8 @@ impl<T: ?Sized> Mutex<T> {
         assert_eq!(
             owner_task,
             current_task,
-            "{} tried to release mutex it doesn't own",
-            curr.id_name()
+            "{} tried to release mutex it doesn't own, which belong to {}",
+            curr.id_name(), (owner_task as *const task_api::Task).as_ref().unwrap().id_name()
         );
         self.wq.notify_one();
     }
