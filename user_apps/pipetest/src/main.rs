@@ -2,34 +2,30 @@
 #![feature(noop_waker)]
 #![feature(future_join)]
 
-use std::collections::VecDeque;
+use core::str;
 use std::future::Future;
 use std::os::fd::AsRawFd;
-use core::pin::Pin;
 use std::pipe::{pipe, PipeReader, PipeWriter};
 use std::task::{Context, Waker};
 use syscalls::{sys_read, sys_write};
 
 fn main() {
     let (pipe_reader, pipe_writer) = pipe().unwrap();
-    let a = reader(pipe_reader);
+    let mut buf = [0; 1024];
+    let a = reader(pipe_reader, &mut buf);
     let b = writer(pipe_writer);
     let waker = Waker::noop();
     let mut cx = Context::from_waker(&waker);
-    let mut fut_handler = VecDeque::<Pin<Box<dyn Future<Output = ()>>>>::new();
-    fut_handler.push_back(Box::pin(a));
-    fut_handler.push_back(Box::pin(b));
-    while let Some(mut fut) = fut_handler.pop_front() {
-        if fut.as_mut().poll(&mut cx).is_pending() {
-            fut_handler.push_back(fut);
-        }
-    }
-    
+    let mut futa = std::mem::ManuallyDrop::new(Box::pin(a));
+    let mut futb = std::mem::ManuallyDrop::new(Box::pin(b));
+    let _ = futa.as_mut().poll(&mut cx);
+    let _ = futb.as_mut().poll(&mut cx);
+    std::thread::sleep(core::time::Duration::from_millis(20));
+    println!("read {} bytes: {:?}", 13, str::from_utf8(&buf[..13]).unwrap());
     println!("pipetest ok!");
 }
 
-async fn reader(pipe_reader: PipeReader) {
-    let mut buf = [0; 1024];
+async fn reader(pipe_reader: PipeReader, mut buf: &mut [u8]) {
     let n = sys_read(pipe_reader.as_raw_fd(), &mut buf).await.unwrap();
     println!("read {} bytes: {:?}", n, &buf[..n]);
 }

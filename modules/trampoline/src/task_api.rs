@@ -1,9 +1,9 @@
 use axhal::time::{current_time, TimeValue};
-use core::{future::{poll_fn, Future}, task::Poll, time::Duration};
+use core::{future::poll_fn, task::Poll, time::Duration};
 pub use executor::*;
 use riscv::register::scause::{Exception, Trap};
 use syscall::trap::{handle_page_fault, MappingFlags};
-use alloc::boxed::Box;
+use alloc::{boxed::Box, format};
 
 pub fn turn_to_kernel_executor() {
     if current_executor().ptr_eq(&KERNEL_EXECUTOR) {
@@ -98,22 +98,48 @@ pub async fn user_task_top() -> isize {
                         )
                         .await
                     } else {
-                        // 使用这种方式，则会导致上一次执行 read 系统调用，回到用户态执行下一个 write 系统调用进入内核时
-                        // 能够正确的处理 write 系统调用
-                        // 但对于其他的不需要异步系统调用的程序中，在返回之后，这个协程不会记录上一次暂停的系统调用，
-                        // 只会根据 trap_frame 中的参数来重新生成系统调用，而这些参数是不正确的。
-                        let waker = waker_from_task(curr.as_task_ref());
-                        let mut cx = core::task::Context::from_waker(&waker);
-                        if let Poll::Ready(res) = Box::pin(syscall::trap::handle_syscall(
+                        /*  按照非阻塞的方式处理系统调用，新建一个属于当前进程的内核协程来执行，
+                            在执行之前需要临时修改 CurrentTask 为新建的内核协程，
+                            相当于这个内核协程临时抢占了原本的系统调用处理协程，
+                            过程中如果产生了中断不会对原本的逻辑产生影响，
+
+                            需要注意的是，在临时修改了 CurrentTask 之间（代码中使用/***/包括的部分）不允许使用 await 关键字，
+                            因为 await 携带的信息是 curr 的信息，而不是新建的内核协程的信息，需要使用临时构建的 cx 来执行 poll 函数，
+                            
+                            1. 当这个内核协程返回 Pending 时，会将 EAGAIN 当作返回值传给用户态，用户态继续执行其他的协程
+                            2. 当这个内核协程返回 Ready 时，会将内核协程的返回值传给用户态，用户态继续当前的协程
+                        
+                        */
+                        let fut = Box::pin(syscall::trap::handle_syscall(
                             tf.regs.a7,
                             [
                                 tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
                             ],
-                        )).as_mut().poll(&mut cx) {
+                        ));
+                        let ktask = current_executor().new_ktask(
+                            format!("syscall {}", tf.regs.a7), 
+                            fut
+                        ).await;
+                        debug!("new ktask about syscall {}", ktask.id_name());
+                        let waker = waker_from_task(&ktask);
+                        let mut cx = core::task::Context::from_waker(&waker);
+                        unsafe { 
+                            CurrentTask::clean_current();
+                            CurrentTask::init_current(ktask.clone()); 
+                        }
+                        /************************************************************/
+                        let res = if let Poll::Ready(res) = ktask.get_fut().as_mut().poll(&mut cx) {
+                            CurrentTask::clean_current();
                             res
                         } else {
+                            CurrentTask::clean_current_without_drop();
                             axerrno::LinuxError::EAGAIN as isize
+                        };
+                        /************************************************************/
+                        unsafe {
+                            CurrentTask::init_current(curr.clone());
                         }
+                        res
                     };
                     // 判断任务是否退出
                     if curr.is_exited() {

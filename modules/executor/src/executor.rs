@@ -1026,3 +1026,24 @@ impl Executor {
         Ok(())
     }
 }
+
+impl Executor {
+
+    pub async fn new_ktask(&self, name: String, fut: Pin<Box<dyn Future<Output = isize> + 'static>>) -> TaskRef {
+        let scheduler = self.scheduler.clone();
+        let page_table_token = self.memory_set.lock().await.page_table_token();
+        let ktask = Arc::new(Task::new(TaskInner::new(
+            name,
+            self.pid,
+            scheduler,
+            page_table_token,
+            fut,
+        )));
+        self
+            .signal_modules
+            .lock()
+            .await
+            .insert(ktask.id().as_u64(), SignalModule::init_signal(None));
+        ktask
+    }
+}
