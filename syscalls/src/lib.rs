@@ -3,13 +3,16 @@
 //!
 //!
 //!
+#![no_std]
+#![allow(unused)]
+
+extern crate alloc;
 
 mod fut;
 mod raw_syscall;
 mod syscall;
 
 pub use fut::SyscallFuture;
-use fut::ASYNC_FLAG;
 pub use syscall::*;
 
 use syscalls::Sysno;
@@ -17,7 +20,7 @@ use syscalls::Errno;
 
 pub mod raw {
     //! Exposes raw syscalls that simply return a `usize` instead of a `Result`.
-
     pub use super::raw_syscall::*;
 }
 
+pub(crate) const ASYNC_FLAG: usize = 0x5f5f5f5f;
