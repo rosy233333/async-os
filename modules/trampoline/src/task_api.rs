@@ -122,7 +122,7 @@ pub async fn user_task_top() -> isize {
                                 let ret = ret_ptr as *mut Option<Result<usize, syscalls::Errno>>;
                                 (*ret).replace(syscalls::Errno::from_ret(res as _));
                             }
-                            0
+                            res
                         });
                         let ktask = current_executor().new_ktask(
                             format!("syscall {}", tf.regs.a7), 
