@@ -94,4 +94,5 @@ const BUSYBOX_TESTCASES: &[&str] = &[
 const TESTCASES: &[&str] = &[
     // "hello_world",
     "pipetest",
+    // "std_thread_test",
 ];
