@@ -16,7 +16,7 @@ pub use fut::SyscallFuture;
 pub use syscall::*;
 
 use syscalls::Sysno;
-use syscalls::Errno;
+pub use syscalls::Errno;
 
 pub mod raw {
     //! Exposes raw syscalls that simply return a `usize` instead of a `Result`.
@@ -25,7 +25,7 @@ pub mod raw {
 
 pub(crate) const ASYNC_FLAG: usize = 0x5f5f5f5f;
 
-#[cfg(feature = "thread")]
+#[cfg(feature = "blocking")]
 pub(crate) const IS_ASYNC: usize = 0;
-#[cfg(not(feature = "thread"))]
+#[cfg(not(feature = "blocking"))]
 pub(crate) const IS_ASYNC: usize = ASYNC_FLAG;
