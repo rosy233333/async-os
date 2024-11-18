@@ -29,6 +29,9 @@ fn run_sysfut(mut sf: SyscallFuture) -> SyscallFuture {
     //     }
     // }
     #[cfg(feature = "thread")]
-    sf.run(); // 在阻塞的系统调用模式下，一次调用一定能返回结果
+    {
+        sf.has_issued = true;
+        sf.run();
+    }
     sf
 }

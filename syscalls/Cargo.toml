@@ -9,4 +9,6 @@ libc = "0.2.151"
 syscalls = { version = "0.6", default-features = false }
 
 [features]
-thread = []
+thread = [] # 对外提供non-await的接口；若禁用，则为await式的接口
+blocking = [] # 向内核发起阻塞式系统调用；若禁用，则为非阻塞式调用
+default = []

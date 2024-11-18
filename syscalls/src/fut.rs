@@ -149,13 +149,16 @@ impl Future for SyscallFuture {
     }
 }
 
-#[cfg(feature = "thread")]
 impl Deref for SyscallFuture {
     type Target = Result<usize, Errno>;
 
     fn deref(&self) -> &Self::Target {
+        assert!(self.has_issued);
         unsafe {
-            &(&*self.res.0.as_ptr()).as_ref().unwrap()
+            // unwrap_or(EAGAIN)是为了适配non-await和non-blocking的情况。
+            // 在此情况下，返回的SyscallFuture可被解引用为EAGAIN，代表该系统调用需要重试。
+            // 如此修改后，Deref接口可适用于await与non-await、blocking与non-blocking的各种组合。
+            &(&*self.res.0.as_ptr()).as_ref().unwrap_or(&Err(Errno::EAGAIN))
         }
     }
 }
