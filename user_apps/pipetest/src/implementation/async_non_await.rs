@@ -23,8 +23,8 @@ pub fn pipe_test() {
     let mut cx = Context::from_waker(&waker);
     let mut futa = std::mem::ManuallyDrop::new(Box::pin(a));
     let mut futb = std::mem::ManuallyDrop::new(Box::pin(b));
-    #[cfg(not(feature = "blocking"))]
-    let _ = futa.as_mut().poll(&mut cx); // 在阻塞式系统调用的情景下，这句代码会阻塞整个pipe_test函数，导致无法进行后续写入操作，也无法唤醒自身。
+    // #[cfg(not(feature = "blocking"))]
+    // let _ = futa.as_mut().poll(&mut cx); // 在阻塞式系统调用的情景下，这句代码会阻塞整个pipe_test函数，导致无法进行后续写入操作，也无法唤醒自身。
     let _ = futb.as_mut().poll(&mut cx);
     std::thread::sleep(core::time::Duration::from_millis(20));
     let _ = futa.as_mut().poll(&mut cx);
@@ -33,8 +33,9 @@ pub fn pipe_test() {
 }
 
 async fn reader(pipe_reader: PipeReader, mut buf: &mut [u8]) {
+    let sysres = sys_read(pipe_reader.as_raw_fd(), &mut buf);
     poll_fn(move |_cx| {
-        match *sys_read(pipe_reader.as_raw_fd(), &mut buf) {
+        match *sysres {
             Ok(n) => {
                 println!("read {} bytes: {:?}", n, str::from_utf8(&buf[..n]));
                 Poll::Ready(())
