@@ -183,6 +183,9 @@ disasm:
 
 run: build justrun
 
+run_split_log: build
+	$(call run_qemu) | python3 dslog.py -c $(SMP)
+
 justrun:
 	$(call run_qemu)
 
