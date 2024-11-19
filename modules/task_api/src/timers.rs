@@ -16,6 +16,8 @@ impl TimerEvent for TaskWakeupEvent {
 }
 
 pub fn set_alarm_wakeup(deadline: TimeValue, waker: Waker) {
+    let task = waker.data() as *const taskctx::Task;
+    unsafe { &*task }.set_state(taskctx::TaskState::Blocked);
     let mut timer_list = TIMER_LIST.lock();
     timer_list.set(deadline, TaskWakeupEvent(waker));
     drop(timer_list)

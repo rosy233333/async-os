@@ -46,6 +46,8 @@ impl WaitTaskList {
 
     /// Register a waker to the list.
     pub fn prepare_to_wait(&mut self, waker: Arc<WaitWakerNode>) {
+        let task = waker.waker.data() as *const taskctx::Task;
+        unsafe { &*task }.set_state(taskctx::TaskState::Blocking);
         self.list.push_back(waker);
     }
 
