@@ -1,15 +1,11 @@
 use crate::{raw, Errno, Sysno};
 use core::{
-    cell::Cell,
-    future::Future,
-    ops::Deref,
-    pin::Pin,
-    task::{Context, Poll}
+    cell::Cell, future::Future, ops::Deref, pin::Pin, task::{Context, Poll}
 };
-use alloc::vec::Vec;
+use alloc::{boxed::Box, vec::Vec};
 
 #[repr(C)]
-pub struct SyscallRes(Cell<Option<Result<usize, Errno>>>);
+pub struct SyscallRes(Pin<Box<Cell<Option<Result<usize, Errno>>>>>);
 
 impl SyscallRes {
 
@@ -18,7 +14,7 @@ impl SyscallRes {
     }
 
     pub fn replace(&mut self, res: Result<usize, Errno>) {
-        self.0.set(Some(res));
+        (*self.0).set(Some(res));
     }
 
     pub fn get(&mut self) -> Option<Result<usize, Errno>> {
@@ -36,7 +32,7 @@ pub struct SyscallFuture {
 impl SyscallFuture {
 
     pub fn new(id: Sysno, args: &[usize]) -> Self {
-        Self { has_issued: false, id, args: Vec::from(args), res: SyscallRes(Cell::new(None)) }
+        Self { has_issued: false, id, args: Vec::from(args), res: SyscallRes(Box::pin(Cell::new(None))) }
     }
 
     pub(crate) fn run(&mut self) {
@@ -152,11 +148,13 @@ impl Future for SyscallFuture {
 impl Deref for SyscallFuture {
     type Target = Result<usize, Errno>;
 
+    /// 对于non-await + blocking，可以在接口返回SyscallFuture时直接解引用为结果，因为SyscallFuture中一定有结果。
+    /// 对于non-await + non-blocking，必须将接口返回的SyscallFuture保存起来。此时的SyscallFuture可能没有结果，而在之后由内核自动填写结果。因此，应该对它不断调用deref直到返回结果。
+    /// （见async_non_await.rs中的示例）
+    /// 对于await的调用方式，不应使用deref函数，而应使用.await。
     fn deref(&self) -> &Self::Target {
         assert!(self.has_issued);
         unsafe {
-            // 仅在non-await和blocking的情况下，允许直接解引用接口返回的SyscallFuture。
-            // 
             &(&*self.res.0.as_ptr()).as_ref().unwrap_or(&Err(Errno::EAGAIN))
         }
     }
