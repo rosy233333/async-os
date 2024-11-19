@@ -29,7 +29,7 @@ pub async fn syscall_mount(args: [usize; 6]) -> SyscallResult {
     let mount_path = solve_path(AT_FDCWD, Some(dir), true).await?;
     axlog::error!("syscall_mount mount: {:?}", args);
 
-    let process = current_executor();
+    let process = current_executor().await;
     if process
         .manual_alloc_for_lazy((fs_type as usize).into())
         .await

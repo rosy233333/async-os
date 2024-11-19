@@ -21,7 +21,7 @@ pub async fn syscall_futex(args: [usize; 6]) -> SyscallResult {
     let uaddr2 = args[4];
     let mut val3 = args[5] as u32;
 
-    let process = current_executor();
+    let process = current_executor().await;
     // convert `TimeSecs` struct to `timeout` nanoseconds
     let timeout = if val2 != 0 && process.manual_alloc_for_lazy(val2.into()).await.is_ok() {
         let time_sepc: TimeSecs = unsafe { *(val2 as *const TimeSecs) };
@@ -95,7 +95,7 @@ pub async fn syscall_futex(args: [usize; 6]) -> SyscallResult {
 pub async fn syscall_set_robust_list(args: [usize; 6]) -> SyscallResult {
     let head = args[0];
     let len = args[1];
-    let process = current_executor();
+    let process = current_executor().await;
     if len != core::mem::size_of::<RobustList>() {
         return Err(SyscallError::EINVAL);
     }
@@ -120,7 +120,7 @@ pub async fn syscall_get_robust_list(args: [usize; 6]) -> SyscallResult {
     let len = args[2] as *mut usize;
 
     if pid == 0 {
-        let process = current_executor();
+        let process = current_executor().await;
         let curr_id = current_task().id().as_u64();
         if process
             .manual_alloc_for_lazy((head as usize).into())

@@ -36,8 +36,10 @@ pub fn current_task() -> CurrentTask {
     CurrentTask::get()
 }
 
-pub fn current_executor() -> CurrentExecutor {
-    CurrentExecutor::get()
+pub async fn current_executor() -> Arc<Executor> {
+    let current_task = current_task();
+    let current_process = Arc::clone(PID2PC.lock().await.get(&current_task.get_process_id()).unwrap());
+    current_process
 }
 
 /// Spawns a new task with the given parameters.
@@ -48,7 +50,7 @@ where
     F: FnOnce() -> T,
     T: Future<Output = isize> + 'static,
 {
-    let scheduler = current_executor().get_scheduler();
+    let scheduler = KERNEL_EXECUTOR.get_scheduler();
     let task = Arc::new(Task::new(TaskInner::new(
         name,
         KERNEL_EXECUTOR_ID,
@@ -64,7 +66,7 @@ pub async fn exit(exit_code: isize) {
     let curr = current_task();
     let curr_id = curr.id().as_u64();
 
-    let current_executor = current_executor();
+    let current_executor = current_executor().await;
     info!("exit task id {} with code _{}_", curr_id, exit_code);
 
     let exit_signal = current_executor
@@ -109,8 +111,7 @@ pub async fn exit(exit_code: isize) {
     if curr.is_leader() {
         loop {
             let mut all_exited = true;
-            // TODO：这里是存在问题的，处于 blocked 状态的任务是无法收到信号的
-            while let Some(task) = current_executor.get_scheduler().lock().pick_next_task() {
+            for task in current_executor.tasks.lock().await.deref() {
                 if !task.is_leader() && task.state() != TaskState::Exited {
                     all_exited = false;
                     send_signal_to_thread(task.id().as_u64() as isize, SignalNo::SIGKILL as isize)
@@ -125,14 +126,10 @@ pub async fn exit(exit_code: isize) {
             }
         }
         TID2TASK.lock().await.remove(&curr_id);
-        curr.set_exit_code(exit_code);
-        curr.set_state(TaskState::Exited);
         current_executor.set_exit_code(exit_code);
         current_executor.set_zombie(true);
         current_executor.exit_main_task().await;
-        while let Some(task) = current_executor.get_scheduler().lock().pick_next_task() {
-            drop(task);
-        }
+        current_executor.tasks.lock().await.clear();
 
         current_executor.fd_manager.fd_table.lock().await.clear();
 
@@ -158,8 +155,15 @@ pub async fn exit(exit_code: isize) {
         drop(current_executor);
     } else {
         TID2TASK.lock().await.remove(&curr_id);
-        curr.set_exit_code(exit_code);
-        curr.set_state(TaskState::Exited);
+        // 从进程中删除当前线程
+        let mut tasks = current_executor.tasks.lock().await;
+        let len = tasks.len();
+        for index in 0..len {
+            if tasks[index].id().as_u64() == curr_id {
+                tasks.remove(index);
+                break;
+            }
+        }
         // 从进程中删除当前线程
         current_executor
             .signal_modules
@@ -167,6 +171,8 @@ pub async fn exit(exit_code: isize) {
             .await
             .remove(&curr_id);
     }
+    curr.set_exit_code(exit_code);
+    curr.set_state(TaskState::Exited);
 }
 
 /// Spawns a new task with the default parameters.
@@ -193,7 +199,10 @@ where
 ///
 /// [CFS]: https://en.wikipedia.org/wiki/Completely_Fair_Scheduler
 pub fn set_priority(prio: isize) -> bool {
-    current_executor().set_priority(current_task().as_task_ref(), prio)
+    let curr = current_task();
+    let scheduler = curr.get_scheduler();
+    let mut scheduler_guard = scheduler.lock();
+    scheduler_guard.set_priority(current_task().as_task_ref(), prio)
 }
 
 /// 在当前进程找对应的子进程，并等待子进程结束
@@ -205,7 +214,7 @@ pub fn set_priority(prio: isize) -> bool {
 /// 保证传入的 ptr 是有效的
 pub async unsafe fn wait_pid(pid: i32, exit_code_ptr: *mut i32) -> Result<u64, WaitStatus> {
     // 获取当前进程
-    let curr_process = current_executor();
+    let curr_process = current_executor().await;
     let mut exit_task_id: usize = 0;
     let mut answer_id: u64 = 0;
     let mut answer_status = WaitStatus::NotExist;

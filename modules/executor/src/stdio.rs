@@ -51,7 +51,7 @@ pub const SPACE: u8 = 0x20u8;
 pub const BACKSPACE: [u8; 3] = [BS, SPACE, BS];
 
 impl FileIO for Stdin {
-    fn read(self: Pin<&Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<AxResult<usize>> {
+    fn read(self: Pin<&Self>, _cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<AxResult<usize>> {
         // busybox
         if buf.len() == 1 {
             match getchar() {
@@ -62,7 +62,6 @@ impl FileIO for Stdin {
                     Poll::Ready(Ok(1))
                 }
                 None => {
-                    cx.waker().wake_by_ref();
                     Poll::Pending
                 }
             }
@@ -92,7 +91,6 @@ impl FileIO for Stdin {
                         }
                     }
                 } else {
-                    cx.waker().wake_by_ref();
                     return Poll::Pending;
                 }
             }

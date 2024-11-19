@@ -35,7 +35,7 @@ impl FutexRobustList {
 }
 
 pub async fn futex_get_value_locked(vaddr: VirtAddr) -> AxSyscallResult {
-    let process = current_executor();
+    let process = current_executor().await;
     if process.manual_alloc_for_lazy(vaddr).await.is_ok() {
         let real_futex_val = unsafe { (vaddr.as_usize() as *const u32).read_volatile() };
         Ok(real_futex_val as isize)
@@ -44,7 +44,7 @@ pub async fn futex_get_value_locked(vaddr: VirtAddr) -> AxSyscallResult {
     }
 }
 
-pub fn get_futex_key(uaddr: VirtAddr, flags: i32) -> FutexKey {
+pub async fn get_futex_key(uaddr: VirtAddr, flags: i32) -> FutexKey {
     if flags & FLAGS_SHARED != 0 {
         /* Todo: after implement inode layer
         let inode = uaddr.get_inode();
@@ -58,7 +58,7 @@ pub fn get_futex_key(uaddr: VirtAddr, flags: i32) -> FutexKey {
         let offset = uaddr.align_offset_4k() as u32;
         return FutexKey::new(pid, aligned, offset);
     } else {
-        let pid = current_executor().pid();
+        let pid = current_executor().await.pid();
         let aligned = uaddr.align_down_4k().as_usize();
         let offset = uaddr.align_offset_4k() as u32;
         return FutexKey::new(pid, aligned, offset);
@@ -84,7 +84,7 @@ pub async fn futex_wait(
 
     // we may be victim of spurious wakeups, so we need to loop
     loop {
-        let key = get_futex_key(vaddr, flags);
+        let key = get_futex_key(vaddr, flags).await;
         let real_futex_val = futex_get_value_locked(vaddr).await?;
         if expected_val != real_futex_val as u32 {
             return Err(LinuxError::EAGAIN);
@@ -145,7 +145,7 @@ pub async fn futex_wake(vaddr: VirtAddr, flags: i32, nr_waken: u32) -> AxSyscall
         vaddr, flags, nr_waken
     );
     let mut ret = 0;
-    let key = get_futex_key(vaddr, flags);
+    let key = get_futex_key(vaddr, flags).await;
     let mut hash_bucket = FUTEXQUEUES.buckets[futex_hash(&key)].lock().await;
 
     if hash_bucket.is_empty() {
@@ -181,7 +181,7 @@ pub async fn futex_wake_bitset(
         return Err(LinuxError::EINVAL);
     }
     let mut ret = 0;
-    let key = get_futex_key(vaddr, flags);
+    let key = get_futex_key(vaddr, flags).await;
     let mut hash_bucket = FUTEXQUEUES.buckets[futex_hash(&key)].lock().await;
     if hash_bucket.is_empty() {
         return Ok(0);
@@ -212,8 +212,8 @@ pub async fn futex_requeue(
 ) -> AxSyscallResult {
     let mut ret = 0;
     let mut requeued = 0;
-    let key = get_futex_key(uaddr, flags);
-    let req_key = get_futex_key(uaddr2, flags);
+    let key = get_futex_key(uaddr, flags).await;
+    let req_key = get_futex_key(uaddr2, flags).await;
 
     if key == req_key {
         return futex_wake(uaddr, flags, nr_waken).await;

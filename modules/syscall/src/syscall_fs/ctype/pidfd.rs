@@ -98,7 +98,7 @@ pub async fn new_pidfd(pid: u64, mut flags: OpenFlags) -> SyscallResult {
         .map(|target_process| PidFd::new(Arc::clone(target_process), flags))
         .ok_or(SyscallError::EINVAL)?;
     drop(pid2fd);
-    let process = current_executor();
+    let process = current_executor().await;
     let mut fd_table = process.fd_manager.fd_table.lock().await;
     let fd = process
         .alloc_fd(&mut fd_table)

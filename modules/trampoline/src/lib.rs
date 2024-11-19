@@ -68,8 +68,6 @@ pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
                 run_task(task.as_task_ref());
             } else {
                 axhal::arch::enable_irqs();
-                // 如果当前的 Executor 中没有任务了，则切换回内核的 Executor
-                turn_to_kernel_executor();
                 // 没有就绪任务，等待中断
                 #[cfg(feature = "irq")]
                 axhal::arch::wait_for_irqs();
@@ -87,6 +85,8 @@ pub fn run_task(task: &TaskRef) {
     if page_table_token != 0 {
         unsafe {
             axhal::arch::write_page_table_root0(page_table_token.into());
+            #[cfg(target_arch = "riscv64")]
+            riscv::register::sstatus::set_sum();
         };
     }
     #[cfg(any(feature = "thread", feature = "preempt"))]
@@ -110,18 +110,35 @@ pub fn run_task(task: &TaskRef) {
             CurrentTask::clean_current();
         }
         Poll::Pending => {
-            if let Some(tf) = task.utrap_frame() {
-                if tf.trap_status == TrapStatus::Done {
-                    tf.kernel_sp = taskctx::current_stack_top();
-                    tf.scause = 0;
-                    // 这里不能打开中断
-                    axhal::arch::disable_irqs();
-                    unsafe {
-                        tf.user_return();
+            let mut state = task.state_lock_manual();
+            match **state {
+                TaskState::Running => {
+                    if let Some(tf) = task.utrap_frame() {
+                        if tf.trap_status == TrapStatus::Done {
+                            tf.kernel_sp = taskctx::current_stack_top();
+                            tf.scause = 0;
+                            // 这里不能打开中断
+                            axhal::arch::disable_irqs();
+                            drop(core::mem::ManuallyDrop::into_inner(state));
+                            unsafe {
+                                tf.user_return();
+                            }
+                            panic!("never reach here");
+                        }
                     }
+                    CurrentTask::clean_current();
+                    **state = TaskState::Runable;
+                    task.get_scheduler().lock().add_task(task.clone());
+                },
+                TaskState::Blocking => {
+                    CurrentTask::clean_current_without_drop();
+                    **state = TaskState::Blocked;
+                },
+                _e => {
+                    CurrentTask::clean_current_without_drop();
                 }
             }
-            CurrentTask::clean_current_without_drop();
+            core::mem::ManuallyDrop::into_inner(state);
         }
     }
 }

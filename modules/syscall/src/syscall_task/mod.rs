@@ -26,9 +26,9 @@ pub async fn task_syscall(
         GETTIMEOFDAY => syscall_get_time_of_day(args),
         GETPGID => syscall_getpgid(),
         SETPGID => syscall_setpgid(args),
-        GETPID => syscall_getpid(),
+        GETPID => syscall_getpid().await,
 
-        GETPPID => syscall_getppid(),
+        GETPPID => syscall_getppid().await,
         WAIT4 => syscall_wait4(args).await,
         GETRANDOM => syscall_getrandom(args).await,
 
@@ -47,7 +47,7 @@ pub async fn task_syscall(
         SIGRETURN => syscall_sigreturn().await,
         EXIT_GROUP => syscall_exit(args).await,
         SET_TID_ADDRESS => syscall_set_tid_address(args).await,
-        PRLIMIT64 => syscall_prlimit64(args),
+        PRLIMIT64 => syscall_prlimit64(args).await,
         CLOCK_GET_TIME => syscall_clock_get_time(args),
         GETUID => syscall_getuid(),
         GETEUID => syscall_geteuid(),
@@ -63,7 +63,7 @@ pub async fn task_syscall(
         GETTIMER => syscall_gettimer(args).await,
         SETSID => syscall_setsid().await,
         GETRUSAGE => syscall_getrusage(args).await,
-        UMASK => syscall_umask(args),
+        UMASK => syscall_umask(args).await,
         // 不做处理即可
         SIGTIMEDWAIT => Ok(0),
         SYSLOG => Ok(0),

@@ -19,7 +19,7 @@ use crate::syscall_fs::ctype::mount::get_stat_in_fs;
 pub async fn syscall_fstat(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let kst = args[1] as *mut Kstat;
-    let process = current_executor();
+    let process = current_executor().await;
     let fd_table = process.fd_manager.fd_table.lock().await;
 
     if fd >= fd_table.len() {

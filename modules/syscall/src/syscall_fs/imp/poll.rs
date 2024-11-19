@@ -116,7 +116,7 @@ async fn ppoll(mut fds: Vec<PollFd>, expire_time: usize) -> (isize, Vec<PollFd>)
     loop {
         // 满足事件要求而被触发的事件描述符数量
         let mut set: isize = 0;
-        let process = current_executor();
+        let process = current_executor().await;
         for poll_fd in &mut fds {
             let fd_table = process.fd_manager.fd_table.lock().await;
             if let Some(file) = fd_table[poll_fd.fd as usize].as_ref() {
@@ -175,7 +175,7 @@ pub async fn syscall_ppoll(args: [usize; 6]) -> SyscallResult {
     let nfds = args[1];
     let timeout = args[2] as *const TimeSecs;
     let _mask = args[3];
-    let process = current_executor();
+    let process = current_executor().await;
 
     let start: VirtAddr = (ufds as usize).into();
     let end = start + nfds * core::mem::size_of::<PollFd>();
@@ -254,7 +254,7 @@ pub fn syscall_poll(args: [usize; 6]) -> SyscallResult {
 
 /// 根据给定的地址和长度新建一个fd set,包括文件描述符指针数组,文件描述符数值数组,以及一个bitset
 async fn init_fd_set(addr: *mut usize, len: usize) -> Result<PpollFdSet, SyscallError> {
-    let process = current_executor();
+    let process = current_executor().await;
     if len >= process.fd_manager.get_limit() as usize {
         axlog::error!(
             "[pselect6()] len {len} >= limit {}",
@@ -344,7 +344,7 @@ pub async fn syscall_pselect6(args: [usize; 6]) -> SyscallResult {
         Ok(ans) => (ans.files, ans.fds, ans.shadow_bitset),
         Err(e) => return Err(e),
     };
-    let process = current_executor();
+    let process = current_executor().await;
 
     let expire_time = if !timeout.is_null() {
         if process

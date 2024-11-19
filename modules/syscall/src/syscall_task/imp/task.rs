@@ -26,7 +26,7 @@ use executor::{
             // signal::send_signal_to_process,
             // sleep_now_task, wait_pid, yield_now_task, Process, PID2PC,
 };
-use executor::{BaseScheduler, TaskId};
+use executor::TaskId;
 use sync::Mutex;
 // use sync::Mutex;
 // use core::{future::poll_fn, sync::atomic::AtomicI32};
@@ -147,7 +147,7 @@ pub async fn syscall_exec(args: [usize; 6]) -> SyscallResult {
     }
     info!("args: {:?}", args_vec);
     info!("envs: {:?}", envs_vec);
-    let curr_process = current_executor();
+    let curr_process = current_executor().await;
 
     // 设置 file_path
     curr_process.set_file_path(path.clone()).await;
@@ -195,7 +195,7 @@ pub async fn syscall_clone(args: [usize; 6]) -> SyscallResult {
     } else {
         Some(user_stack)
     };
-    let curr_process = current_executor();
+    let curr_process = current_executor().await;
     let sig_child = if SignalNo::from(flags & 0x3f) == SignalNo::SIGCHLD {
         Some(SignalNo::SIGCHLD)
     } else {
@@ -247,7 +247,7 @@ pub async fn syscall_clone3(args: [usize; 6]) -> SyscallResult {
         // The size argument that is supplied to clone3() should be initialized to the size of this structure
         return Err(SyscallError::EINVAL);
     }
-    let curr_process = current_executor();
+    let curr_process = current_executor().await;
     let clone_args = match curr_process
         .manual_alloc_type_for_lazy(args[0] as *const CloneArgs)
         .await
@@ -348,7 +348,7 @@ pub async fn syscall_wait4(args: [usize; 6]) -> SyscallResult {
                         } else {
                             // wait回来之后，如果还需要wait，先检查是否有信号未处理
 
-                            match current_executor().have_restart_signals().await {
+                            match current_executor().await.have_restart_signals().await {
                                 Some(true) => return Err(SyscallError::ERESTART),
                                 Some(false) => return Err(SyscallError::EINTR),
                                 None => {}
@@ -407,7 +407,7 @@ pub async fn syscall_sleep(args: [usize; 6]) -> SyscallResult {
         }
     }
 
-    if current_executor().have_signals().await.is_some() {
+    if current_executor().await.have_signals().await.is_some() {
         return Err(SyscallError::EINTR);
     }
     Ok(0)
@@ -433,13 +433,13 @@ pub async fn syscall_set_tid_address(args: [usize; 6]) -> SyscallResult {
 /// * `resource` - i32
 /// * `new_limit` - *const RLimit
 /// * `old_limit` - *mut RLimit
-pub fn syscall_prlimit64(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_prlimit64(args: [usize; 6]) -> SyscallResult {
     let pid = args[0];
     let resource = args[1] as i32;
     let new_limit = args[2] as *const RLimit;
     let old_limit = args[3] as *mut RLimit;
     // 当pid不为0，其实没有权利去修改其他的进程的资源限制
-    let curr_process = current_executor();
+    let curr_process = current_executor().await;
     if pid == 0 || pid == curr_process.pid() as usize {
         match resource {
             // TODO: 改变了新创建的任务栈大小，但未实现当前任务的栈扩展
@@ -508,20 +508,20 @@ pub fn syscall_setpgid(args: [usize; 6]) -> SyscallResult {
 }
 
 /// 当前不涉及多核情况
-pub fn syscall_getpid() -> SyscallResult {
-    Ok(current_executor().pid() as isize)
+pub async fn syscall_getpid() -> SyscallResult {
+    Ok(current_executor().await.pid() as isize)
 }
 
 /// To get the parent process id
-pub fn syscall_getppid() -> SyscallResult {
-    Ok(current_executor().get_parent() as isize)
+pub async fn syscall_getppid() -> SyscallResult {
+    Ok(current_executor().await.get_parent() as isize)
 }
 
 /// # Arguments
 /// * `new_mask` - i32
-pub fn syscall_umask(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_umask(args: [usize; 6]) -> SyscallResult {
     let new_mask = args[0] as i32;
-    Ok(current_executor().fd_manager.set_mask(new_mask) as isize)
+    Ok(current_executor().await.fd_manager.set_mask(new_mask) as isize)
 }
 
 /// 获取用户 id。在实现多用户权限前默认为最高权限
@@ -553,7 +553,7 @@ pub fn syscall_gettid() -> SyscallResult {
 ///
 /// The calling process is the leader of the new session
 pub async fn syscall_setsid() -> SyscallResult {
-    let process = current_executor();
+    let process = current_executor().await;
     let task = current_task();
 
     let task_id = task.id().as_u64();
@@ -563,8 +563,8 @@ pub async fn syscall_setsid() -> SyscallResult {
         return Err(SyscallError::EPERM);
     }
 
-    // // 从当前 process 的 thread group 中移除 calling thread
-    // process.tasks.lock().retain(|t| t.id().as_u64() != task_id);
+    // 从当前 process 的 thread group 中移除 calling thread
+    process.tasks.lock().await.retain(|t| t.id().as_u64() != task_id);
 
     // 新建 process group 并加入
     let new_process = Executor::new(
@@ -583,8 +583,7 @@ pub async fn syscall_setsid() -> SyscallResult {
         .await
         .insert(task_id, SignalModule::init_signal(None));
 
-    // new_process.tasks.lock().push(task.as_task_ref().clone());
-    new_process.get_scheduler().lock().add_task(task.clone());
+    new_process.tasks.lock().await.push(task.as_task_ref().clone());
     task.set_leader(true);
     task.set_process_id(new_process.pid());
 
@@ -658,7 +657,7 @@ pub async fn syscall_prctl(args: [usize; 6]) -> SyscallResult {
             // [syscall 定义](https://man7.org/linux/man-pages/man2/prctl.2.html)要求 NAME 应该不超过 16 Byte
             process_name.truncate(PR_NAME_SIZE);
             // 把 arg2 转换成可写的 buffer
-            if current_executor()
+            if current_executor().await
                 .manual_alloc_for_lazy((arg2 as usize).into())
                 .await
                 .is_ok()
@@ -674,7 +673,7 @@ pub async fn syscall_prctl(args: [usize; 6]) -> SyscallResult {
             }
         }
         Ok(PrctlOption::PR_SET_NAME) => {
-            if current_executor()
+            if current_executor().await
                 .manual_alloc_for_lazy((arg2 as usize).into())
                 .await
                 .is_ok()
@@ -705,7 +704,7 @@ pub async fn syscall_pidfd_send_signal(args: [usize; 6]) -> SyscallResult {
     let signum = args[1] as i32;
     axlog::warn!("Ignore the info arguments");
 
-    let curr_process = current_executor();
+    let curr_process = current_executor().await;
     let fd_table = curr_process.fd_manager.fd_table.lock().await;
 
     let pidfd_file = match fd_table.get(fd) {

@@ -49,7 +49,7 @@ pub async fn syscall_sched_getaffinity(args: [usize; 6]) -> SyscallResult {
     drop(pid2task);
     drop(tid2task);
 
-    let process = current_executor();
+    let process = current_executor().await;
     if process
         .manual_alloc_for_lazy(VirtAddr::from(mask as usize))
         .await
@@ -103,7 +103,7 @@ pub async fn syscall_sched_setaffinity(args: [usize; 6]) -> SyscallResult {
     drop(pid2task);
     drop(tid2task);
 
-    let process = current_executor();
+    let process = current_executor().await;
     if process
         .manual_alloc_for_lazy(VirtAddr::from(mask as usize))
         .await
@@ -156,7 +156,7 @@ pub async fn syscall_sched_setscheduler(args: [usize; 6]) -> SyscallResult {
     drop(pid2task);
     drop(tid2task);
 
-    let process = current_executor();
+    let process = current_executor().await;
     if process
         .manual_alloc_for_lazy(VirtAddr::from(param as usize))
         .await

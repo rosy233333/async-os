@@ -89,7 +89,7 @@ use crate::{current_executor, current_task, exit, PID2PC, TID2TASK};
 /// 若确实存在可以被恢复的trap上下文，则返回true
 #[no_mangle]
 pub async fn load_trap_for_signal() -> bool {
-    let current_process = current_executor();
+    let current_process = current_executor().await;
     let current_task = current_task();
 
     let mut signal_modules = current_process.signal_modules.lock().await;
@@ -143,7 +143,7 @@ async fn terminate_process(signal: SignalNo, info: Option<SigInfo>) {
 ///
 /// 若返回值为真，代表需要进入处理信号，因此需要执行trap的返回
 pub async fn handle_signals() {
-    let process = current_executor();
+    let process = current_executor().await;
     let current_task = current_task();
     if let Some(signal_no) = current_task.check_pending_signal() {
         send_signal_to_thread(current_task.id().as_u64() as isize, signal_no as isize)
@@ -431,5 +431,5 @@ pub async fn send_signal_to_thread(tid: isize, signum: isize) -> AxResult<()> {
 
 /// Whether the current process has signals pending
 pub async fn current_have_signals() -> bool {
-    current_executor().have_signals().await.is_some()
+    current_executor().await.have_signals().await.is_some()
 }

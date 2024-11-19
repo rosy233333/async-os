@@ -300,7 +300,7 @@ pub async fn deal_with_path(
     path_addr: Option<*const u8>,
     force_dir: bool,
 ) -> AxResult<FilePath> {
-    let executor = current_executor();
+    let executor = current_executor().await;
     let mut path = "".to_string();
     if let Some(path_addr) = path_addr {
         if path_addr.is_null() {

@@ -143,7 +143,7 @@ impl FileIO for Pipe {
                 let loop_read = ring_buffer.available_read();
                 info!("kernel: Pipe::read: loop_read = {}", loop_read);
                 if loop_read == 0 {
-                    if executor::current_executor().have_signals().await.is_some() {
+                    if executor::current_executor().await.have_signals().await.is_some() {
                         return Err(axerrno::AxError::Interrupted);
                     }
                     info!(

@@ -5,16 +5,6 @@ use riscv::register::scause::{Exception, Trap};
 use syscall::trap::{handle_page_fault, MappingFlags};
 use alloc::{boxed::Box, format};
 
-pub fn turn_to_kernel_executor() {
-    if current_executor().ptr_eq(&KERNEL_EXECUTOR) {
-        return;
-    }
-    unsafe {
-        axhal::arch::write_page_table_root0((*KERNEL_PAGE_TABLE_TOKEN).into());
-    };
-    CurrentExecutor::clean_current();
-    unsafe { CurrentExecutor::init_current(KERNEL_EXECUTOR.clone()) };
-}
 #[cfg(feature = "thread")]
 use kernel_guard::BaseGuard;
 
@@ -124,7 +114,7 @@ pub async fn user_task_top() -> isize {
                             }
                             res
                         });
-                        let ktask = current_executor().new_ktask(
+                        let ktask = current_executor().await.new_ktask(
                             format!("syscall {}", tf.regs.a7), 
                             fut
                         ).await;
@@ -185,8 +175,8 @@ pub async fn user_task_top() -> isize {
                     );
                 }
             }
-            tf.trap_status = TrapStatus::Done;
             syscall::trap::handle_signals().await;
+            tf.trap_status = TrapStatus::Done;
             // 判断任务是否退出
             if curr.is_exited() {
                 // 任务结束，需要切换至其他任务，关中断
@@ -214,7 +204,6 @@ impl task_api::TaskApi for TaskApiImpl {
     }
 
     fn yield_now() -> YieldFuture {
-        current_task().set_state(TaskState::Runable);
         #[cfg(feature = "thread")]
         thread_yield();
         YieldFuture::new()
@@ -297,11 +286,13 @@ pub fn thread_join(_task: &TaskRef) -> Option<i32> {
 pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
     let curr = current_task();
     curr.set_stack_ctx(tf as *const _, ctx_type);
-    let raw_task_ptr = CurrentTask::clean_current_without_drop();
-    if curr.state() == TaskState::Runable {
-        wakeup_task(unsafe { TaskRef::from_raw(raw_task_ptr) });
-    }
+    // let raw_task_ptr = CurrentTask::clean_current_without_drop();
     let new_kstack_top = taskctx::current_stack_top();
+    if curr.state() == TaskState::Running {
+        warn!("set_task_tf wake up {}", curr.id_name());
+        wakeup_task(curr.clone());
+    }
+    CurrentTask::clean_current();
     unsafe {
         core::arch::asm!(
             "li a1, 0",
