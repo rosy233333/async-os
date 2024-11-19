@@ -44,6 +44,16 @@ cfg_if::cfg_if! {
 
 /// 这里不对任务的状态进行修改，在调用 waker.wake() 之前对任务状态进行修改
 pub fn wakeup_task(task: TaskRef) {
+    loop {
+        match task.state() {
+            TaskState::Running => return,
+            TaskState::Runable => break,
+            TaskState::Blocking => {},
+            TaskState::Blocked => break,
+            TaskState::Exited => panic!("cannot wakeup exit task"),
+        }
+    }
+    
     task.set_state(TaskState::Runable);
     // log::debug!("wakeup task {}, count {}", task.id_name(), Arc::strong_count(&task));
     // #[cfg(feature = "preempt")]

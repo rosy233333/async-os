@@ -5,14 +5,9 @@ use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, sync::
 #[cfg(feature = "preempt")]
 use core::sync::atomic::AtomicUsize;
 use core::{
-    cell::UnsafeCell,
-    fmt,
-    future::Future,
-    pin::Pin,
-    sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering},
-    task::Waker,
+    cell::UnsafeCell, fmt, future::Future, mem::ManuallyDrop, pin::Pin, sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering}, task::Waker
 };
-use spinlock::SpinNoIrq;
+use spinlock::{SpinNoIrq, SpinNoIrqGuard};
 
 /// A unique identifier for a thread.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -42,6 +37,7 @@ impl Default for TaskId {
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[allow(missing_docs)]
 pub enum TaskState {
+    Running = 0,
     Runable = 1,
     Blocking = 2,
     Blocked = 3,
@@ -318,6 +314,12 @@ impl TaskInner {
     }
 
     #[inline]
+    /// lock the task state and ctx_ptr access
+    pub fn state_lock_manual(&self) -> ManuallyDrop<SpinNoIrqGuard<TaskState>> {
+        ManuallyDrop::new(self.state.lock())
+    }
+
+    #[inline]
     /// set the state of the task
     pub fn set_state(&self, state: TaskState) {
         *self.state.lock() = state
@@ -417,6 +419,8 @@ impl TaskInner {
     }
 
     pub fn join(&self, waker: Waker) {
+        let task = waker.data() as *const crate::Task;
+        unsafe { &*task }.set_state(TaskState::Blocking);
         let wait_wakers = unsafe { &mut *self.wait_wakers.get() };
         wait_wakers.push_back(waker);
     }

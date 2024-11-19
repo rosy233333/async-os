@@ -297,6 +297,7 @@ impl CurrentTask {
     }
 
     pub unsafe fn init_current(init_task: TaskRef) {
+        init_task.set_state(crate::TaskState::Running);
         let ptr = Arc::into_raw(init_task);
         set_current_task_ptr(ptr);
     }
