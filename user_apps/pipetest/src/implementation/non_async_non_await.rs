@@ -1,3 +1,5 @@
+// 暂未完成：之后需要改为用户态线程库实现
+
 /// use with `syscalls` crate's `thread` feature.
 
 use core::str;

@@ -9,6 +9,6 @@ syscalls = { path = "../../syscalls" }
 [features]
 async-await = []
 async-non-await = ["syscalls/thread"]
-non-async-non-await = ["syscalls/thread"]
+# non-async-non-await = ["syscalls/thread"] # 暂未完成
 blocking = ["syscalls/blocking"]
-default = ["async-non-await"]
+default = ["async-non-await", "blocking"]
