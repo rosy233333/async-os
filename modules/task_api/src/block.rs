@@ -41,7 +41,6 @@ impl Future for BlockFuture {
             } else {
                 this._has_polled = true;
                 this._irq_state = NoPreemptIrqSave::acquire();
-                _cx.waker().wake_by_ref();
                 Poll::Pending
             }
         }

@@ -59,7 +59,6 @@ impl AsyncRead for Stdin {
             Poll::Ready(Ok(read_len))
         } else {
             drop(lock);
-            cx.waker().wake_by_ref();
             Poll::Pending
         }
     }
