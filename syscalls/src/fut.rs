@@ -17,7 +17,7 @@ impl SyscallRes {
         (*self.0).set(Some(res));
     }
 
-    pub fn get(&mut self) -> Option<Result<usize, Errno>> {
+    pub fn get(&self) -> Option<Result<usize, Errno>> {
         self.0.get()
     }
 }
@@ -122,12 +122,16 @@ impl SyscallFuture {
             self.res.replace(Errno::from_ret(res));
         }
     }
+
+    pub(crate) fn is_finished(&self) -> bool {
+        self.res.get().is_some()
+    }
 }
 
 impl Future for SyscallFuture {
     type Output = Result<usize, Errno>;
 
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
         if let Some(ret) = this.res.get() {
             return Poll::Ready(ret);
@@ -139,6 +143,12 @@ impl Future for SyscallFuture {
             if let Some(ret) = this.res.get() {
                 return Poll::Ready(ret);
             } else {
+                #[cfg(feature = "yield-pending")]
+                {
+                    // 设置任务状态，使协程返回Pending后视为yield而非wait。
+                    let mut yield_fut = Box::pin(user_task_scheduler::yield_now());
+                    yield_fut.as_mut().poll(cx);
+                }
                 return Poll::Pending;
             }
         }
@@ -148,14 +158,12 @@ impl Future for SyscallFuture {
 impl Deref for SyscallFuture {
     type Target = Result<usize, Errno>;
 
-    /// 对于non-await + blocking，可以在接口返回SyscallFuture时直接解引用为结果，因为SyscallFuture中一定有结果。
-    /// 对于non-await + non-blocking，必须将接口返回的SyscallFuture保存起来。此时的SyscallFuture可能没有结果，而在之后由内核自动填写结果。因此，应该对它不断调用deref直到返回结果。
-    /// （见async_non_await.rs中的示例）
-    /// 对于await的调用方式，不应使用deref函数，而应使用.await。
+    /// 对于non-await的调用方式，无论non-blocking还是blocking，都可以直接调用该函数获取结果。非阻塞调用可能出现的让出在系统调用API内部进行。
+    /// 对于await的调用方式，不应使用deref函数，而应使用.await。使用该函数会通不过assert。
     fn deref(&self) -> &Self::Target {
         assert!(self.has_issued);
         unsafe {
-            &(&*self.res.0.as_ptr()).as_ref().unwrap_or(&Err(Errno::EAGAIN))
+            &(&*self.res.0.as_ptr()).as_ref().unwrap()
         }
     }
 }
