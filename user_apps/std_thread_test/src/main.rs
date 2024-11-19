@@ -1,22 +1,29 @@
-use std::thread;
-
 fn main() {
-    println!("std thread test");
+    user_task_scheduler::run(amain);
+}
 
-    let ta = thread::spawn(|| {
+fn amain() -> i32 {
+    println!("user task scheduler test");
+
+    user_task_scheduler::spawn(|| {
         for _ in 0 .. 5 {
             println!("thread 1");
-            thread::yield_now();
+            user_task_scheduler::yield_now();
         }
+        0
     });
 
-    let tb = thread::spawn(|| {
+    user_task_scheduler::spawn_async(async {
         for _ in 0 .. 5 {
-            println!("thread 2");
-            thread::yield_now();
+            println!("coroutine 2");
+            user_task_scheduler::yield_now();
         }
+        0
     });
 
-    tb.join();
-    ta.join();
+    loop {
+        user_task_scheduler::yield_now();
+    }
+
+    0
 }

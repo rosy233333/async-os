@@ -13,25 +13,28 @@ static IS_BLOCKING: &str = "blocking";
 static IS_BLOCKING: &str = "non-blocking";
 
 pub fn pipe_test() {
-    println!("pipe test: non-async, non-await, {}", IS_BLOCKING);
-
-    let (pipe_reader, pipe_writer) = pipe().unwrap();
-    let mut buf = [0; 1024];
-    #[cfg(not(feature = "blocking"))]
-    {
-        let ta = std::thread::spawn(move || { reader(pipe_reader, &mut buf); });
-        let tb = std::thread::spawn(move || { writer(pipe_writer); });
-        ta.join();
-        tb.join();
-    }
-    #[cfg(feature = "blocking")]
-    {
-        let tb = std::thread::spawn(move || { writer(pipe_writer); });
-        let ta = std::thread::spawn(move || { reader(pipe_reader, &mut buf); });
-        ta.join();
-        tb.join();
-    }
-    println!("pipetest ok!");
+    user_task_scheduler::run(|| {
+        println!("pipe test: non-async, non-await, {}", IS_BLOCKING);
+        let (pipe_reader, pipe_writer) = pipe().unwrap();
+        let mut buf = [0; 1024];
+        #[cfg(not(feature = "blocking"))]
+        {
+            user_task_scheduler::spawn(move || { reader(pipe_reader, &mut buf); 0 });
+            user_task_scheduler::spawn(move || { writer(pipe_writer); 0 });
+            loop {
+                user_task_scheduler::yield_now();
+            }
+        }
+        #[cfg(feature = "blocking")]
+        {
+            let tb = std::thread::spawn(move || { writer(pipe_writer); });
+            let ta = std::thread::spawn(move || { reader(pipe_reader, &mut buf); });
+            ta.join();
+            tb.join();
+        }
+        println!("pipetest ok!");
+        0
+    });
 }
 
 fn reader(pipe_reader: PipeReader, mut buf: &mut [u8]) {
@@ -44,8 +47,8 @@ fn reader(pipe_reader: PipeReader, mut buf: &mut [u8]) {
             },
             #[cfg(not(feature = "blocking"))]
             Err(Errno::EAGAIN) => {
-                println!("syscall receive EAGAIN");
-                std::thread::yield_now();
+                // println!("syscall receive EAGAIN");
+                user_task_scheduler::yield_now();
             },
             _ => {
                 panic!("unsupported error.");
@@ -56,5 +59,6 @@ fn reader(pipe_reader: PipeReader, mut buf: &mut [u8]) {
 
 fn writer(pipe_writer: PipeWriter) {
     let res = sys_write(pipe_writer.as_raw_fd(), b"Hello, world!").unwrap();
+    std::thread::sleep(core::time::Duration::from_millis(20)); // 让出给执行read的内核协程
     println!("{:?}", res);
 }
