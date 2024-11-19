@@ -40,7 +40,6 @@ where
                     Poll::Ready(Some(self.index))
                 } else {
                     self.index += 1;
-                    cx.waker().wake_by_ref();
                     Poll::Pending
                 }
             }

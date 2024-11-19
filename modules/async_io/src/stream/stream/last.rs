@@ -36,7 +36,6 @@ where
         match next {
             Some(new) => {
                 *this.last = Some(new);
-                cx.waker().wake_by_ref();
                 Poll::Pending
             }
             None => Poll::Ready(*this.last),

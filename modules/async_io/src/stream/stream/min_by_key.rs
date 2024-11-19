@@ -55,7 +55,6 @@ where
                         _ => *this.min = Some(old),
                     },
                 }
-                cx.waker().wake_by_ref();
                 Poll::Pending
             }
             None => Poll::Ready(this.min.take().map(|min| min.1)),

@@ -41,7 +41,6 @@ where
 
                 if result {
                     // don't forget to wake this task again to pull the next item from stream
-                    cx.waker().wake_by_ref();
                     Poll::Pending
                 } else {
                     Poll::Ready(false)

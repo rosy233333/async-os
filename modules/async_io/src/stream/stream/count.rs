@@ -34,7 +34,6 @@ where
         match next {
             Some(_) => {
                 *this.count += 1;
-                cx.waker().wake_by_ref();
                 Poll::Pending
             }
             None => Poll::Ready(*this.count),

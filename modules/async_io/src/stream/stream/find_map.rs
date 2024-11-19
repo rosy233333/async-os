@@ -32,7 +32,6 @@ where
             Some(v) => match (&mut self.f)(v) {
                 Some(v) => Poll::Ready(Some(v)),
                 None => {
-                    cx.waker().wake_by_ref();
                     Poll::Pending
                 }
             },

@@ -32,7 +32,6 @@ where
                 0 => Poll::Ready(Some(v)),
                 _ => {
                     self.n -= 1;
-                    cx.waker().wake_by_ref();
                     Poll::Pending
                 }
             },

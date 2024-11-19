@@ -34,7 +34,6 @@ where
             Some(v) => match (this.f)(v) {
                 Some(b) => Poll::Ready(Some(b)),
                 None => {
-                    cx.waker().wake_by_ref();
                     Poll::Pending
                 }
             },

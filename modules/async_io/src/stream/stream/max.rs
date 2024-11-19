@@ -44,7 +44,6 @@ where
                         _ => *this.max = Some(old),
                     },
                 }
-                cx.waker().wake_by_ref();
                 Poll::Pending
             }
             None => Poll::Ready(this.max.take()),
