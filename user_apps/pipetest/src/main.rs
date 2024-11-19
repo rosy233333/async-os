@@ -6,5 +6,8 @@ mod implementation;
 use implementation::pipe_test;
 
 fn main() {
-    pipe_test();
+    user_task_scheduler::run(|| {
+        pipe_test();
+        0
+    });
 }

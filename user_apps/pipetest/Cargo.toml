@@ -10,6 +10,6 @@ user-task-scheduler = { path = "../../user-task-scheduler" }
 [features]
 async-await = []
 async-non-await = ["syscalls/thread", "user-task-scheduler/thread"]
-non-async-non-await = ["syscalls/thread", "user-task-scheduler/thread"] # 暂未完成
+non-async-non-await = ["syscalls/thread", "user-task-scheduler/thread"]
 blocking = ["syscalls/blocking"]
 default = ["non-async-non-await"]
