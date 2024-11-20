@@ -131,6 +131,8 @@ pub async fn user_task_top() -> isize {
                             CurrentTask::clean_current();
                             res
                         } else {
+                            ktask.set_state(TaskState::Runable);
+                            ktask.get_scheduler().lock().add_task(ktask.clone());
                             CurrentTask::clean_current_without_drop();
                             axerrno::LinuxError::EAGAIN as isize
                         };
