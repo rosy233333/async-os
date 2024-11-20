@@ -44,6 +44,7 @@ pub static UTRAP_HANDLER: LazyInit<fn() -> Pin<Box<dyn Future<Output = isize> + 
 
 pub static KERNEL_EXECUTOR: LazyInit<Arc<Executor>> = LazyInit::new();
 pub static KERNEL_PAGE_TABLE_TOKEN: LazyInit<usize> = LazyInit::new();
+pub static KERNEL_SCHEDULER: LazyInit<Arc<SpinNoIrq<Scheduler>>> = LazyInit::new();
 
 extern "C" {
     fn start_signal_trampoline();
@@ -54,7 +55,7 @@ pub struct Executor {
     pub parent: AtomicU64,
     /// 子进程
     pub children: Mutex<Vec<Arc<Executor>>>,
-    scheduler: Arc<SpinNoIrq<Scheduler>>,
+    // scheduler: Arc<SpinNoIrq<Scheduler>>,
     /// 文件描述符管理器
     pub fd_manager: FdManager,
     /// 进程状态
@@ -100,13 +101,13 @@ impl Executor {
         cwd: Arc<Mutex<String>>,
         mask: Arc<AtomicI32>,
     ) -> Self {
-        let mut scheduler = Scheduler::new();
-        scheduler.init();
+        // let mut scheduler = Scheduler::new();
+        // scheduler.init();
         Self {
             pid,
             parent: AtomicU64::new(parent),
             children: Mutex::new(Vec::new()),
-            scheduler: Arc::new(SpinNoIrq::new(scheduler)),
+            // scheduler: Arc::new(SpinNoIrq::new(scheduler)),
             fd_manager: FdManager::new(fd_table, cwd, mask, FD_LIMIT_ORIGIN),
             is_zombie: AtomicBool::new(false),
             exit_code: AtomicIsize::new(0),
@@ -153,10 +154,10 @@ impl Executor {
         )
     }
 
-    /// 获取调度器
-    pub fn get_scheduler(&self) -> Arc<SpinNoIrq<Scheduler>> {
-        self.scheduler.clone()
-    }
+    // /// 获取调度器
+    // pub fn get_scheduler(&self) -> Arc<SpinNoIrq<Scheduler>> {
+    //     self.scheduler.clone()
+    // }
 
     /// 获取 Executor（进程）id
     pub fn pid(&self) -> u64 {
@@ -256,33 +257,34 @@ impl Executor {
     #[inline]
     /// Pick one task from Executor
     pub fn pick_next_task(&self) -> Option<TaskRef> {
-        self.scheduler.lock().pick_next_task()
+        // self.scheduler.lock().pick_next_task()
+        KERNEL_SCHEDULER.lock().pick_next_task()
     }
 
-    #[inline]
-    /// Add curr task to Executor, it ususally add to back
-    pub fn put_prev_task(&self, task: TaskRef, front: bool) {
-        self.scheduler.lock().put_prev_task(task, front);
-    }
+    // #[inline]
+    // /// Add curr task to Executor, it ususally add to back
+    // pub fn put_prev_task(&self, task: TaskRef, front: bool) {
+    //     self.scheduler.lock().put_prev_task(task, front);
+    // }
 
-    #[inline]
-    /// Add task to Executor, now just put it to own Executor
-    /// TODO: support task migrate on differ Executor
-    pub fn add_task(task: TaskRef) {
-        task.get_scheduler().lock().add_task(task);
-    }
+    // #[inline]
+    // /// Add task to Executor, now just put it to own Executor
+    // /// TODO: support task migrate on differ Executor
+    // pub fn add_task(task: TaskRef) {
+    //     task.get_scheduler().lock().add_task(task);
+    // }
 
-    #[inline]
-    /// Executor Clean
-    pub fn task_tick(&self, task: &TaskRef) -> bool {
-        self.scheduler.lock().task_tick(task)
-    }
+    // #[inline]
+    // /// Executor Clean
+    // pub fn task_tick(&self, task: &TaskRef) -> bool {
+    //     self.scheduler.lock().task_tick(task)
+    // }
 
-    #[inline]
-    /// Executor Clean
-    pub fn set_priority(&self, task: &TaskRef, prio: isize) -> bool {
-        self.scheduler.lock().set_priority(task, prio)
-    }
+    // #[inline]
+    // /// Executor Clean
+    // pub fn set_priority(&self, task: &TaskRef, prio: isize) -> bool {
+    //     self.scheduler.lock().set_priority(task, prio)
+    // }
 
 }
 
@@ -465,7 +467,7 @@ impl Executor {
             path = format!("{}{}", cwd, path);
         }
         new_executor.set_file_path(path.clone()).await;
-        let scheduler = KERNEL_EXECUTOR.get_scheduler();
+        let scheduler = KERNEL_SCHEDULER.clone();
         let fut = UTRAP_HANDLER();
         let pid = new_executor.pid();
         let new_task = Arc::new(Task::new(TaskInner::new_user(
@@ -569,7 +571,7 @@ impl Executor {
             self.pid
         };
         let page_table_token = new_memory_set.lock().await.page_table_token();
-        let scheduler = KERNEL_EXECUTOR.get_scheduler();
+        let scheduler = KERNEL_SCHEDULER.clone();
         let fut = UTRAP_HANDLER();
         let utrap_frame = Box::new(*current_task().utrap_frame().unwrap());
         let new_task = Arc::new(Task::new(TaskInner::new_user(
@@ -959,7 +961,7 @@ impl Executor {
 impl Executor {
 
     pub async fn new_ktask(&self, name: String, fut: Pin<Box<dyn Future<Output = isize> + 'static>>) -> TaskRef {
-        let scheduler = KERNEL_EXECUTOR.get_scheduler();
+        let scheduler = KERNEL_SCHEDULER.clone();
         let page_table_token = self.memory_set.lock().await.page_table_token();
         let ktask = Arc::new(Task::new(TaskInner::new(
             name,
