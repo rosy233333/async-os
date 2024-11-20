@@ -480,7 +480,7 @@ impl Executor {
             )),
         )));
         new_executor.tasks.lock().await.push(new_task.clone());
-        taskctx::wakeup_task(new_task.clone());
+        new_task.get_scheduler().lock().add_task(new_task.clone());
         TID2TASK
             .lock()
             .await
@@ -803,7 +803,7 @@ impl Executor {
             //     trap_frame.sepc, trap_frame.regs.sp
             // );
         }
-        taskctx::wakeup_task(new_task);
+        new_task.get_scheduler().lock().add_task(new_task.clone());
         // 判断是否为VFORK
         if clone_flags.contains(CloneFlags::CLONE_VFORK) {
             self.set_vfork_block(true).await;

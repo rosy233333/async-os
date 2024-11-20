@@ -27,6 +27,7 @@ pub fn current_check_preempt_pending(tf: &mut TrapFrame) {
                 curr.can_preempt()
             );
             curr.set_preempt_pending(false);
+            tf.trap_status = TrapStatus::Blocked;
             set_task_tf(tf, CtxType::Interrupt);
         }
     }
@@ -288,10 +289,9 @@ pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
     curr.set_stack_ctx(tf as *const _, ctx_type);
     // let raw_task_ptr = CurrentTask::clean_current_without_drop();
     let new_kstack_top = taskctx::current_stack_top();
-    if curr.state() == TaskState::Running {
-        warn!("set_task_tf wake up {}", curr.id_name());
-        wakeup_task(curr.clone());
-    }
+    assert!(curr.state() == TaskState::Running);
+    curr.set_state(TaskState::Runable);
+    curr.get_scheduler().lock().add_task(curr.clone());
     CurrentTask::clean_current();
     unsafe {
         core::arch::asm!(

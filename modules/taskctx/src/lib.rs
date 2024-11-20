@@ -47,7 +47,7 @@ pub fn wakeup_task(task: TaskRef) {
     loop {
         match task.state() {
             TaskState::Running => return,
-            TaskState::Runable => break,
+            TaskState::Runable => return,
             TaskState::Blocking => {},
             TaskState::Blocked => break,
             TaskState::Exited => panic!("cannot wakeup exit task"),
