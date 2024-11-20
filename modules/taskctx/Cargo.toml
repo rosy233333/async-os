@@ -14,7 +14,7 @@ preempt = ["thread"]
 sched_fifo = []
 sched_rr = ["preempt"]
 sched_cfs = ["preempt"]
-sched_moic = []
+sched_taic = []
 
 [dependencies]
 log = "0.4"

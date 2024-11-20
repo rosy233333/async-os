@@ -35,9 +35,9 @@ cfg_if::cfg_if! {
     } else if #[cfg(feature = "sched_cfs")] {
         pub type Task = scheduler::CFSTask<TaskInner>;
         pub type Scheduler = scheduler::CFScheduler<TaskInner>;
-    } else if #[cfg(feature = "sched_moic")] {
-        pub type Task = scheduler::MOICTask<TaskInner>;
-        pub type Scheduler = scheduler::MOICScheduler<TaskInner>;
+    } else if #[cfg(feature = "sched_taic")] {
+        pub type Task = scheduler::TAICTask<TaskInner>;
+        pub type Scheduler = scheduler::TAICScheduler<TaskInner>;
     } else {
         // If no scheduler features are set, use FIFO as the default.
         pub type Task = scheduler::FifoTask<TaskInner>;

@@ -13,7 +13,7 @@ preempt = ["irq", "percpu/preempt", "kernel_guard/preempt", "taskctx/preempt"]
 sched_fifo = ["taskctx/sched_fifo"]
 sched_rr = ["taskctx/sched_rr"]
 sched_cfs = ["taskctx/sched_cfs"]
-sched_moic = ["taskctx/sched_moic"]
+sched_taic = ["taskctx/sched_taic"]
 
 [dependencies]
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }

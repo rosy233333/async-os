@@ -17,6 +17,6 @@ lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 log = "0.4"
 
 [features]
-moic_load_balanced = []
+taic_load_balanced = []
 
-default = ["moic_load_balanced"]
+default = ["taic_load_balanced"]

@@ -32,7 +32,7 @@ multitask = ["alloc", "sync"]
 sched_fifo = ["trampoline/sched_fifo"]
 sched_rr = ["trampoline/sched_rr", "trampoline/preempt"]
 sched_cfs = ["trampoline/sched_cfs", "trampoline/preempt"]
-sched_moic = ["trampoline/sched_moic", "paging"]
+sched_taic = ["trampoline/sched_taic", "paging"]
 
 # # File system
 fs = ["alloc", "paging", "axdriver/virtio-blk", "dep:async_fs", "runtime/fs"] # TODO: try to remove "paging"

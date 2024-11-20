@@ -5,16 +5,16 @@ use core::cell::UnsafeCell;
 
 use crate::BaseScheduler;
 
-/// A task wrapper for the [`MOICScheduler`].
+/// A task wrapper for the [`TAICScheduler`].
 ///
-/// It add a task metadata to use in Moic scheduler.
-pub struct MOICTask<T> {
+/// It add a task metadata to use in Taic scheduler.
+pub struct TAICTask<T> {
     inner: T,
     meta: UnsafeCell<TaskMeta>,
 }
 
-impl<T> MOICTask<T> {
-    /// Creates a new [`MOICTask`] from the inner task struct.
+impl<T> TAICTask<T> {
+    /// Creates a new [`TAICTask`] from the inner task struct.
     pub const fn new(inner: T) -> Self {
         Self {
             inner,
@@ -49,7 +49,7 @@ impl<T> MOICTask<T> {
     }
 }
 
-impl<T> Deref for MOICTask<T> {
+impl<T> Deref for TAICTask<T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -57,54 +57,54 @@ impl<T> Deref for MOICTask<T> {
     }
 }
 
-unsafe impl<T> Sync for MOICTask<T> {}
-unsafe impl<T> Send for MOICTask<T> {}
+unsafe impl<T> Sync for TAICTask<T> {}
+unsafe impl<T> Send for TAICTask<T> {}
 
 const PHYSICAL_OFFSET: usize = 0xffff_ffc0_0000_0000;
-const MOIC_MMIO_ADDR: usize = 0x100_0000 + PHYSICAL_OFFSET;
+const TAIC_MMIO_ADDR: usize = 0x100_0000 + PHYSICAL_OFFSET;
 static mut COUNT: usize = 0;
 
-/// A Moic scheduler.
-pub struct MOICScheduler<T> {
+/// A Taic scheduler.
+pub struct TAICScheduler<T> {
     inner: Moic,
     _phantom: core::marker::PhantomData<T>,
 }
 
-impl<T> MOICScheduler<T> {
-    /// Creates a new empty [`MOICScheduler`].
+impl<T> TAICScheduler<T> {
+    /// Creates a new empty [`TAICScheduler`].
     pub const fn new() -> Self {
         Self {
-            inner: Moic::new(MOIC_MMIO_ADDR),
+            inner: Moic::new(TAIC_MMIO_ADDR),
             _phantom: core::marker::PhantomData,
         }
     }
     /// get the name of scheduler
     pub fn scheduler_name() -> &'static str {
-        "Moic"
+        "Taic"
     }
 }
 
-#[cfg(feature = "moic_load_balanced")]
+#[cfg(feature = "taic_load_balanced")]
 static mut OS_TID: TaskId = TaskId::EMPTY;
 
-impl<T> BaseScheduler for MOICScheduler<T> {
-    type SchedItem = Arc<MOICTask<T>>;
+impl<T> BaseScheduler for TAICScheduler<T> {
+    type SchedItem = Arc<TAICTask<T>>;
 
     fn init(&mut self) {
-        #[cfg(feature = "moic_load_balanced")]
+        #[cfg(feature = "taic_load_balanced")]
         unsafe {
             if OS_TID.value() == 0 {
                 let tid = TaskMeta::new(0, false);
                 let phy_tid = tid.value() - PHYSICAL_OFFSET;
                 OS_TID = TaskId::virt(phy_tid);
             }
-            self.inner = Moic::new(MOIC_MMIO_ADDR + COUNT * 0x1000);
+            self.inner = Moic::new(TAIC_MMIO_ADDR + COUNT * 0x1000);
             self.inner.switch_os(Some(OS_TID));
             COUNT += 1;
         }
-        #[cfg(not(feature = "moic_load_balanced"))]
+        #[cfg(not(feature = "taic_load_balanced"))]
         unsafe {
-            self.inner = Moic::new(MOIC_MMIO_ADDR + COUNT * 0x1000);
+            self.inner = Moic::new(TAIC_MMIO_ADDR + COUNT * 0x1000);
             let tid = TaskMeta::new(0, false);
             let phy_tid = tid.value() - PHYSICAL_OFFSET;
             self.inner.switch_os(Some(TaskId::virt(phy_tid)));
@@ -126,7 +126,7 @@ impl<T> BaseScheduler for MOICScheduler<T> {
         if let Ok(tid) = self.inner.fetch() {
             let v = tid.value() + PHYSICAL_OFFSET;
             let meta: &mut TaskMeta = unsafe { TaskId::virt(v).into() };
-            let raw_ptr = meta.inner as *const MOICTask<T>;
+            let raw_ptr = meta.inner as *const TAICTask<T>;
             return Some(unsafe { Arc::from_raw(raw_ptr) });
         }
         None
