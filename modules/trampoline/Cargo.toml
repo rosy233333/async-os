@@ -21,6 +21,7 @@ preempt = ["irq", "percpu/preempt", "kernel_guard/preempt", "executor/preempt", 
 sched_fifo = ["multitask", "executor/sched_fifo"]
 sched_rr = ["multitask", "executor/sched_rr", "preempt"]
 sched_cfs = ["multitask", "executor/sched_cfs", "preempt"]
+sched_moic = ["multitask", "executor/sched_moic"]
 
 [dependencies]
 log = "0.4"

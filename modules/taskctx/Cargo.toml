@@ -14,6 +14,7 @@ preempt = ["thread"]
 sched_fifo = []
 sched_rr = ["preempt"]
 sched_cfs = ["preempt"]
+sched_moic = []
 
 [dependencies]
 log = "0.4"
@@ -24,12 +25,12 @@ lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 numeric-enum-macro = { git = "https://github.com/mexus/numeric-enum-macro" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
-scheduler = { git = "https://github.com/Starry-OS/scheduler.git" }
 percpu = { git = "https://github.com/Starry-OS/percpu.git" }
 
 axhal = { path = "../axhal" }
 crate_interface = "0.1"
 kernel_guard = { path = "../kernel_guard" }
+scheduler = { path = "../scheduler" }
 
 [target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
 riscv = "0.11"
