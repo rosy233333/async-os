@@ -30,7 +30,7 @@ percpu = { git = "https://github.com/Starry-OS/percpu.git" }
 axhal = { path = "../axhal" }
 crate_interface = "0.1"
 kernel_guard = { path = "../kernel_guard" }
-scheduler = { path = "../scheduler" }
+scheduler = { path = "../../crates/scheduler" }
 
 [target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
 riscv = "0.11"

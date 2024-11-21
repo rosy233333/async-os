@@ -50,6 +50,6 @@ paging:
   - [x] 增加 futex 的逻辑
   - [x] 增加与 schedule 相关的逻辑
   - [x] 将原有的与文件系统相关的实现修改为使用过程宏实现的逻辑
-  - [ ] 增加 devfs 和 ramfs，能够通过宏内核下的测试
+  - [x] 增加 devfs 和 ramfs，能够通过宏内核下的测试
   - [ ] 增加 redis，让 redis 能够在宏内核和 unikernel 下跑起来
   - [ ] 用户态的异步环境、异步系统调用库

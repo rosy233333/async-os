@@ -1,0 +1,12 @@
+[package]
+name = "taic_driver"
+version = "0.1.0"
+edition = "2021"
+authors = ["Fangliang Zhao <1491657576@qq.com>"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+pac = { path = "./pac" }
+spin = "0.9"
+log = "0.4"
