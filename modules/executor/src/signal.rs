@@ -368,7 +368,7 @@ pub async fn send_signal_to_process(
             .try_add_signal(signum as usize, info);
         // 如果这个时候对应的线程是处于休眠状态的，则唤醒之，进入信号处理阶段
         if main_task.is_blocked() {
-            taskctx::wakeup_task(main_task);
+            taskctx::wakeup_task(Arc::as_ptr(&main_task));
         }
     }
     // let mut now_id: Option<u64> = None;
@@ -422,7 +422,7 @@ pub async fn send_signal_to_thread(tid: isize, signum: isize) -> AxResult<()> {
         .try_add_signal(signum as usize, None);
     // 如果这个时候对应的线程是处于休眠状态的，则唤醒之，进入信号处理阶段
     if task.is_blocked() {
-        taskctx::wakeup_task(task);
+        taskctx::wakeup_task(Arc::as_ptr(&task));
     }
     Ok(())
 }

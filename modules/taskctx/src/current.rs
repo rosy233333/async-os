@@ -316,7 +316,7 @@ impl CurrentTask {
     }
 
     pub fn waker(&self) -> Waker {
-        crate::waker_from_task(self.as_task_ref())
+        crate::waker::waker_from_task(current_task_ptr() as _)
     }
 }
 

@@ -40,8 +40,9 @@ pub enum TaskState {
     Running = 0,
     Runable = 1,
     Blocking = 2,
-    Blocked = 3,
-    Exited = 4,
+    Waked = 3,
+    Blocked = 4,
+    Exited = 5,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]

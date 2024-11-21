@@ -66,6 +66,12 @@ where
     task
 }
 
+// 这里直接将进程从 PID2PC 中删除会导致问题
+// 因为当两个核并行时，这里的还没有回到调度函数，
+// 其它核上运行的父进程 wait 到这个任务后，将会把进程释放掉，页表也会失效
+// 这个核此时才回到调度函数，就会产生页错误
+// 1. 把删除的操作放到 wait_pid 那里进行，同样会导致这个问题，因为没有保证在这个核上运行的任务已经回到了调度函数
+// 2. 在这里更换页表，并且关闭中断，若产生中断，则下一次恢复执行时，会继续使用原来的页表
 pub async fn exit(exit_code: isize) {
     let curr = current_task();
     let curr_id = curr.id().as_u64();
@@ -130,8 +136,6 @@ pub async fn exit(exit_code: isize) {
             }
         }
         TID2TASK.lock().await.remove(&curr_id);
-        current_executor.set_exit_code(exit_code);
-        current_executor.set_zombie(true);
         current_executor.exit_main_task().await;
         current_executor.tasks.lock().await.clear();
 
@@ -156,6 +160,13 @@ pub async fn exit(exit_code: isize) {
         }
         pid2pc.remove(&current_executor.pid());
         drop(pid2pc);
+        // 在这里直接更换为内核页表，并且关闭中断
+        axhal::arch::disable_irqs();
+        unsafe {
+            axhal::arch::write_page_table_root0((*crate::KERNEL_PAGE_TABLE_TOKEN).into());
+        };
+        current_executor.set_exit_code(exit_code);
+        current_executor.set_zombie(true);
         drop(current_executor);
     } else {
         TID2TASK.lock().await.remove(&curr_id);

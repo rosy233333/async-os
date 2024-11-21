@@ -12,8 +12,7 @@
 //! 不会因为任务阻塞而导致引用计数增加，
 //! 其余对 TaskRef 引用计数的操作只会源于其余模块中的操作
 
-use crate::{wakeup_task, Task, TaskRef};
-use alloc::sync::Arc;
+use crate::{wakeup_task, Task};
 use core::task::{RawWaker, RawWakerVTable, Waker};
 
 const VTABLE: RawWakerVTable = RawWakerVTable::new(clone, wake, wake, drop);
@@ -23,20 +22,16 @@ unsafe fn clone(p: *const ()) -> RawWaker {
     RawWaker::new(p, &VTABLE)
 }
 
-/// 根据 Waker 内部的无类型指针，得到 TaskRef，
-/// Arc::from_raw 不会对引用计数自增
+/// 根据 Waker 内部的无类型指针，得到 Task 的指针，唤醒任务
 unsafe fn wake(p: *const ()) {
-    wakeup_task(Arc::from_raw(p as *const Task))
+    wakeup_task(p as *const Task)
 }
 
 /// 创建 waker 时没有增加引用计数，因此不需要实现 Drop
 unsafe fn drop(_p: *const ()) {}
 
-/// 使用 Arc::as_ptr 直接获取内部的数据指针
-/// 不会对引用计数产生影响，也不会对消耗 Arc 指针
-/// Waker 内部无类型擦除的指针是指向 Task，
-/// 指针的生命周期与 TaskRef 的生命周期相同
-/// 只要 TaskRef 没有释放，Waker 一直有效
-pub fn waker_from_task(task_ref: &TaskRef) -> Waker {
-    unsafe { Waker::from_raw(RawWaker::new(TaskRef::as_ptr(task_ref) as _, &VTABLE)) }
+/// 只有在运行的任务才需要 waker，
+/// 只需要从 CurrentTask 中获取任务的原始指针
+pub(crate) fn waker_from_task(task_ptr: *const Task) -> Waker {
+    unsafe { Waker::from_raw(RawWaker::new(task_ptr as _, &VTABLE)) }
 }

@@ -425,7 +425,6 @@ impl Executor {
                 axhal::arch::write_page_table_root0(page_table_token.into());
                 #[cfg(target_arch = "riscv64")]
                 riscv::register::sstatus::set_sum();
-                axhal::arch::flush_tlb(None);
             };
         }
         let (entry, user_stack_bottom, heap_bottom) =
@@ -841,7 +840,6 @@ impl Executor {
                 axhal::arch::write_page_table_root0(new_page_table.into());
                 #[cfg(target_arch = "riscv64")]
                 riscv::register::sstatus::set_sum();
-                axhal::arch::flush_tlb(None);
             }
         }
         // 清空用户堆，重置堆顶
@@ -900,7 +898,6 @@ impl Executor {
                 axhal::arch::write_page_table_root0(page_table_token.into());
                 #[cfg(target_arch = "riscv64")]
                 riscv::register::sstatus::set_sum();
-                axhal::arch::flush_tlb(None);
             };
             // 清空用户堆，重置堆顶
         }

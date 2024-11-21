@@ -120,12 +120,12 @@ pub async fn user_task_top() -> isize {
                             fut
                         ).await;
                         debug!("new ktask about syscall {}", ktask.id_name());
-                        let waker = waker_from_task(&ktask);
-                        let mut cx = core::task::Context::from_waker(&waker);
                         unsafe { 
                             CurrentTask::clean_current();
                             CurrentTask::init_current(ktask.clone()); 
                         }
+                        let waker = current_task().waker();
+                        let mut cx = core::task::Context::from_waker(&waker);
                         /************************************************************/
                         let res = if let Poll::Ready(res) = ktask.get_fut().as_mut().poll(&mut cx) {
                             CurrentTask::clean_current();
@@ -213,7 +213,7 @@ impl task_api::TaskApi for TaskApiImpl {
     }
 
     fn block_current() -> BlockFuture {
-        current_task().set_state(TaskState::Blocked);
+        current_task().set_state(TaskState::Blocking);
         #[cfg(feature = "thread")]
         thread_blocked();
         BlockFuture::new()
@@ -280,7 +280,7 @@ pub fn thread_join(_task: &TaskRef) -> Option<i32> {
             return Some(_task.get_exit_code() as i32);
         }
         _task.join(current_task().waker());
-        current_task().set_state(TaskState::Blocked);
+        current_task().set_state(TaskState::Blocking);
         thread_blocked();
     }
 }
@@ -288,13 +288,38 @@ pub fn thread_join(_task: &TaskRef) -> Option<i32> {
 #[cfg(any(feature = "thread", feature = "preempt"))]
 pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
     let curr = current_task();
+    let mut state = curr.state_lock_manual();
     curr.set_stack_ctx(tf as *const _, ctx_type);
-    // let raw_task_ptr = CurrentTask::clean_current_without_drop();
     let new_kstack_top = taskctx::current_stack_top();
-    assert!(curr.state() == TaskState::Running);
-    curr.set_state(TaskState::Runable);
-    curr.get_scheduler().lock().add_task(curr.clone());
-    CurrentTask::clean_current();
+    match **state {
+        // await 主动让权，将任务的状态修改为就绪后，放入就绪队列中
+        TaskState::Running => {
+            **state = TaskState::Runable;
+            curr.get_scheduler().lock().put_prev_task(curr.clone(), false);
+            CurrentTask::clean_current();
+        },
+        // 处于 Runable 状态的任务一定处于就绪队列中，不可能在 CPU 上运行
+        TaskState::Runable => panic!("Runable {} cannot be peding", curr.id_name()),
+        // 等待 Mutex 等进入到 Blocking 状态，但还在这个 CPU 上运行，
+        // 此时还没有被唤醒，因此将状态修改为 Blocked，等待被唤醒
+        TaskState::Blocking => {
+            **state = TaskState::Blocked;
+            CurrentTask::clean_current_without_drop();
+        },
+        // 由于等待 Mutex 等，导致进入到了 Blocking 状态，但在这里还没有修改状态为 Blocked 时
+        // 已经被其他 CPU 上运行的任务唤醒了，因此这里直接返回，让当前的任务继续执行
+        TaskState::Waked => {
+            **state = TaskState::Running;
+            drop(core::mem::ManuallyDrop::into_inner(state));
+            return;
+        }
+        // Blocked 状态的任务不可能在 CPU 上运行
+        TaskState::Blocked => panic!("Blocked {} cannot be pending", curr.id_name()),
+        // 退出的任务只能对应到 Poll::Ready
+        TaskState::Exited => panic!("Exited {} cannot be pending", curr.id_name()),
+    }
+    // 在这里释放锁，中间的过程不会发生中断
+    drop(core::mem::ManuallyDrop::into_inner(state));
     unsafe {
         core::arch::asm!(
             "li a1, 0",
