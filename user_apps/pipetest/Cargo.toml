@@ -4,4 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-syscalls = { path = "../../syscalls" }
+user-lib = { path = "../../user-lib" }
+
+[features]
+async-await = []
+async-non-await = ["user-lib/thread"]
+non-async-non-await = ["user-lib/thread"]
+blocking = ["user-lib/blocking"]
+default = ["non-async-non-await"]

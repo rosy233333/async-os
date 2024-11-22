@@ -1,14 +1,11 @@
-use crate::{raw, Errno, Sysno};
+use crate::{raw, Errno, Sysno, TaskOps};
 use core::{
-    pin::Pin, 
-    task::{Context, Poll}, 
-    future::Future, 
-    cell::Cell,
+    cell::Cell, future::Future, ops::Deref, pin::Pin, task::{Context, Poll}
 };
-use alloc::vec::Vec;
+use alloc::{boxed::Box, vec::Vec};
 
 #[repr(C)]
-pub struct SyscallRes(Cell<Option<Result<usize, Errno>>>);
+pub struct SyscallRes(Pin<Box<Cell<Option<Result<usize, Errno>>>>>);
 
 impl SyscallRes {
 
@@ -17,10 +14,10 @@ impl SyscallRes {
     }
 
     pub fn replace(&mut self, res: Result<usize, Errno>) {
-        self.0.set(Some(res));
+        (*self.0).set(Some(res));
     }
 
-    pub fn get(&mut self) -> Option<Result<usize, Errno>> {
+    pub fn get(&self) -> Option<Result<usize, Errno>> {
         self.0.get()
     }
 }
@@ -35,10 +32,10 @@ pub struct SyscallFuture {
 impl SyscallFuture {
 
     pub fn new(id: Sysno, args: &[usize]) -> Self {
-        Self { has_issued: false, id, args: Vec::from(args), res: SyscallRes(Cell::new(None)) }
+        Self { has_issued: false, id, args: Vec::from(args), res: SyscallRes(Box::pin(Cell::new(None))) }
     }
 
-    fn run(&mut self) {
+    pub(crate) fn run(&mut self) {
         // 目前仍然是通过 ecall 来发起系统调用
         let _ret_ptr = self.res.get_ptr() as *mut usize as usize;
         // 需要新增一个参数来记录返回值的位置
@@ -125,12 +122,16 @@ impl SyscallFuture {
             self.res.replace(Errno::from_ret(res));
         }
     }
+
+    pub(crate) fn is_finished(&self) -> bool {
+        self.res.get().is_some()
+    }
 }
 
 impl Future for SyscallFuture {
     type Output = Result<usize, Errno>;
 
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
         if let Some(ret) = this.res.get() {
             return Poll::Ready(ret);
@@ -142,8 +143,25 @@ impl Future for SyscallFuture {
             if let Some(ret) = this.res.get() {
                 return Poll::Ready(ret);
             } else {
+                #[cfg(feature = "yield-pending")] {
+                    use crate::task_trait::__TaskOps_mod;
+                    crate_interface::call_interface!(TaskOps::set_state_yield());
+                }
                 return Poll::Pending;
             }
+        }
+    }
+}
+
+impl Deref for SyscallFuture {
+    type Target = Result<usize, Errno>;
+
+    /// 对于non-await的调用方式，无论non-blocking还是blocking，都可以直接调用该函数获取结果。非阻塞调用可能出现的让出在系统调用API内部进行。
+    /// 对于await的调用方式，不应使用deref函数，而应使用.await。使用该函数会通不过assert。
+    fn deref(&self) -> &Self::Target {
+        assert!(self.has_issued);
+        unsafe {
+            &(&*self.res.0.as_ptr()).as_ref().unwrap()
         }
     }
 }

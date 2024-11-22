@@ -11,5 +11,5 @@ lto = true
 lto = true
 
 [workspace]
-members = ["apps/coroutine_test", "apps/user_boot", "apps/fs/shell", "apps/thread_test", "evaluation", "modules/async_utils", "modules/async_io", "modules/async_std", "modules/async_fs", "modules/async_vfs", "modules/aos_api", "modules/async_mem", "modules/taskctx", "modules/trampoline", "modules/executor", "modules/sync", "modules/runtime", "modules/arch_boot", "modules/syscall", "modules/feat", "modules/async_utils/afit", "modules/task_api", "modules/axfutex", "user_apps/hello_world", "syscalls", "user_apps/pipetest", ]
+members = ["apps/coroutine_test", "apps/user_boot", "apps/fs/shell", "apps/thread_test", "evaluation", "modules/async_utils", "modules/async_io", "modules/async_std", "modules/async_fs", "modules/async_vfs", "modules/aos_api", "modules/async_mem", "modules/taskctx", "modules/trampoline", "modules/executor", "modules/sync", "modules/runtime", "modules/arch_boot", "modules/syscall", "modules/feat", "modules/async_utils/afit", "modules/task_api", "modules/axfutex", "user_apps/hello_world", "syscalls", "user_apps/pipetest", "user_apps/std_thread_test", "user-lib", ]
 resolver = "2"
