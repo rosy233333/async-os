@@ -1,11 +1,14 @@
 [package]
-name = "user-task-scheduler"
+name = "user-lib"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 task_management = { git = "https://github.com/rosy233333/project2210132-233191", branch = "umode", default-features = false, features = [] }
 # task_management = { path = "../../project2210132-233191/code/task_management", default-features = false, features = [] }
+crate_interface = "0.1"
+syscalls = { path = "../syscalls" }
 
 [features]
-thread = []
+thread = ["syscalls/thread"]
+blocking = ["syscalls/blocking"]

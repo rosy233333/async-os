@@ -1,4 +1,4 @@
-use crate::{raw, Errno, Sysno};
+use crate::{raw, Errno, Sysno, TaskOps};
 use core::{
     cell::Cell, future::Future, ops::Deref, pin::Pin, task::{Context, Poll}
 };
@@ -143,11 +143,9 @@ impl Future for SyscallFuture {
             if let Some(ret) = this.res.get() {
                 return Poll::Ready(ret);
             } else {
-                #[cfg(feature = "yield-pending")]
-                {
-                    // 设置任务状态，使协程返回Pending后视为yield而非wait。
-                    let mut yield_fut = Box::pin(user_task_scheduler::yield_now());
-                    yield_fut.as_mut().poll(cx);
+                #[cfg(feature = "yield-pending")] {
+                    use crate::task_trait::__TaskOps_mod;
+                    crate_interface::call_interface!(TaskOps::set_state_yield());
                 }
                 return Poll::Pending;
             }

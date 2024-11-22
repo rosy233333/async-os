@@ -1,10 +1,6 @@
-#![no_std]
-#![allow(unused)]
-
-extern crate alloc;
+mod task_trait_impl;
 
 use core::{future::{poll_fn, Future}, pin::Pin, task::{Context, Poll}};
-
 use alloc::boxed::Box;
 
 pub fn run<F>(main_task_fn: F)

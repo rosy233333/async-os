@@ -5,15 +5,18 @@
 //!
 #![no_std]
 #![allow(unused)]
+#![feature(noop_waker)]
 
 extern crate alloc;
 
 mod fut;
 mod raw_syscall;
 mod syscall;
+mod task_trait;
 
 pub use fut::SyscallFuture;
 pub use syscall::*;
+pub use task_trait::TaskOps;
 
 use syscalls::Sysno;
 pub use syscalls::Errno;

@@ -6,7 +6,7 @@
 /// 
 
 use cfg_if::cfg_if;
-use crate::{SyscallFuture, Sysno};
+use crate::{SyscallFuture, Sysno, TaskOps};
 
 pub fn sys_read(fd: i32, buf: &mut [u8]) -> SyscallFuture {
     fut_adapter(SyscallFuture::new(Sysno::read, &[fd as usize, buf.as_mut_ptr() as usize, buf.len()]))
@@ -28,11 +28,14 @@ fn fut_adapter(mut sf: SyscallFuture) -> SyscallFuture {
                     sf.run();
                 }
                 else {
+                    use crate::task_trait::__TaskOps_mod;
+
                     // 非阻塞式系统调用，因为non-await，因此（用户态）让出操作在该函数内完成。
                     sf.has_issued = true;
                     sf.run();
                     while !sf.is_finished() {
-                        user_task_scheduler::yield_now();
+                        // user_task_scheduler::yield_now();
+                        crate_interface::call_interface!(TaskOps::yield_now());
                     }
                 }
             }

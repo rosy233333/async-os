@@ -6,7 +6,7 @@ mod implementation;
 use implementation::pipe_test;
 
 fn main() {
-    user_task_scheduler::run(|| {
+    user_lib::run(|| {
         pipe_test();
         0
     });

@@ -1,5 +1,5 @@
 fn main() {
-    user_task_scheduler::run(amain);
+    user_lib::run(amain);
 }
 
 fn amain() -> i32 {
@@ -13,18 +13,18 @@ fn amain() -> i32 {
     //     0
     // });
 
-    user_task_scheduler::spawn_async(async {
+    user_lib::spawn_async(async {
         for _ in 0 .. 5 {
             println!("coroutine 2");
-            user_task_scheduler::yield_now().await;
+            user_lib::yield_now().await;
         }
         0
     });
 
-    user_task_scheduler::spawn_async(async {
+    user_lib::spawn_async(async {
         for _ in 0 .. 5 {
             println!("coroutine 3");
-            user_task_scheduler::yield_now().await;
+            user_lib::yield_now().await;
         }
         0
     });

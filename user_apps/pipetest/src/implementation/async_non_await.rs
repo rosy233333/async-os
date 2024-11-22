@@ -3,7 +3,7 @@
 use core::str;
 use std::os::fd::AsRawFd;
 use std::pipe::{pipe, PipeReader, PipeWriter};
-use syscalls::{sys_read, sys_write};
+use user_lib::{sys_read, sys_write};
 
 #[cfg(feature = "blocking")]
 static IS_BLOCKING: &str = "blocking";
@@ -17,14 +17,14 @@ pub fn pipe_test() {
     #[cfg(not(feature = "blocking"))]
     {
         // 非阻塞情况下，先调用read，再调用write
-        user_task_scheduler::spawn_async(async move { reader(pipe_reader, &mut buf).await });
-        user_task_scheduler::spawn_async(async move { writer(pipe_writer).await });
+        user_lib::spawn_async(async move { reader(pipe_reader, &mut buf).await });
+        user_lib::spawn_async(async move { writer(pipe_writer).await });
     }
     #[cfg(feature = "blocking")]
     {
         // 阻塞情况下，先调用write，再调用read
-        user_task_scheduler::spawn_async(async move { writer(pipe_writer).await });
-        user_task_scheduler::spawn_async(async move { reader(pipe_reader, &mut buf).await });
+        user_lib::spawn_async(async move { writer(pipe_writer).await });
+        user_lib::spawn_async(async move { reader(pipe_reader, &mut buf).await });
     }
 }
 

@@ -7,15 +7,15 @@ edition = "2021"
 cfg-if = "1.0"
 libc = "0.2.151"
 syscalls = { version = "0.6", default-features = false }
-user-task-scheduler = { path = "../user-task-scheduler", optional = true}
+crate_interface = "0.1"
 
 [features]
 # 对外提供non-await的接口；若禁用，则为await式的接口
-thread = ["user-task-scheduler/thread"]
+thread = []
 # 向内核发起阻塞式系统调用；若禁用，则为非阻塞式调用
 blocking = []
 # 在SyscallFuture的唤醒机制还未实现时使用。使SyscallFuture在返回Pending时视为yield而非wait。
 # 虽然逻辑上yield-pending和thread是冲突的（yield-pending依赖于user-task-scheduler的await式API），但thread启用时，SyscallFuture不会被await（或poll），因此yield-pending相当于无效。
-yield-pending = ["user-task-scheduler"]
+yield-pending = []
 
 default = ["yield-pending"]

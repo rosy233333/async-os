@@ -4,12 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-syscalls = { path = "../../syscalls" }
-user-task-scheduler = { path = "../../user-task-scheduler" }
+user-lib = { path = "../../user-lib" }
 
 [features]
 async-await = []
-async-non-await = ["syscalls/thread", "user-task-scheduler/thread"]
-non-async-non-await = ["syscalls/thread", "user-task-scheduler/thread"]
-blocking = ["syscalls/blocking"]
+async-non-await = ["user-lib/thread"]
+non-async-non-await = ["user-lib/thread"]
+blocking = ["user-lib/blocking"]
 default = ["non-async-non-await"]
