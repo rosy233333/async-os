@@ -1,4 +1,4 @@
-UAPP_TARGET := riscv64gc-unknown-linux-gnu
+UAPP_TARGET := riscv64gc-unknown-linux-musl
 MODE := release
 TARGET_DIR := target/$(UAPP_TARGET)/$(MODE)
 TESTCASE_DIR := ../testcases/riscv64_linux_musl
