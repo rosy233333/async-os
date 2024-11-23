@@ -159,7 +159,11 @@ impl<T: ?Sized> Mutex<T> {
             owner_task,
             current_task,
             "{} tried to release mutex it doesn't own, which belong to {}",
-            curr.id_name(), (owner_task as *const task_api::Task).as_ref().unwrap().id_name()
+            curr.id_name(),
+            (owner_task as *const task_api::Task)
+                .as_ref()
+                .unwrap()
+                .id_name()
         );
         self.wq.notify_one();
     }
@@ -280,7 +284,7 @@ impl<'a, T: ?Sized + 'a> Future for MutexGuard<'a, T> {
                         }
                     }
                 }
-                
+
             }
         }
     }

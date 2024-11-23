@@ -10,6 +10,7 @@ use axhal::time::current_time;
 use axsignal::{info::SigInfo, signal_no::SignalNo};
 // use async_fs::api::OpenFlags;
 // use axhal::time::current_time;
+use executor::TaskId;
 use executor::{
     current_executor,
     current_task,
@@ -26,7 +27,6 @@ use executor::{
             // signal::send_signal_to_process,
             // sleep_now_task, wait_pid, yield_now_task, Process, PID2PC,
 };
-use executor::TaskId;
 use sync::Mutex;
 // use sync::Mutex;
 // use core::{future::poll_fn, sync::atomic::AtomicI32};
@@ -564,7 +564,11 @@ pub async fn syscall_setsid() -> SyscallResult {
     }
 
     // 从当前 process 的 thread group 中移除 calling thread
-    process.tasks.lock().await.retain(|t| t.id().as_u64() != task_id);
+    process
+        .tasks
+        .lock()
+        .await
+        .retain(|t| t.id().as_u64() != task_id);
 
     // 新建 process group 并加入
     let new_process = Executor::new(
@@ -583,7 +587,11 @@ pub async fn syscall_setsid() -> SyscallResult {
         .await
         .insert(task_id, SignalModule::init_signal(None));
 
-    new_process.tasks.lock().await.push(task.as_task_ref().clone());
+    new_process
+        .tasks
+        .lock()
+        .await
+        .push(task.as_task_ref().clone());
     task.set_leader(true);
     task.set_process_id(new_process.pid());
 
@@ -657,7 +665,8 @@ pub async fn syscall_prctl(args: [usize; 6]) -> SyscallResult {
             // [syscall 定义](https://man7.org/linux/man-pages/man2/prctl.2.html)要求 NAME 应该不超过 16 Byte
             process_name.truncate(PR_NAME_SIZE);
             // 把 arg2 转换成可写的 buffer
-            if current_executor().await
+            if current_executor()
+                .await
                 .manual_alloc_for_lazy((arg2 as usize).into())
                 .await
                 .is_ok()
@@ -673,7 +682,8 @@ pub async fn syscall_prctl(args: [usize; 6]) -> SyscallResult {
             }
         }
         Ok(PrctlOption::PR_SET_NAME) => {
-            if current_executor().await
+            if current_executor()
+                .await
                 .manual_alloc_for_lazy((arg2 as usize).into())
                 .await
                 .is_ok()

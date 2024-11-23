@@ -212,7 +212,7 @@ impl FileIO for FileDesc {
         Poll::Ready(now_pos != len)
     }
 
-    fn as_any(&self) ->  &dyn core::any::Any {
+    fn as_any(&self) -> &dyn core::any::Any {
         self
     }
 }

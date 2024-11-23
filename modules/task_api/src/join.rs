@@ -4,20 +4,23 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
-use taskctx::TaskRef;
 use kernel_guard::{BaseGuard, NoPreemptIrqSave};
+use taskctx::TaskRef;
 
 pub struct JoinFuture {
     _task: TaskRef,
     res: Option<i32>,
     _irq_state: <NoPreemptIrqSave as BaseGuard>::State,
-
 }
 
 impl JoinFuture {
     pub fn new(_task: TaskRef, res: Option<i32>) -> Self {
         let _irq_state = Default::default();
-        Self { _task, res, _irq_state }
+        Self {
+            _task,
+            res,
+            _irq_state,
+        }
     }
 }
 

@@ -1,10 +1,12 @@
 use crate::{
-    flags::WaitStatus, futex::futex_wake, send_signal_to_process, send_signal_to_thread, CurrentExecutor, Executor, KERNEL_EXECUTOR, KERNEL_EXECUTOR_ID, KERNEL_SCHEDULER, PID2PC, TID2TASK, UTRAP_HANDLER
+    flags::WaitStatus, futex::futex_wake, send_signal_to_process, send_signal_to_thread,
+    CurrentExecutor, Executor, KERNEL_EXECUTOR, KERNEL_EXECUTOR_ID, KERNEL_SCHEDULER, PID2PC,
+    TID2TASK, UTRAP_HANDLER,
 };
 use alloc::{boxed::Box, string::String, sync::Arc};
 use axsignal::signal_no::SignalNo;
-use spinlock::SpinNoIrq;
 use core::{future::Future, ops::Deref, pin::Pin};
+use spinlock::SpinNoIrq;
 pub use task_api::*;
 
 // Initializes the executor (for the primary CPU).
@@ -42,7 +44,13 @@ pub fn current_task() -> CurrentTask {
 
 pub async fn current_executor() -> Arc<Executor> {
     let current_task = current_task();
-    let current_process = Arc::clone(PID2PC.lock().await.get(&current_task.get_process_id()).unwrap());
+    let current_process = Arc::clone(
+        PID2PC
+            .lock()
+            .await
+            .get(&current_task.get_process_id())
+            .unwrap(),
+    );
     current_process
 }
 
@@ -242,11 +250,7 @@ pub async unsafe fn wait_pid(pid: i32, exit_code_ptr: *mut i32) -> Result<u64, W
             answer_status = WaitStatus::Running;
             if let Some(exit_code) = child.get_code_if_exit() {
                 answer_status = WaitStatus::Exited;
-                info!(
-                    "wait pid _{}_ with code _{}_",
-                    child.pid(),
-                    exit_code
-                );
+                info!("wait pid _{}_ with code _{}_", child.pid(), exit_code);
                 exit_task_id = index;
                 if !exit_code_ptr.is_null() {
                     unsafe {
@@ -261,11 +265,7 @@ pub async unsafe fn wait_pid(pid: i32, exit_code_ptr: *mut i32) -> Result<u64, W
             // 找到了对应的进程
             if let Some(exit_code) = child.get_code_if_exit() {
                 answer_status = WaitStatus::Exited;
-                info!(
-                    "wait pid _{}_ with code _{:?}_",
-                    child.pid(),
-                    exit_code
-                );
+                info!("wait pid _{}_ with code _{:?}_", child.pid(), exit_code);
                 exit_task_id = index;
                 if !exit_code_ptr.is_null() {
                     unsafe {

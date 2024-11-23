@@ -287,7 +287,8 @@ pub async fn syscall_shmget(args: [usize; 6]) -> SyscallResult {
             return Err(SyscallError::EINVAL);
         };
 
-        current_executor().await
+        current_executor()
+            .await
             .memory_set
             .lock()
             .await

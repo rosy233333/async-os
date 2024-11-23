@@ -9,8 +9,8 @@ pub use afit::async_trait;
 pub use async_main::async_main;
 
 extern crate alloc;
-use core::pin::Pin;
 use alloc::sync::Arc;
+use core::pin::Pin;
 
 #[async_trait]
 pub trait Test {

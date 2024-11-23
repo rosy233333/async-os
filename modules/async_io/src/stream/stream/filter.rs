@@ -40,9 +40,7 @@ where
 
         match next {
             Some(v) if (this.predicate)(&v) => Poll::Ready(Some(v)),
-            Some(_) => {
-                Poll::Pending
-            }
+            Some(_) => Poll::Pending,
             None => Poll::Ready(None),
         }
     }

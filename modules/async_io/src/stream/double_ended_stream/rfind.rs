@@ -31,9 +31,7 @@ where
 
         match item {
             Some(v) if (&mut self.p)(&v) => Poll::Ready(Some(v)),
-            Some(_) => {
-                Poll::Pending
-            }
+            Some(_) => Poll::Pending,
             None => Poll::Ready(None),
         }
     }

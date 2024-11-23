@@ -1,11 +1,11 @@
 //! Coroutine Control Block structures for more control.
 //!
 
-use alloc::{sync::Arc, vec::Vec};
 use crate::{
     cap_queue::{CapQueue, Capability, DeviceCapTable},
     ready_queue::ReadyQueue,
 };
+use alloc::{sync::Arc, vec::Vec};
 use core::fmt::Display;
 use spin::Mutex;
 pub(crate) const TASK_META_ALIGN: usize = 6;
@@ -14,36 +14,36 @@ pub(crate) const MAX_PRIORITY: usize = 32;
 /// The Identity of `Task`
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TaskId(pub(crate)usize);
+pub struct TaskId(pub(crate) usize);
 
 unsafe impl Send for TaskId {}
 unsafe impl Sync for TaskId {}
 
 impl TaskId {
-    /// 
+    ///
     pub const EMPTY: Self = Self(0);
-    
+
     /// Assume that val is a valid `TaskId`.
     pub unsafe fn virt(val: usize) -> Self {
         Self(val)
     }
 
-    /// 
+    ///
     pub fn value(&self) -> usize {
         self.0
     }
 
-    /// 
+    ///
     pub fn phy_val(&self, phy_offset: usize) -> Self {
         Self(self.0 - phy_offset)
     }
 
-    /// 
+    ///
     pub fn virt_val(&self, phy_offset: usize) -> Self {
         Self(self.0 + phy_offset)
     }
 
-    // /// 
+    // ///
     // pub fn manual_drop<T: Sized>(self) {
     //     let raw_tid = self.0;
     //     let raw_meta = (raw_tid & (!0x3f)) as *mut TaskMeta<T>;
@@ -95,21 +95,21 @@ pub enum Status {
 /// The `TaskMeta`
 #[repr(C, align(0x40))]
 pub struct TaskMeta<T: Sized> {
-    /// 
+    ///
     pub ready_queue: ReadyQueue,
-    /// 
+    ///
     pub device_cap_table: DeviceCapTable,
-    /// 
+    ///
     pub send_cap_queue: CapQueue,
-    /// 
+    ///
     pub recv_cap_queue: CapQueue,
-    /// 
+    ///
     pub status: Status,
-    /// 
+    ///
     pub priority: usize,
-    /// 
+    ///
     pub is_preempt: bool,
-    /// 
+    ///
     pub lock: Mutex<()>,
     ///
     pub inner: Option<T>,
@@ -134,7 +134,7 @@ impl<T: Sized> TaskMeta<T> {
         }
     }
 
-    /// 
+    ///
     pub const fn new(priority: usize, is_preempt: bool, inner: T) -> Self {
         TaskMeta {
             ready_queue: ReadyQueue::EMPTY,
@@ -149,19 +149,27 @@ impl<T: Sized> TaskMeta<T> {
         }
     }
 
-    /// 
+    ///
     pub fn device_cap(&self) -> &DeviceCapTable {
         &self.device_cap_table
     }
 
-    /// 
+    ///
     pub fn send_cap(&self) -> Vec<Capability> {
-        self.send_cap_queue.inner.iter().map(|c| c.clone()).collect()
+        self.send_cap_queue
+            .inner
+            .iter()
+            .map(|c| c.clone())
+            .collect()
     }
 
-    /// 
+    ///
     pub fn recv_cap(&self) -> Vec<Capability> {
-        self.recv_cap_queue.inner.iter().map(|c| c.clone()).collect()
+        self.recv_cap_queue
+            .inner
+            .iter()
+            .map(|c| c.clone())
+            .collect()
     }
 }
 
@@ -182,24 +190,21 @@ impl<T: Sized> From<TaskId> for &mut TaskMeta<T> {
 }
 
 impl<T: Sized> Drop for TaskMeta<T> {
-    fn drop(&mut self) {
-    }
+    fn drop(&mut self) {}
 }
 
 impl<T: Sized> Display for TaskMeta<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "TaskMeta(
+        write!(
+            f,
+            "TaskMeta(
 {:X?},
 SendCap: {:X?},
 RecvCap: {:X?},
 Status: {:?},
 Priority: {},
-)", 
-            self.ready_queue,
-            self.send_cap_queue,
-            self.recv_cap_queue,
-            self.status,
-            self.priority
+)",
+            self.ready_queue, self.send_cap_queue, self.recv_cap_queue, self.status, self.priority
         )
     }
 }

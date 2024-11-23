@@ -84,7 +84,7 @@ impl FileIO for DirDesc {
         Poll::Ready(Ok(kstat))
     }
 
-    fn as_any(&self) ->  &dyn core::any::Any {
+    fn as_any(&self) -> &dyn core::any::Any {
         self
     }
 }

@@ -61,9 +61,7 @@ impl FileIO for Stdin {
                     }
                     Poll::Ready(Ok(1))
                 }
-                None => {
-                    Poll::Pending
-                }
+                None => Poll::Pending,
             }
         } else {
             // user appilcation
@@ -192,7 +190,7 @@ impl FileIO for Stdin {
         Poll::Ready(true)
     }
 
-    fn as_any(&self) ->  &dyn core::any::Any {
+    fn as_any(&self) -> &dyn core::any::Any {
         self
     }
 }
@@ -298,7 +296,7 @@ impl FileIO for Stdout {
         })
     }
 
-    fn as_any(&self) ->  &dyn core::any::Any {
+    fn as_any(&self) -> &dyn core::any::Any {
         self
     }
 }
@@ -378,7 +376,7 @@ impl FileIO for Stderr {
         })
     }
 
-    fn as_any(&self) ->  &dyn core::any::Any {
+    fn as_any(&self) -> &dyn core::any::Any {
         self
     }
 }

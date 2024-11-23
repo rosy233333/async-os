@@ -127,9 +127,11 @@ pub fn run_task(curr: CurrentTask) {
                         }
                     }
                     **state = TaskState::Runable;
-                    curr.get_scheduler().lock().put_prev_task(curr.clone(), false);
+                    curr.get_scheduler()
+                        .lock()
+                        .put_prev_task(curr.clone(), false);
                     CurrentTask::clean_current();
-                },
+                }
                 // 处于 Runable 状态的任务一定处于就绪队列中，不可能在 CPU 上运行
                 TaskState::Runable => panic!("Runable {} cannot be peding", curr.id_name()),
                 // 等待 Mutex 等进入到 Blocking 状态，但还在这个 CPU 上运行，
@@ -137,7 +139,7 @@ pub fn run_task(curr: CurrentTask) {
                 TaskState::Blocking => {
                     **state = TaskState::Blocked;
                     CurrentTask::clean_current_without_drop();
-                },
+                }
                 // 由于等待 Mutex 等，导致进入到了 Blocking 状态，但在这里还没有修改状态为 Blocked 时
                 // 已经被其他 CPU 上运行的任务唤醒了，因此这里直接返回，让当前的任务继续执行
                 TaskState::Waked => {

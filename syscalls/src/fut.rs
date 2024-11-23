@@ -1,14 +1,17 @@
 use crate::{raw, Errno, Sysno, TaskOps};
-use core::{
-    cell::Cell, future::Future, ops::Deref, pin::Pin, task::{Context, Poll}
-};
 use alloc::{boxed::Box, vec::Vec};
+use core::{
+    cell::Cell,
+    future::Future,
+    ops::Deref,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 #[repr(C)]
 pub struct SyscallRes(Pin<Box<Cell<Option<Result<usize, Errno>>>>>);
 
 impl SyscallRes {
-
     pub fn get_ptr(&mut self) -> *mut Option<Result<usize, Errno>> {
         self.0.as_ptr()
     }
@@ -30,9 +33,13 @@ pub struct SyscallFuture {
 }
 
 impl SyscallFuture {
-
     pub fn new(id: Sysno, args: &[usize]) -> Self {
-        Self { has_issued: false, id, args: Vec::from(args), res: SyscallRes(Box::pin(Cell::new(None))) }
+        Self {
+            has_issued: false,
+            id,
+            args: Vec::from(args),
+            res: SyscallRes(Box::pin(Cell::new(None))),
+        }
     }
 
     pub(crate) fn run(&mut self) {
@@ -41,84 +48,83 @@ impl SyscallFuture {
         // 需要新增一个参数来记录返回值的位置
         // 详细的设置见 crate::raw_syscall
         #[cfg(target_arch = "riscv64")]
-        let res = unsafe { match self.args.len() {
-            0 => raw::syscall0(self.id as _, _ret_ptr),
-            1 => raw::syscall1(self.id as _, self.args[0], _ret_ptr),
-            2 => raw::syscall2(self.id as _, self.args[0], self.args[1], _ret_ptr),
-            3 => raw::syscall3(
-                self.id as _, 
-                self.args[0], 
-                self.args[1], 
-                self.args[2],
-                _ret_ptr
-            ),
-            4 => raw::syscall4(
-                self.id as _, 
-                self.args[0], 
-                self.args[1], 
-                self.args[2], 
-                self.args[3],
-                _ret_ptr
-            ),
-            5 => raw::syscall5(
-                self.id as _, 
-                self.args[0], 
-                self.args[1], 
-                self.args[2], 
-                self.args[3], 
-                self.args[4],
-                _ret_ptr
-            ),
-            6 => raw::syscall6(
-                self.id as _, 
-                self.args[0], 
-                self.args[1], 
-                self.args[2], 
-                self.args[3], 
-                self.args[4], 
-                self.args[5],
-                _ret_ptr
-            ),
-            _ => panic!("not support the number of syscall args > 6"),
-        }};
+        let res = unsafe {
+            match self.args.len() {
+                0 => raw::syscall0(self.id as _, _ret_ptr),
+                1 => raw::syscall1(self.id as _, self.args[0], _ret_ptr),
+                2 => raw::syscall2(self.id as _, self.args[0], self.args[1], _ret_ptr),
+                3 => raw::syscall3(
+                    self.id as _,
+                    self.args[0],
+                    self.args[1],
+                    self.args[2],
+                    _ret_ptr,
+                ),
+                4 => raw::syscall4(
+                    self.id as _,
+                    self.args[0],
+                    self.args[1],
+                    self.args[2],
+                    self.args[3],
+                    _ret_ptr,
+                ),
+                5 => raw::syscall5(
+                    self.id as _,
+                    self.args[0],
+                    self.args[1],
+                    self.args[2],
+                    self.args[3],
+                    self.args[4],
+                    _ret_ptr,
+                ),
+                6 => raw::syscall6(
+                    self.id as _,
+                    self.args[0],
+                    self.args[1],
+                    self.args[2],
+                    self.args[3],
+                    self.args[4],
+                    self.args[5],
+                    _ret_ptr,
+                ),
+                _ => panic!("not support the number of syscall args > 6"),
+            }
+        };
         #[cfg(not(target_arch = "riscv64"))]
-        let res = unsafe { match self.args.len() {
-            0 => raw::syscall0(self.id as _),
-            1 => raw::syscall1(self.id as _, self.args[0]),
-            2 => raw::syscall2(self.id as _, self.args[0], self.args[1]),
-            3 => raw::syscall3(
-                self.id as _, 
-                self.args[0], 
-                self.args[1], 
-                self.args[2],
-            ),
-            4 => raw::syscall4(
-                self.id as _, 
-                self.args[0], 
-                self.args[1], 
-                self.args[2], 
-                self.args[3],
-            ),
-            5 => raw::syscall5(
-                self.id as _, 
-                self.args[0], 
-                self.args[1], 
-                self.args[2], 
-                self.args[3], 
-                self.args[4],
-            ),
-            6 => raw::syscall6(
-                self.id as _, 
-                self.args[0], 
-                self.args[1], 
-                self.args[2], 
-                self.args[3], 
-                self.args[4], 
-                self.args[5],
-            ),
-            _ => panic!("not support the number of syscall args > 6"),
-        }};
-        if res as i32 != Errno::EAGAIN.into_raw()  {
+        let res = unsafe {
+            match self.args.len() {
+                0 => raw::syscall0(self.id as _),
+                1 => raw::syscall1(self.id as _, self.args[0]),
+                2 => raw::syscall2(self.id as _, self.args[0], self.args[1]),
+                3 => raw::syscall3(self.id as _, self.args[0], self.args[1], self.args[2]),
+                4 => raw::syscall4(
+                    self.id as _,
+                    self.args[0],
+                    self.args[1],
+                    self.args[2],
+                    self.args[3],
+                ),
+                5 => raw::syscall5(
+                    self.id as _,
+                    self.args[0],
+                    self.args[1],
+                    self.args[2],
+                    self.args[3],
+                    self.args[4],
+                ),
+                6 => raw::syscall6(
+                    self.id as _,
+                    self.args[0],
+                    self.args[1],
+                    self.args[2],
+                    self.args[3],
+                    self.args[4],
+                    self.args[5],
+                ),
+                _ => panic!("not support the number of syscall args > 6"),
+            }
+        };
+        if res as i32 != Errno::EAGAIN.into_raw() {
             self.res.replace(Errno::from_ret(res));
         }
     }
@@ -143,7 +149,8 @@ impl Future for SyscallFuture {
             if let Some(ret) = this.res.get() {
                 return Poll::Ready(ret);
             } else {
-                #[cfg(feature = "yield-pending")] {
+                #[cfg(feature = "yield-pending")]
+                {
                     use crate::task_trait::__TaskOps_mod;
                     crate_interface::call_interface!(TaskOps::set_state_yield());
                 }
@@ -160,8 +167,6 @@ impl Deref for SyscallFuture {
     /// 对于await的调用方式，不应使用deref函数，而应使用.await。使用该函数会通不过assert。
     fn deref(&self) -> &Self::Target {
         assert!(self.has_issued);
-        unsafe {
-            &(&*self.res.0.as_ptr()).as_ref().unwrap()
-        }
+        unsafe { &(&*self.res.0.as_ptr()).as_ref().unwrap() }
     }
 }

@@ -5,7 +5,13 @@ use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, sync::
 #[cfg(feature = "preempt")]
 use core::sync::atomic::AtomicUsize;
 use core::{
-    cell::UnsafeCell, fmt, future::Future, mem::ManuallyDrop, pin::Pin, sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering}, task::Waker
+    cell::UnsafeCell,
+    fmt,
+    future::Future,
+    mem::ManuallyDrop,
+    pin::Pin,
+    sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering},
+    task::Waker,
 };
 use spinlock::{SpinNoIrq, SpinNoIrqGuard};
 
@@ -601,7 +607,8 @@ impl TaskInner {
         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
         assert!(
             stack_ctx.is_none(),
-            "{} cannot use thread api to do task switch", self.id_name()
+            "{} cannot use thread api to do task switch",
+            self.id_name()
         );
         let kstack = crate::pick_current_stack();
         stack_ctx.replace(StackCtx {

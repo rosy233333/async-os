@@ -10,12 +10,11 @@ pub struct ReadyQueue {
     pub count: usize,
 }
 
-
 impl ReadyQueue {
-    /// 
+    ///
     pub const EMPTY: Self = Self {
         inner: Vec::new(),
         online: false,
-        count: 0
+        count: 0,
     };
 }

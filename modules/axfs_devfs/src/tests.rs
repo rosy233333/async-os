@@ -29,9 +29,7 @@ async fn test_devfs_ops(devfs: &DeviceFileSystem) -> VfsResult {
     assert_eq!(node.write_at(N as _, &buf).await?, N);
     assert_eq!(node.lookup("/").err(), Some(VfsError::NotADirectory));
 
-    let node = devfs
-        .root_dir()
-        .lookup(".///.//././/.////zero")?;
+    let node = devfs.root_dir().lookup(".///.//././/.////zero")?;
     assert_eq!(node.get_attr().await?.file_type(), VfsNodeType::CharDevice);
     assert!(!node.get_attr().await?.is_dir());
     assert_eq!(node.get_attr().await?.size(), 0);
@@ -39,9 +37,7 @@ async fn test_devfs_ops(devfs: &DeviceFileSystem) -> VfsResult {
     assert_eq!(buf, [0; N]);
     assert_eq!(node.write_at(0, &buf).await?, N);
 
-    let foo = devfs
-        .root_dir()
-        .lookup(".///.//././/.////foo")?;
+    let foo = devfs.root_dir().lookup(".///.//././/.////foo")?;
     assert!(foo.get_attr().await?.is_dir());
     assert_eq!(
         foo.read_at(10, &mut buf).await.err(),
@@ -85,14 +81,10 @@ async fn test_get_parent(devfs: &DeviceFileSystem) -> VfsResult {
 
     assert!(Arc::ptr_eq(
         &root.clone().lookup("/foo/..")?,
-        &devfs
-            .root_dir()
-            .lookup(".//./foo/././bar/../..")?,
+        &devfs.root_dir().lookup(".//./foo/././bar/../..")?,
     ));
     assert!(Arc::ptr_eq(
-        &root
-            .clone()
-            .lookup("././/foo//./../foo//bar///..//././")?,
+        &root.clone().lookup("././/foo//./../foo//bar///..//././")?,
         &devfs.root_dir().lookup(".//./foo/")?,
     ));
     assert!(Arc::ptr_eq(

@@ -1,9 +1,9 @@
+use alloc::{boxed::Box, format};
 use axhal::time::{current_time, TimeValue};
 use core::{future::poll_fn, task::Poll, time::Duration};
 pub use executor::*;
 use riscv::register::scause::{Exception, Trap};
 use syscall::trap::{handle_page_fault, MappingFlags};
-use alloc::{boxed::Box, format};
 
 #[cfg(feature = "thread")]
 use kernel_guard::BaseGuard;
@@ -58,7 +58,6 @@ pub async fn current_check_user_preempt_pending(_tf: &mut TrapFrame) {
     }
 }
 
-
 /// 这个接口还没有统一，后续还需要统一成两种接口都可以使用的形式
 pub async fn wait(task: &TaskRef) -> Option<i32> {
     JoinFuture::new(task.clone(), None).await
@@ -84,7 +83,8 @@ pub async fn user_task_top() -> isize {
                         syscall::trap::handle_syscall(
                             tf.regs.a7,
                             [
-                                tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
+                                tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4,
+                                tf.regs.a5,
                             ],
                         )
                         .await
@@ -96,17 +96,17 @@ pub async fn user_task_top() -> isize {
 
                             需要注意的是，在临时修改了 CurrentTask 之间（代码中使用/***/包括的部分）不允许使用 await 关键字，
                             因为 await 携带的信息是 curr 的信息，而不是新建的内核协程的信息，需要使用临时构建的 cx 来执行 poll 函数，
-                            
+
                             1. 当这个内核协程返回 Pending 时，会将 EAGAIN 当作返回值传给用户态，用户态继续执行其他的协程
                             2. 当这个内核协程返回 Ready 时，会将内核协程的返回值传给用户态，用户态继续当前的协程
-                        
+
                         */
                         let syscall_id = tf.regs.a7;
                         let args = [
                             tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
                         ];
                         let ret_ptr = tf.regs.t1;
-                        let fut = Box::pin(async move { 
+                        let fut = Box::pin(async move {
                             let res = syscall::trap::handle_syscall(syscall_id, args).await;
                             // 将结果写回到用户态 SyscallFuture 的 res 中
                             unsafe {
@@ -115,14 +115,14 @@ pub async fn user_task_top() -> isize {
                             }
                             res
                         });
-                        let ktask = current_executor().await.new_ktask(
-                            format!("syscall {}", tf.regs.a7), 
-                            fut
-                        ).await;
+                        let ktask = current_executor()
+                            .await
+                            .new_ktask(format!("syscall {}", tf.regs.a7), fut)
+                            .await;
                         debug!("new ktask about syscall {}", ktask.id_name());
-                        unsafe { 
+                        unsafe {
                             CurrentTask::clean_current();
-                            CurrentTask::init_current(ktask.clone()); 
+                            CurrentTask::init_current(ktask.clone());
                         }
                         let waker = current_task().waker();
                         let mut cx = core::task::Context::from_waker(&waker);
@@ -295,9 +295,11 @@ pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
         // await 主动让权，将任务的状态修改为就绪后，放入就绪队列中
         TaskState::Running => {
             **state = TaskState::Runable;
-            curr.get_scheduler().lock().put_prev_task(curr.clone(), false);
+            curr.get_scheduler()
+                .lock()
+                .put_prev_task(curr.clone(), false);
             CurrentTask::clean_current();
-        },
+        }
         // 处于 Runable 状态的任务一定处于就绪队列中，不可能在 CPU 上运行
         TaskState::Runable => panic!("Runable {} cannot be peding", curr.id_name()),
         // 等待 Mutex 等进入到 Blocking 状态，但还在这个 CPU 上运行，
@@ -305,7 +307,7 @@ pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
         TaskState::Blocking => {
             **state = TaskState::Blocked;
             CurrentTask::clean_current_without_drop();
-        },
+        }
         // 由于等待 Mutex 等，导致进入到了 Blocking 状态，但在这里还没有修改状态为 Blocked 时
         // 已经被其他 CPU 上运行的任务唤醒了，因此这里直接返回，让当前的任务继续执行
         TaskState::Waked => {

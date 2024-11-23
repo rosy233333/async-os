@@ -5,5 +5,5 @@ extern crate alloc;
 
 mod task;
 
-pub use task::*;
 pub use syscalls::*;
+pub use task::*;

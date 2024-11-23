@@ -1,7 +1,7 @@
+use crate::BaseScheduler;
 use alloc::sync::Arc;
 use core::{cell::UnsafeCell, ops::Deref};
-use taic_driver::{TaskMeta, TaskId, Taic};
-use crate::BaseScheduler;
+use taic_driver::{Taic, TaskId, TaskMeta};
 
 /// A task wrapper for the [`TAICScheduler`].
 ///
@@ -91,7 +91,8 @@ impl<T> BaseScheduler for TAICScheduler<T> {
         unsafe {
             self.inner = Taic::new(TAIC_MMIO_ADDR + COUNT * 0x1000);
             let tid: TaskId = Arc::new(TaskMeta::<T>::init()).into();
-            self.inner.switch_os::<T>(Some(tid.phy_val(PHYSICAL_OFFSET)));
+            self.inner
+                .switch_os::<T>(Some(tid.phy_val(PHYSICAL_OFFSET)));
             COUNT += 1;
         }
     }

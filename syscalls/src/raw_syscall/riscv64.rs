@@ -11,8 +11,8 @@
 // %a0 is reused for the syscall return value.
 //
 // No other registers are clobbered.
-use core::arch::asm;
 use super::IS_ASYNC;
+use core::arch::asm;
 
 /// Issues a raw async system call with 0 arguments.
 ///
@@ -82,13 +82,7 @@ pub unsafe fn syscall2(n: usize, arg1: usize, arg2: usize, ret_ptr: usize) -> us
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
-pub unsafe fn syscall3(
-    n: usize,
-    arg1: usize,
-    arg2: usize,
-    arg3: usize,
-    ret_ptr: usize
-) -> usize {
+pub unsafe fn syscall3(n: usize, arg1: usize, arg2: usize, arg3: usize, ret_ptr: usize) -> usize {
     let mut ret: usize;
     asm!(
         "ecall",
@@ -116,7 +110,7 @@ pub unsafe fn syscall4(
     arg2: usize,
     arg3: usize,
     arg4: usize,
-    ret_ptr: usize
+    ret_ptr: usize,
 ) -> usize {
     let mut ret: usize;
     asm!(
@@ -147,7 +141,7 @@ pub unsafe fn syscall5(
     arg3: usize,
     arg4: usize,
     arg5: usize,
-    ret_ptr: usize
+    ret_ptr: usize,
 ) -> usize {
     let mut ret: usize;
     asm!(
@@ -180,7 +174,7 @@ pub unsafe fn syscall6(
     arg4: usize,
     arg5: usize,
     arg6: usize,
-    ret_ptr: usize
+    ret_ptr: usize,
 ) -> usize {
     let mut ret: usize;
     asm!(

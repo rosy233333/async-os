@@ -97,12 +97,11 @@ impl VfsNodeOps for DirNode {
             "" | "." => Ok(self.clone() as VfsNodeRef),
             ".." => self.parent().ok_or(VfsError::NotFound),
             _ => self
-                    .children
-                    .read()
-                    .get(name)
-                    .cloned()
-                    .ok_or(VfsError::NotFound)
-            ,
+                .children
+                .read()
+                .get(name)
+                .cloned()
+                .ok_or(VfsError::NotFound),
         }?;
         if let Some(rest) = rest {
             node.lookup(rest)

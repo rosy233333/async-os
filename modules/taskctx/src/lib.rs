@@ -65,7 +65,7 @@ pub fn wakeup_task(task_ptr: *const Task) {
             **state = TaskState::Runable;
             let task_ref = unsafe { Arc::from_raw(task_ptr) };
             task.scheduler.lock().lock().add_task(task_ref);
-        },
+        }
         TaskState::Waked => panic!("cannot wakeup Waked {}", task.id_name()),
         // 无法唤醒已经退出的任务
         TaskState::Exited => panic!("cannot wakeup Exited {}", task.id_name()),

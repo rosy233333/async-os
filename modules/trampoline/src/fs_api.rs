@@ -235,12 +235,8 @@ pub async fn fs_init() {
     )
     .await;
     create_link(
-        &FilePath::new("/lib/libgcc_s.so.1")
-            .await
-            .unwrap(),
-        &FilePath::new("/libgcc_s.so.1")
-            .await
-            .unwrap(),
+        &FilePath::new("/lib/libgcc_s.so.1").await.unwrap(),
+        &FilePath::new("/libgcc_s.so.1").await.unwrap(),
     )
     .await;
 }

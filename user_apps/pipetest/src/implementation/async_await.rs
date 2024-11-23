@@ -33,7 +33,9 @@ async fn reader(pipe_reader: PipeReader, mut buf: &mut [u8]) -> i32 {
 }
 
 async fn writer(pipe_writer: PipeWriter) -> i32 {
-    let res = sys_write(pipe_writer.as_raw_fd(), b"Hello, world!").await.unwrap();
+    let res = sys_write(pipe_writer.as_raw_fd(), b"Hello, world!")
+        .await
+        .unwrap();
     #[cfg(not(feature = "blocking"))]
     std::thread::sleep(core::time::Duration::from_millis(20)); // 非阻塞情况下，需要让出给执行read的内核协程
     println!("{:?}", res);

@@ -1,7 +1,11 @@
 #![no_std]
 #![no_main]
 
-use alloc::{string::{String, ToString}, vec::Vec, vec};
+use alloc::{
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 
 extern crate async_std;
 extern crate trampoline;
@@ -14,8 +18,8 @@ async fn main() -> isize {
     // for testcase in BUSYBOX_TESTCASES {
     for testcase in TESTCASES {
         let task = trampoline::init_user(get_args(testcase.as_bytes()), &get_envs().await)
-        .await
-        .unwrap();
+            .await
+            .unwrap();
         trampoline::wait(&task).await;
         async_std::println!("task count {}", alloc::sync::Arc::strong_count(&task));
     }

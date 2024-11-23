@@ -18,8 +18,8 @@ pub use fut::SyscallFuture;
 pub use syscall::*;
 pub use task_trait::TaskOps;
 
-use syscalls::Sysno;
 pub use syscalls::Errno;
+use syscalls::Sysno;
 
 pub mod raw {
     //! Exposes raw syscalls that simply return a `usize` instead of a `Result`.

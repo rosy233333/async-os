@@ -129,7 +129,8 @@ pub async fn syscall_chdir(args: [usize; 6]) -> SyscallResult {
     let path = solve_path(AT_FDCWD, Some(path_address), true).await?;
     debug!("Into syscall_chdir. path: {:?}", path.path());
 
-    current_executor().await
+    current_executor()
+        .await
         .set_cwd(alloc::string::String::from(path.path()))
         .await;
     Ok(0)

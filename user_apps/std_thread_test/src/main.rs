@@ -14,7 +14,7 @@ fn amain() -> i32 {
     // });
 
     user_lib::spawn_async(async {
-        for _ in 0 .. 5 {
+        for _ in 0..5 {
             println!("coroutine 2");
             user_lib::yield_now().await;
         }
@@ -22,7 +22,7 @@ fn amain() -> i32 {
     });
 
     user_lib::spawn_async(async {
-        for _ in 0 .. 5 {
+        for _ in 0..5 {
             println!("coroutine 3");
             user_lib::yield_now().await;
         }

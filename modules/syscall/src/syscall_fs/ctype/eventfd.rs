@@ -154,7 +154,7 @@ impl FileIO for EventFd {
         Poll::Ready(status)
     }
 
-    fn as_any(&self) ->  &dyn core::any::Any {
+    fn as_any(&self) -> &dyn core::any::Any {
         self
     }
 }

@@ -34,9 +34,7 @@ async fn test_ramfs_ops(devfs: &RamFileSystem) -> VfsResult {
     assert_eq!(buf[N_HALF..], [1; N_HALF]);
     assert_eq!(node.lookup("/").err(), Some(VfsError::NotADirectory));
 
-    let foo = devfs
-        .root_dir()
-        .lookup(".///.//././/.////foo")?;
+    let foo = devfs.root_dir().lookup(".///.//././/.////foo")?;
     assert!(foo.get_attr().await?.is_dir());
     assert_eq!(
         foo.read_at(10, &mut buf).await.err(),

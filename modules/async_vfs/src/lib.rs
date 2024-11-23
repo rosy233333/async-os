@@ -155,10 +155,7 @@ pub trait VfsNodeOps: Send + Sync + Unpin {
     /// Lookup the node with given `path` in the directory.
     ///
     /// Return the node if found.
-    fn lookup(
-        self: Arc<Self>,
-        _path: &str,
-    ) -> VfsResult<VfsNodeRef> {
+    fn lookup(self: Arc<Self>, _path: &str) -> VfsResult<VfsNodeRef> {
         ax_err!(Unsupported)
     }
 

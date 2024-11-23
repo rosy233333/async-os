@@ -285,7 +285,6 @@ impl Executor {
     // pub fn set_priority(&self, task: &TaskRef, prio: isize) -> bool {
     //     self.scheduler.lock().set_priority(task, prio)
     // }
-
 }
 
 impl Drop for Executor {
@@ -509,7 +508,11 @@ impl Executor {
             .await
             .insert(KERNEL_EXECUTOR_ID, KERNEL_EXECUTOR.clone());
         // 将其作为内核进程的子进程
-        KERNEL_EXECUTOR.children.lock().await.push(new_executor.clone());
+        KERNEL_EXECUTOR
+            .children
+            .lock()
+            .await
+            .push(new_executor.clone());
         Ok(new_task)
     }
 
@@ -773,7 +776,6 @@ impl Executor {
                 .lock()
                 .await
                 .push(Arc::clone(&new_process));
-
         };
 
         // if !clone_flags.contains(CloneFlags::CLONE_THREAD) {
@@ -956,8 +958,11 @@ impl Executor {
 }
 
 impl Executor {
-
-    pub async fn new_ktask(&self, name: String, fut: Pin<Box<dyn Future<Output = isize> + 'static>>) -> TaskRef {
+    pub async fn new_ktask(
+        &self,
+        name: String,
+        fut: Pin<Box<dyn Future<Output = isize> + 'static>>,
+    ) -> TaskRef {
         let scheduler = KERNEL_SCHEDULER.clone();
         let page_table_token = self.memory_set.lock().await.page_table_token();
         let ktask = Arc::new(Task::new(TaskInner::new(
@@ -967,8 +972,7 @@ impl Executor {
             page_table_token,
             fut,
         )));
-        self
-            .signal_modules
+        self.signal_modules
             .lock()
             .await
             .insert(ktask.id().as_u64(), SignalModule::init_signal(None));

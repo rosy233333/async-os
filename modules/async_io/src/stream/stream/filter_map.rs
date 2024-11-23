@@ -33,9 +33,7 @@ where
         match next {
             Some(v) => match (this.f)(v) {
                 Some(b) => Poll::Ready(Some(b)),
-                None => {
-                    Poll::Pending
-                }
+                None => Poll::Pending,
             },
             None => Poll::Ready(None),
         }
