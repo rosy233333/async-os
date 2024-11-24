@@ -9,14 +9,14 @@ use cfg_if::cfg_if;
 
 pub fn sys_read(fd: i32, buf: &mut [u8]) -> SyscallFuture {
     fut_adapter(SyscallFuture::new(
-        Sysno::read,
+        Sysno::read as _,
         &[fd as usize, buf.as_mut_ptr() as usize, buf.len()],
     ))
 }
 
 pub fn sys_write(fd: i32, buf: &[u8]) -> SyscallFuture {
     fut_adapter(SyscallFuture::new(
-        Sysno::write,
+        Sysno::write as _,
         &[fd as usize, buf.as_ptr() as usize, buf.len()],
     ))
 }
@@ -30,14 +30,14 @@ fn fut_adapter(mut sf: SyscallFuture) -> SyscallFuture {
                 if #[cfg(feature = "blocking")] {
                     // 阻塞式系统调用，可以一次返回结果
                     sf.has_issued = true;
-                    sf.run();
+                    sf.run(crate::AsyncFlags::SYNC);
                 }
                 else {
                     use crate::task_trait::__TaskOps_mod;
 
                     // 非阻塞式系统调用，因为non-await，因此（用户态）让出操作在该函数内完成。
                     sf.has_issued = true;
-                    sf.run();
+                    sf.run(crate::AsyncFlags::ASYNC);
                     while !sf.is_finished() {
                         // user_task_scheduler::yield_now();
                         crate_interface::call_interface!(TaskOps::yield_now());

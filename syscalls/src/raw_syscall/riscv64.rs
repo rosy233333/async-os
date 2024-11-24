@@ -11,7 +11,7 @@
 // %a0 is reused for the syscall return value.
 //
 // No other registers are clobbered.
-use super::IS_ASYNC;
+use super::AsyncFlags;
 use core::arch::asm;
 
 /// Issues a raw async system call with 0 arguments.
@@ -21,12 +21,17 @@ use core::arch::asm;
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
-pub unsafe fn syscall0(n: usize, ret_ptr: usize) -> usize {
+pub unsafe fn syscall0(n: usize, ret_ptr: Option<usize>) -> usize {
     let mut ret: usize;
+    let (ret_ptr, flag) = if let Some(ret_ptr) = ret_ptr {
+        (ret_ptr, AsyncFlags::ASYNC as usize)
+    } else {
+        (0, AsyncFlags::SYNC as usize)
+    };
     asm!(
         "ecall",
         in("a7") n,
-        in("t0") IS_ASYNC,
+        in("t0") flag,
         in("t1") ret_ptr,
         out("a0") ret,
         options(nostack, preserves_flags)
@@ -41,13 +46,18 @@ pub unsafe fn syscall0(n: usize, ret_ptr: usize) -> usize {
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
-pub unsafe fn syscall1(n: usize, arg1: usize, ret_ptr: usize) -> usize {
+pub unsafe fn syscall1(n: usize, arg1: usize, ret_ptr: Option<usize>) -> usize {
     let mut ret: usize;
+    let (ret_ptr, flag) = if let Some(ret_ptr) = ret_ptr {
+        (ret_ptr, AsyncFlags::ASYNC as usize)
+    } else {
+        (0, AsyncFlags::SYNC as usize)
+    };
     asm!(
         "ecall",
         in("a7") n,
         inlateout("a0") arg1 => ret,
-        in("t0") IS_ASYNC,
+        in("t0") flag,
         in("t1") ret_ptr,
         options(nostack, preserves_flags)
     );
@@ -61,14 +71,19 @@ pub unsafe fn syscall1(n: usize, arg1: usize, ret_ptr: usize) -> usize {
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
-pub unsafe fn syscall2(n: usize, arg1: usize, arg2: usize, ret_ptr: usize) -> usize {
+pub unsafe fn syscall2(n: usize, arg1: usize, arg2: usize, ret_ptr: Option<usize>) -> usize {
     let mut ret: usize;
+    let (ret_ptr, flag) = if let Some(ret_ptr) = ret_ptr {
+        (ret_ptr, AsyncFlags::ASYNC as usize)
+    } else {
+        (0, AsyncFlags::SYNC as usize)
+    };
     asm!(
         "ecall",
         in("a7") n,
         inlateout("a0") arg1 => ret,
         in("a1") arg2,
-        in("t0") IS_ASYNC,
+        in("t0") flag,
         in("t1") ret_ptr,
         options(nostack, preserves_flags)
     );
@@ -82,15 +97,26 @@ pub unsafe fn syscall2(n: usize, arg1: usize, arg2: usize, ret_ptr: usize) -> us
 /// Running a system call is inherently unsafe. It is the caller's
 /// responsibility to ensure safety.
 #[inline]
-pub unsafe fn syscall3(n: usize, arg1: usize, arg2: usize, arg3: usize, ret_ptr: usize) -> usize {
+pub unsafe fn syscall3(
+    n: usize,
+    arg1: usize,
+    arg2: usize,
+    arg3: usize,
+    ret_ptr: Option<usize>,
+) -> usize {
     let mut ret: usize;
+    let (ret_ptr, flag) = if let Some(ret_ptr) = ret_ptr {
+        (ret_ptr, AsyncFlags::ASYNC as usize)
+    } else {
+        (0, AsyncFlags::SYNC as usize)
+    };
     asm!(
         "ecall",
         in("a7") n,
         inlateout("a0") arg1 => ret,
         in("a1") arg2,
         in("a2") arg3,
-        in("t0") IS_ASYNC,
+        in("t0") flag,
         in("t1") ret_ptr,
         options(nostack, preserves_flags)
     );
@@ -110,9 +136,14 @@ pub unsafe fn syscall4(
     arg2: usize,
     arg3: usize,
     arg4: usize,
-    ret_ptr: usize,
+    ret_ptr: Option<usize>,
 ) -> usize {
     let mut ret: usize;
+    let (ret_ptr, flag) = if let Some(ret_ptr) = ret_ptr {
+        (ret_ptr, AsyncFlags::ASYNC as usize)
+    } else {
+        (0, AsyncFlags::SYNC as usize)
+    };
     asm!(
         "ecall",
         in("a7") n,
@@ -120,7 +151,7 @@ pub unsafe fn syscall4(
         in("a1") arg2,
         in("a2") arg3,
         in("a3") arg4,
-        in("t0") IS_ASYNC,
+        in("t0") flag,
         in("t1") ret_ptr,
         options(nostack, preserves_flags)
     );
@@ -141,9 +172,14 @@ pub unsafe fn syscall5(
     arg3: usize,
     arg4: usize,
     arg5: usize,
-    ret_ptr: usize,
+    ret_ptr: Option<usize>,
 ) -> usize {
     let mut ret: usize;
+    let (ret_ptr, flag) = if let Some(ret_ptr) = ret_ptr {
+        (ret_ptr, AsyncFlags::ASYNC as usize)
+    } else {
+        (0, AsyncFlags::SYNC as usize)
+    };
     asm!(
         "ecall",
         in("a7") n,
@@ -152,7 +188,7 @@ pub unsafe fn syscall5(
         in("a2") arg3,
         in("a3") arg4,
         in("a4") arg5,
-        in("t0") IS_ASYNC,
+        in("t0") flag,
         in("t1") ret_ptr,
         options(nostack, preserves_flags)
     );
@@ -174,9 +210,14 @@ pub unsafe fn syscall6(
     arg4: usize,
     arg5: usize,
     arg6: usize,
-    ret_ptr: usize,
+    ret_ptr: Option<usize>,
 ) -> usize {
     let mut ret: usize;
+    let (ret_ptr, flag) = if let Some(ret_ptr) = ret_ptr {
+        (ret_ptr, AsyncFlags::ASYNC as usize)
+    } else {
+        (0, AsyncFlags::SYNC as usize)
+    };
     asm!(
         "ecall",
         in("a7") n,
@@ -186,7 +227,7 @@ pub unsafe fn syscall6(
         in("a3") arg4,
         in("a4") arg5,
         in("a5") arg6,
-        in("t0") IS_ASYNC,
+        in("t0") flag,
         in("t1") ret_ptr,
         options(nostack, preserves_flags)
     );

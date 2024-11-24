@@ -3,7 +3,7 @@
 ///
 /// 使用 t0 寄存器传递是否异步的标志位，
 /// 使用 t1 寄存器传递返回值的指针
-use crate::IS_ASYNC;
+use crate::AsyncFlags;
 
 #[cfg(target_arch = "aarch64")]
 mod aarch64;

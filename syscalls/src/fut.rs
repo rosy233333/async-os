@@ -1,4 +1,4 @@
-use crate::{raw, Errno, Sysno, TaskOps};
+use crate::{raw, AsyncFlags, Errno, Sysno, TaskOps};
 use alloc::{boxed::Box, vec::Vec};
 use core::{
     cell::Cell,
@@ -27,13 +27,13 @@ impl SyscallRes {
 
 pub struct SyscallFuture {
     pub has_issued: bool,
-    pub id: Sysno,
+    pub id: usize,
     pub args: Vec<usize>,
     pub res: SyscallRes,
 }
 
 impl SyscallFuture {
-    pub fn new(id: Sysno, args: &[usize]) -> Self {
+    pub fn new(id: usize, args: &[usize]) -> Self {
         Self {
             has_issued: false,
             id,
@@ -42,9 +42,12 @@ impl SyscallFuture {
         }
     }
 
-    pub(crate) fn run(&mut self) {
+    pub(crate) fn run(&mut self, flag: AsyncFlags) {
         // 目前仍然是通过 ecall 来发起系统调用
-        let _ret_ptr = self.res.get_ptr() as *mut usize as usize;
+        let _ret_ptr = match flag {
+            AsyncFlags::ASYNC => Some(self.res.get_ptr() as *mut usize as usize),
+            AsyncFlags::SYNC => None,
+        };
         // 需要新增一个参数来记录返回值的位置
         // 详细的设置见 crate::raw_syscall
         #[cfg(target_arch = "riscv64")]
@@ -144,7 +147,10 @@ impl Future for SyscallFuture {
         } else {
             if !this.has_issued {
                 this.has_issued = true;
-                this.run();
+                #[cfg(feature = "blocking")]
+                this.run(AsyncFlags::SYNC);
+                #[cfg(not(feature = "blocking"))]
+                this.run(AsyncFlags::ASYNC);
             }
             if let Some(ret) = this.res.get() {
                 return Poll::Ready(ret);

@@ -26,9 +26,8 @@ pub mod raw {
     pub use super::raw_syscall::*;
 }
 
-pub(crate) const ASYNC_FLAG: usize = 0x5f5f5f5f;
-
-#[cfg(feature = "blocking")]
-pub(crate) const IS_ASYNC: usize = 0;
-#[cfg(not(feature = "blocking"))]
-pub(crate) const IS_ASYNC: usize = ASYNC_FLAG;
+#[repr(usize)]
+pub(crate) enum AsyncFlags {
+    ASYNC = 0x5f5f5f5f,
+    SYNC = 0,
+}
