@@ -1,7 +1,16 @@
 use xmas_elf::symbol_table::Entry;
 
+const AT_SYSINFO_EHDR: u64 = 33;
+
+extern "C" {
+    fn getauxval(key: u64) -> u64;
+}
+
 fn main() {
-    let vdso_data = unsafe { core::slice::from_raw_parts(0x40aa000 as *const u8, 0x1000) };
+    let vdso_base = unsafe { getauxval(AT_SYSINFO_EHDR) };
+    println!("{:#X?}", vdso_base);
+
+    let vdso_data = unsafe { core::slice::from_raw_parts(vdso_base as *const u8, 0x1000) };
     let vdso_elf = xmas_elf::ElfFile::new(vdso_data).unwrap();
     if let Some(dyn_sym_table) = vdso_elf.find_section_by_name(".dynsym") {
         let dyn_sym_table = match dyn_sym_table.get_data(&vdso_elf) {
