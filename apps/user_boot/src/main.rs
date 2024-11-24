@@ -96,7 +96,8 @@ const BUSYBOX_TESTCASES: &[&str] = &[
 
 #[allow(dead_code)]
 const TESTCASES: &[&str] = &[
+    "vdso_test",
     // "hello_world",
-    "pipetest",
+    // "pipetest",
     // "std_thread_test",
 ];

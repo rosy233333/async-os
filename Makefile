@@ -232,6 +232,7 @@ endif
 
 clean: clean_c
 	rm -rf $(APP)/*.bin $(APP)/*.elf
+	rm -rf user_apps/target
 	cargo clean
 
 clean_c::

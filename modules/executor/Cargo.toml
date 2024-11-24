@@ -39,3 +39,4 @@ axhal = { path = "../axhal" }
 riscv = "0.10"
 axfutex = { path = "../axfutex" }
 async_utils = { path = "../async_utils" }
+vdso = { path = "../../vdso" }

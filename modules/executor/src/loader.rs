@@ -80,6 +80,8 @@ pub async fn load_app(
             unsafe { copy_nonoverlapping(src.to_ne_bytes().as_ptr(), dst as *mut u8, count) }
         }
 
+        let vdso_base = vdso::VDSO_INFO.vdso2memoryset(memory_set).await;
+
         // Now map the stack and the heap
         let heap_start = VirtAddr::from(USER_HEAP_BASE);
         let heap_data = [0_u8].repeat(MAX_USER_HEAP_SIZE);
@@ -99,8 +101,9 @@ pub async fn load_app(
             heap_start + MAX_USER_HEAP_SIZE
         );
 
-        let auxv = get_auxv_vector(&elf, elf_base_addr);
-
+        let mut auxv = get_auxv_vector(&elf, elf_base_addr);
+        const AT_SYSINFO_EHDR: u8 = 33;
+        auxv.insert(AT_SYSINFO_EHDR, vdso_base.as_usize());
         let stack_top = VirtAddr::from(USER_STACK_TOP);
         let stack_size = MAX_USER_STACK_SIZE;
 
