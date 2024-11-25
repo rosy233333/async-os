@@ -1,0 +1,8 @@
+[package]
+name = "syscall_test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+uruntime = { path = "../../uruntime" }
+syscalls = { path = "../../syscalls" }
