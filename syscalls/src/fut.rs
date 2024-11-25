@@ -5,7 +5,7 @@ use core::{
     future::Future,
     ops::Deref,
     pin::Pin,
-    task::{Context, Poll},
+    task::{Context, Poll, Waker},
 };
 
 #[repr(C)]
@@ -42,10 +42,10 @@ impl SyscallFuture {
         }
     }
 
-    pub(crate) fn run(&mut self, flag: AsyncFlags) {
+    pub(crate) fn run(&mut self, flag: AsyncFlags, waker: Option<&Waker>) {
         // 目前仍然是通过 ecall 来发起系统调用
         let _ret_ptr = match flag {
-            AsyncFlags::ASYNC => Some(self.res.get_ptr() as *mut usize as usize),
+            AsyncFlags::ASYNC => Some((self.res.get_ptr() as *mut usize as usize, waker.unwrap())),
             AsyncFlags::SYNC => None,
         };
         // 需要新增一个参数来记录返回值的位置
@@ -148,9 +148,9 @@ impl Future for SyscallFuture {
             if !this.has_issued {
                 this.has_issued = true;
                 #[cfg(feature = "blocking")]
-                this.run(AsyncFlags::SYNC);
+                this.run(AsyncFlags::SYNC, None);
                 #[cfg(not(feature = "blocking"))]
-                this.run(AsyncFlags::ASYNC);
+                this.run(AsyncFlags::ASYNC, Some(cx.waker()));
             }
             if let Some(ret) = this.res.get() {
                 return Poll::Ready(ret);

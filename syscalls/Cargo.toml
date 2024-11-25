@@ -18,4 +18,4 @@ blocking = []
 # 虽然逻辑上yield-pending和thread是冲突的（yield-pending依赖于user-task-scheduler的await式API），但thread启用时，SyscallFuture不会被await（或poll），因此yield-pending相当于无效。
 yield-pending = []
 
-default = ["yield-pending"]
+default = []

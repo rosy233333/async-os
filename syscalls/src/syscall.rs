@@ -37,9 +37,9 @@ fn fut_adapter(mut sf: SyscallFuture) -> SyscallFuture {
 
                     // 非阻塞式系统调用，因为non-await，因此（用户态）让出操作在该函数内完成。
                     sf.has_issued = true;
-                    sf.run(crate::AsyncFlags::ASYNC);
+                    // 这里直接传递 None 存在问题，需要构造出 waker，即使是非 async 的环境也可以构造出 waker
+                    sf.run(crate::AsyncFlags::ASYNC, None);
                     while !sf.is_finished() {
-                        // user_task_scheduler::yield_now();
                         crate_interface::call_interface!(TaskOps::yield_now());
                     }
                 }
