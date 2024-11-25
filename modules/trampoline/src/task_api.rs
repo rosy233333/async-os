@@ -1,8 +1,9 @@
-use alloc::{boxed::Box, format};
+use alloc::{boxed::Box, format, sync::Arc};
 use axhal::time::{current_time, TimeValue};
 use core::{future::poll_fn, task::Poll, time::Duration};
 pub use executor::*;
 use riscv::register::scause::{Exception, Trap};
+use spin::Mutex;
 use syscall::trap::{handle_page_fault, MappingFlags};
 
 #[cfg(feature = "thread")]
@@ -106,6 +107,9 @@ pub async fn user_task_top() -> isize {
                             tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
                         ];
                         let ret_ptr = tf.regs.t1;
+                        let ktask_callback: Arc<spin::mutex::Mutex<Option<usize>>> =
+                            Arc::new(Mutex::new(None));
+                        let ktask_callback_clone = ktask_callback.clone();
                         let fut = Box::pin(async move {
                             let res = syscall::trap::handle_syscall(syscall_id, args).await;
                             // 将结果写回到用户态 SyscallFuture 的 res 中
@@ -113,6 +117,18 @@ pub async fn user_task_top() -> isize {
                                 let ret = ret_ptr as *mut Option<Result<usize, syscalls::Errno>>;
                                 (*ret).replace(syscalls::Errno::from_ret(res as _));
                             }
+                            // 唤醒 waker，获取 waker
+                            if let Some(utask_ptr) = *ktask_callback_clone.lock() {
+                                debug!("using taic wakeup mechanism {:#X}", utask_ptr);
+                                // taic 控制器唤醒用户态任务
+                                use axconfig::{MMIO_REGIONS, PHYS_VIRT_OFFSET};
+                                let paddr = MMIO_REGIONS[1].0;
+                                let taic = taic_driver::Taic::new(PHYS_VIRT_OFFSET + paddr);
+                                let meta = utask_ptr as *const taic_driver::TaskMeta<TaskInner>;
+                                let tid = meta.into();
+                                taic.add(tid);
+                            }
+                            drop(ktask_callback_clone);
                             res
                         });
                         let ktask = current_executor()
@@ -134,6 +150,9 @@ pub async fn user_task_top() -> isize {
                             ktask.set_state(TaskState::Runable);
                             ktask.get_scheduler().lock().add_task(ktask.clone());
                             CurrentTask::clean_current_without_drop();
+                            let utask_ptr = tf.regs.t2;
+                            ktask_callback.lock().replace(utask_ptr);
+                            drop(ktask_callback);
                             axerrno::LinuxError::EAGAIN as isize
                         };
                         /************************************************************/
@@ -157,15 +176,18 @@ pub async fn user_task_top() -> isize {
                     axhal::arch::disable_irqs();
                 }
                 Trap::Exception(Exception::InstructionPageFault) => {
+                    // warn!("tf {:#X?}", tf);
                     handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::EXECUTE)
                         .await;
                 }
 
                 Trap::Exception(Exception::LoadPageFault) => {
+                    // warn!("tf {:#X?}", tf);
                     handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::READ).await;
                 }
 
                 Trap::Exception(Exception::StorePageFault) => {
+                    // warn!("tf {:#X?}", tf);
                     handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::WRITE).await;
                 }
 

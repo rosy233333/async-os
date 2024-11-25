@@ -47,3 +47,4 @@ sync = { path = "../sync", package = "sync" }
 async_mem = { path = "../async_mem" }
 async_io = { path = "../async_io" }
 
+taic_driver = { path = "../../crates/taic_driver" }

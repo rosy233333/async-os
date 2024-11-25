@@ -15,6 +15,7 @@ mod syscall_fs;
 mod syscall_mem;
 // mod syscall_net;
 mod syscall_task;
+mod syscll_taic;
 
 pub use async_fs::api::{File, OpenFlags};
 pub use executor::link::{create_link, FilePath};

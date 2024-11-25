@@ -43,6 +43,7 @@ axhal = { path = "../axhal" }
 syscall = { path = "../syscall" }
 async_mem = { path = "../async_mem" }
 async_fs = { path = "../async_fs" }
+taic_driver = { path = "../../crates/taic_driver" }
 
 
 [target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
