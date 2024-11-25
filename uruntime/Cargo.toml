@@ -1,0 +1,17 @@
+[package]
+name = "uruntime"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["sched_fifo"]
+
+sched_fifo = []
+sched_rr = []
+sched_cfs = []
+sched_taic = []
+
+[dependencies]
+cfg-if = "1.0"
+taic_driver = { path = "../crates/taic_driver" }
+syscalls = { path = "../syscalls" }
