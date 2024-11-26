@@ -78,15 +78,16 @@ impl VdsoInfo {
             unsafe { copy_nonoverlapping(src.to_ne_bytes().as_ptr(), dst as *mut u8, count) }
         }
         // 映射 vDSO 代码区域
-        for (idx, page) in self.cm.iter().enumerate() {
-            let paddr = page.start_vaddr.as_usize() - axconfig::KERNEL_BASE_VADDR
-                + axconfig::KERNEL_BASE_PADDR;
-            let _ = memory_set.map_page_without_alloc(
-                vdso_base + idx * PAGE_SIZE_4K,
+        let paddr = self.cm[0].start_vaddr.as_usize() - axconfig::KERNEL_BASE_VADDR
+            + axconfig::KERNEL_BASE_PADDR;
+        let _ = memory_set
+            .map_attach_page_without_alloc(
+                vdso_base,
                 paddr.into(),
+                self.cm.len(),
                 MappingFlags::READ | MappingFlags::EXECUTE | MappingFlags::USER,
-            );
-        }
+            )
+            .await;
         vdso_base
     }
 }

@@ -3,7 +3,7 @@ use async_io::{Seek, SeekFrom};
 use axalloc::PhysPage;
 use axerrno::AxResult;
 use axhal::{
-    mem::{virt_to_phys, VirtAddr, PAGE_SIZE_4K},
+    mem::{virt_to_phys, PhysAddr, VirtAddr, PAGE_SIZE_4K},
     paging::{MappingFlags, PageSize, PageTable},
 };
 use core::ptr::copy_nonoverlapping;
@@ -53,6 +53,32 @@ impl MapArea {
             flags,
             backend,
         }
+    }
+
+    /// 在虚拟空间中分配一块不需要分配物理页的区域
+    pub async fn new_without_alloc(
+        start: VirtAddr,
+        paddr: PhysAddr,
+        num_pages: usize,
+        flags: MappingFlags,
+        page_table: &mut PageTable,
+    ) -> AxResult<Self> {
+        let mut pages = Vec::with_capacity(num_pages);
+        for _ in 0..num_pages {
+            pages.push(None);
+        }
+
+        page_table
+            .map_region(start, paddr, num_pages * PAGE_SIZE_4K, flags, false)
+            .unwrap();
+
+        Ok(Self {
+            pages,
+            vaddr: start,
+            shared: false,
+            flags,
+            backend: None,
+        })
     }
 
     /// Allocated an area and map it in page table.

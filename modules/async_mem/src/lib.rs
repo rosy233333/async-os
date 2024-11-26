@@ -710,6 +710,21 @@ impl MemorySet {
             );
         }
     }
+
+    /// 映射一块特殊的区域，并添加到 owned_mem 中，避免被用于其他用途
+    pub async fn map_attach_page_without_alloc(
+        &mut self,
+        vaddr: VirtAddr,
+        paddr: PhysAddr,
+        num_pages: usize,
+        flags: MappingFlags,
+    ) -> AxResult<()> {
+        let area = MapArea::new_without_alloc(vaddr, paddr, num_pages, flags, &mut self.page_table)
+            .await
+            .unwrap();
+        self.owned_mem.insert(area.vaddr.into(), area);
+        Ok(())
+    }
 }
 
 impl Drop for MemorySet {
