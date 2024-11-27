@@ -9,5 +9,6 @@ numeric_enum_macro::numeric_enum! {
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
 pub enum TaicSyscallId {
     GET_TAIC = 555,
+    INIT_BATCH_ASYNC = 556
 }
 }

@@ -83,6 +83,12 @@ impl Taic {
         }
     }
 
+    ///
+    pub fn current<T: Sized>(&self) -> TaskId {
+        let raw_task_id = self.regs().current().read().tcb().bits() as i64;
+        TaskId(raw_task_id as _)
+    }
+
     /// This interface is used for `os -> process` or `process -> os`.
     pub fn switch_process<T: Sized>(&self, process_id: Option<TaskId>) {
         let current = unsafe {

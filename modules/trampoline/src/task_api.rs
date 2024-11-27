@@ -122,7 +122,7 @@ pub async fn user_task_top() -> isize {
                                 debug!("using taic wakeup mechanism {:#X}", utask_ptr);
                                 // taic 控制器唤醒用户态任务
                                 use axconfig::{MMIO_REGIONS, PHYS_VIRT_OFFSET};
-                                let paddr = MMIO_REGIONS[1].0;
+                                let paddr = MMIO_REGIONS[1].0 + 0x1000;
                                 let taic = taic_driver::Taic::new(PHYS_VIRT_OFFSET + paddr);
                                 let meta = utask_ptr as *const taic_driver::TaskMeta<TaskInner>;
                                 let tid = meta.into();

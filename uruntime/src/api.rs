@@ -2,6 +2,8 @@ use std::future::Future;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use syscalls::raw::*;
+
 use crate::current::*;
 use crate::task::TaskInner;
 use crate::Scheduler;
@@ -58,4 +60,29 @@ pub fn pick_next_task() -> Option<TaskRef> {
 
 pub fn put_prev_task(task: TaskRef) {
     SCHEDULER.with(|s| s.borrow().lock().unwrap().put_prev_task(task, false))
+}
+
+/// 需要由 dispatcher 来进行初始化并行批处理异步系统调用
+pub fn init_batch_async_syscall() -> AsyncBatchSyscallResult {
+    const INIT_BATCH_ASYNC: usize = 556;
+    let res = AsyncBatchSyscallResult::default();
+    let _ = unsafe {
+        syscall2(
+            INIT_BATCH_ASYNC,
+            current_task().waker().data() as _,
+            &res as *const _ as usize,
+            None,
+        )
+    };
+    res
+}
+
+#[allow(unused)]
+#[derive(Default)]
+pub struct AsyncBatchSyscallResult {
+    pub send_channel: usize,
+    pub recv_channel: usize,
+    pub recv_os_id: usize,
+    pub recv_process_id: usize,
+    pub recv_task_id: usize,
 }
