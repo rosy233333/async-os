@@ -65,6 +65,19 @@ impl<T: Sized> From<*const TaskMeta<T>> for TaskId {
     }
 }
 
+impl<T: Sized> From<&mut TaskMeta<T>> for TaskId {
+    fn from(value: &mut TaskMeta<T>) -> Self {
+        let priority = value.priority;
+        let is_preempt = value.is_preempt;
+        let value_ptr = value as *const TaskMeta<T>;
+        let mut raw_meta_ptr = (value_ptr as usize) | (priority % MAX_PRIORITY) << 1;
+        if is_preempt {
+            raw_meta_ptr |= 1;
+        }
+        Self(raw_meta_ptr)
+    }
+}
+
 impl<T: Sized> From<Arc<TaskMeta<T>>> for TaskId {
     fn from(value: Arc<TaskMeta<T>>) -> Self {
         let priority = value.priority;

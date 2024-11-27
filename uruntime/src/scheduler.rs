@@ -82,6 +82,7 @@ impl<T> TAICScheduler<T> {
 
     pub(crate) fn add_task(&mut self, task: Arc<TAICTask<T>>) {
         let meta = Arc::into_raw(task) as *const TaskMeta<T>;
+        unsafe { &mut *(meta as *mut TaskMeta<T>) }.is_preempt = true;
         let tid = TaskId::from(meta);
         self.inner.add(tid);
     }
@@ -111,5 +112,9 @@ impl<T> TAICScheduler<T> {
 
     pub(crate) fn set_priority(&mut self, _task: &Arc<TAICTask<T>>, _prio: isize) -> bool {
         false
+    }
+
+    pub fn send(&mut self, recv_os_id: TaskId, recv_proc_id: TaskId, recv_task_id: TaskId) {
+        self.inner.send_intr(recv_os_id, recv_proc_id, recv_task_id);
     }
 }

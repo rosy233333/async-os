@@ -9,6 +9,7 @@ use crate::task::TaskInner;
 use crate::Scheduler;
 use crate::Task;
 use crate::TaskRef;
+use taic_driver::TaskId;
 
 // Initializes the executor (for the primary CPU).
 pub fn init() {
@@ -63,9 +64,9 @@ pub fn put_prev_task(task: TaskRef) {
 }
 
 /// 需要由 dispatcher 来进行初始化并行批处理异步系统调用
-pub fn init_batch_async_syscall() -> AsyncBatchSyscallResult {
+pub fn init_batch_async_syscall() -> AsyncBatchSyscallCfg {
     const INIT_BATCH_ASYNC: usize = 556;
-    let res = AsyncBatchSyscallResult::default();
+    let res = AsyncBatchSyscallCfg::default();
     let _ = unsafe {
         syscall2(
             INIT_BATCH_ASYNC,
@@ -77,12 +78,41 @@ pub fn init_batch_async_syscall() -> AsyncBatchSyscallResult {
     res
 }
 
+pub fn issue_syscall(cfg: &AsyncBatchSyscallCfg) {
+    let send_queue = unsafe { &mut *(cfg.recv_channel as *mut SyscallItemQueue) };
+    let _ = send_queue.enqueue(SyscallItem {
+        id: 0,
+        args: [0x19990109; 6],
+        ret_ptr: 0x19990109,
+        waker: 0x19990109,
+    });
+    SCHEDULER.with(|s| unsafe {
+        s.borrow().lock().unwrap().send(
+            TaskId::virt(cfg.recv_os_id),
+            TaskId::virt(cfg.recv_process_id),
+            TaskId::virt(cfg.recv_task_id),
+        )
+    })
+}
+
 #[allow(unused)]
-#[derive(Default)]
-pub struct AsyncBatchSyscallResult {
+#[derive(Default, Debug)]
+pub struct AsyncBatchSyscallCfg {
     pub send_channel: usize,
     pub recv_channel: usize,
     pub recv_os_id: usize,
     pub recv_process_id: usize,
     pub recv_task_id: usize,
+}
+
+use heapless::mpmc::MpMcQueue;
+type SyscallItemQueue = MpMcQueue<SyscallItem, 8>;
+
+#[repr(C, align(128))]
+#[derive(Debug)]
+struct SyscallItem {
+    id: usize,
+    args: [usize; 6],
+    ret_ptr: usize,
+    waker: usize,
 }

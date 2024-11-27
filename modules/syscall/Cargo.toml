@@ -50,3 +50,6 @@ async_io = { path = "../async_io" }
 taic_driver = { path = "../../crates/taic_driver" }
 heapless = "0.8.0"
 syscalls = { version = "0.6", default-features = false }
+
+[target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
+riscv = "0.11"

@@ -96,7 +96,8 @@ const BUSYBOX_TESTCASES: &[&str] = &[
 
 #[allow(dead_code)]
 const TESTCASES: &[&str] = &[
-    "syscall_test",
+    "batch_syscall",
+    // "syscall_test",
     // "vdso_test",
     // "hello_world",
     // "pipetest",

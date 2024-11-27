@@ -85,7 +85,7 @@ impl Taic {
 
     ///
     pub fn current<T: Sized>(&self) -> TaskId {
-        let raw_task_id = self.regs().current().read().tcb().bits() as i64;
+        let raw_task_id = self.regs().current().read().bits() as i64;
         TaskId(raw_task_id as _)
     }
 

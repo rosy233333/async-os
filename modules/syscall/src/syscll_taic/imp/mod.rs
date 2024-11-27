@@ -52,7 +52,7 @@ pub async fn syscall_init_async_batch(waker: usize, res_ptr: usize) -> SyscallRe
             PAGE_SIZE_4K,
             false,
             MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
-            None,
+            Some(&[]),
             None,
         )
         .await;
@@ -63,10 +63,15 @@ pub async fn syscall_init_async_batch(waker: usize, res_ptr: usize) -> SyscallRe
             PAGE_SIZE_4K,
             false,
             MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
-            None,
+            Some(&[]),
             None,
         )
         .await;
+    // #[cfg(target_arch = "riscv64")]
+    // unsafe {
+    //     riscv::register::sstatus::set_sum();
+    // }
+    // axhal::arch::flush_tlb(None);
     // 初始化该进程在内核中处理系统调用的任务
     let recv_syscall_items =
         unsafe { &mut *(syscall_recv_page_start.as_usize() as *mut SyscallItemQueue) };
@@ -74,9 +79,16 @@ pub async fn syscall_init_async_batch(waker: usize, res_ptr: usize) -> SyscallRe
     let send_syscall_items =
         unsafe { &mut *(syscall_send_page_start.as_usize() as *mut SyscallItemQueue) };
     *send_syscall_items = SyscallItemQueue::new();
+    // let paddr = MMIO_REGIONS[1].0;
+    // let ktaic = Taic::new(axconfig::PHYS_VIRT_OFFSET + paddr);
     let fut = Box::pin(async move {
         loop {
             if let Some(syscall_item) = recv_syscall_items.dequeue() {
+                // warn!("handle {:#X?}", syscall_item);
+                // let meta = waker as *const taic_driver::TaskMeta<TaskInner>;
+                // let send_task_id = meta.into();
+                // ktaic.send_intr(*OS_ID, *PROCESS_ID, send_task_id);
+                // continue;
                 let ret_ptr = syscall_item.ret_ptr;
                 let _waker = syscall_item.waker;
                 let res = crate::trap::handle_syscall(syscall_item.id, syscall_item.args).await;
@@ -88,6 +100,7 @@ pub async fn syscall_init_async_batch(waker: usize, res_ptr: usize) -> SyscallRe
                 let _ = send_syscall_items.enqueue(syscall_item).unwrap();
                 // TODO: 需要增加唤醒用户态任务的逻辑
             } else {
+                warn!("run ksyscall task");
                 // 没有系统调用需要处理，进入休眠
                 current_task().set_state(executor::TaskState::Blocking);
                 let mut flag = false;
@@ -104,7 +117,8 @@ pub async fn syscall_init_async_batch(waker: usize, res_ptr: usize) -> SyscallRe
             }
         }
     });
-    warn!("syscall_init_async_syscall new ktask");
+    drop(memory_set);
+    debug!("syscall_init_async_syscall new ktask");
     let ktask = current_executor
         .new_ktask(
             format!("async_syscall_handler {}", current_executor.pid()),
@@ -116,19 +130,30 @@ pub async fn syscall_init_async_batch(waker: usize, res_ptr: usize) -> SyscallRe
     // 将这个任务注册为系统调用处理流程，注册为接收方
     let paddr = MMIO_REGIONS[1].0;
     let ktaic = Taic::new(axconfig::PHYS_VIRT_OFFSET + paddr);
-    let recv_task_id = (Arc::into_raw(ktask) as *const TaskMeta<TaskInner>).into();
+    let recv_task_ptr = Arc::into_raw(ktask) as *mut TaskMeta<TaskInner>;
+    let recv_raw_task = unsafe { &mut *recv_task_ptr };
+    // recv_raw_task.is_preempt = true;
+    let recv_task_id: TaskId = recv_raw_task.into();
+    let recv_task_id = recv_task_id.phy_val(PHYS_VIRT_OFFSET);
     let meta = waker as *const taic_driver::TaskMeta<TaskInner>;
     let send_task_id = meta.into();
     ktaic.register_receiver(recv_task_id, *OS_ID, *PROCESS_ID, send_task_id);
     // 注册用户态任务为发送方
     let utaic = Taic::new(axconfig::PHYS_VIRT_OFFSET + paddr + 0x1000);
     let recv_os_id = ktaic.current::<TaskInner>();
+    // ktaic.register_sender(recv_task_id, *OS_ID, *PROCESS_ID, send_task_id);
     utaic.register_sender(
         send_task_id,
         recv_os_id,
         unsafe { TaskId::virt(0) },
         recv_task_id,
     );
+    // utaic.register_receiver(
+    //     send_task_id,
+    //     recv_os_id,
+    //     unsafe { TaskId::virt(0) },
+    //     recv_task_id,
+    // );
     let res_ptr = unsafe { &mut *(res_ptr as *mut AsyncBatchSyscallResult) };
     *res_ptr = AsyncBatchSyscallResult {
         send_channel: syscall_send_page_start.as_usize(),
