@@ -3,8 +3,7 @@ use alloc::format;
 use alloc::{boxed::Box, sync::Arc};
 use axconfig::{MMIO_REGIONS, PHYS_VIRT_OFFSET};
 use axhal::{mem::PAGE_SIZE_4K, paging::MappingFlags};
-use core::{future::poll_fn, task::Poll};
-use executor::{current_executor, current_task, TaskInner};
+use executor::{current_executor, yield_now, TaskInner};
 use heapless::mpmc::MpMcQueue;
 use lazy_init::LazyInit;
 use taic_driver::{Taic, TaskId, TaskMeta};
@@ -84,7 +83,6 @@ pub async fn syscall_init_async_batch(waker: usize, res_ptr: usize) -> SyscallRe
     let fut = Box::pin(async move {
         loop {
             if let Some(syscall_item) = recv_syscall_items.dequeue() {
-                // warn!("handle {:#X?}", syscall_item);
                 // let meta = waker as *const taic_driver::TaskMeta<TaskInner>;
                 // let send_task_id = meta.into();
                 // ktaic.send_intr(*OS_ID, *PROCESS_ID, send_task_id);
@@ -97,23 +95,12 @@ pub async fn syscall_init_async_batch(waker: usize, res_ptr: usize) -> SyscallRe
                     let ret = ret_ptr as *mut Option<Result<usize, syscalls::Errno>>;
                     (*ret).replace(syscalls::Errno::from_ret(res as _));
                 }
+                // debug!("handle {:#X?}", syscall_item);
                 let _ = send_syscall_items.enqueue(syscall_item).unwrap();
-                // TODO: 需要增加唤醒用户态任务的逻辑
+                // 这里不需要增加用户态任务唤醒的逻辑，由用户态的 dispatcher 进行唤醒
             } else {
-                warn!("run ksyscall task");
-                // 没有系统调用需要处理，进入休眠
-                current_task().set_state(executor::TaskState::Blocking);
-                let mut flag = false;
-                poll_fn(|_cx| {
-                    if !flag {
-                        flag = true;
-                        Poll::Pending
-                    } else {
-                        flag = false;
-                        Poll::Ready(())
-                    }
-                })
-                .await;
+                // debug!("run ksyscall task");
+                yield_now().await;
             }
         }
     });

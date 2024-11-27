@@ -42,6 +42,18 @@ impl SyscallFuture {
         }
     }
 
+    pub fn get_ret_ptr(&mut self) -> usize {
+        self.res.get_ptr() as *mut usize as usize
+    }
+
+    pub fn get_args(&self) -> [usize; 6] {
+        let mut args = [0usize; 6];
+        for (idx, arg) in self.args.iter().enumerate() {
+            args[idx] = *arg;
+        }
+        args
+    }
+
     pub(crate) fn run(&mut self, flag: AsyncFlags, waker: Option<&Waker>) {
         // 目前仍然是通过 ecall 来发起系统调用
         let _ret_ptr = match flag {

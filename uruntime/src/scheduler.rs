@@ -82,7 +82,7 @@ impl<T> TAICScheduler<T> {
 
     pub(crate) fn add_task(&mut self, task: Arc<TAICTask<T>>) {
         let meta = Arc::into_raw(task) as *const TaskMeta<T>;
-        unsafe { &mut *(meta as *mut TaskMeta<T>) }.is_preempt = true;
+        // unsafe { &mut *(meta as *mut TaskMeta<T>) }.is_preempt = true;
         let tid = TaskId::from(meta);
         self.inner.add(tid);
     }

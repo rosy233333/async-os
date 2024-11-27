@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::task::Waker;
 
 use syscalls::raw::*;
 
@@ -55,6 +56,39 @@ where
     task
 }
 
+pub async fn yield_now() {
+    let mut flag = false;
+    std::future::poll_fn(|cx| {
+        if !flag {
+            flag = true;
+            let task = cx.waker().data() as *const Task;
+            unsafe { &*task }.set_state(crate::task::TaskState::Blocked);
+            cx.waker().wake_by_ref();
+            std::task::Poll::Pending
+        } else {
+            flag = false;
+            std::task::Poll::Ready(())
+        }
+    })
+    .await;
+}
+
+pub async fn block_current() {
+    let mut flag = false;
+    std::future::poll_fn(|cx| {
+        if !flag {
+            flag = true;
+            let task = cx.waker().data() as *const Task;
+            unsafe { &*task }.set_state(crate::task::TaskState::Blocked);
+            std::task::Poll::Pending
+        } else {
+            flag = false;
+            std::task::Poll::Ready(())
+        }
+    })
+    .await;
+}
+
 pub fn pick_next_task() -> Option<TaskRef> {
     SCHEDULER.with(|s| s.borrow().lock().unwrap().pick_next_task())
 }
@@ -78,14 +112,7 @@ pub fn init_batch_async_syscall() -> AsyncBatchSyscallCfg {
     res
 }
 
-pub fn issue_syscall(cfg: &AsyncBatchSyscallCfg) {
-    let send_queue = unsafe { &mut *(cfg.recv_channel as *mut SyscallItemQueue) };
-    let _ = send_queue.enqueue(SyscallItem {
-        id: 0,
-        args: [0x19990109; 6],
-        ret_ptr: 0x19990109,
-        waker: 0x19990109,
-    });
+pub fn start(cfg: &AsyncBatchSyscallCfg) {
     SCHEDULER.with(|s| unsafe {
         s.borrow().lock().unwrap().send(
             TaskId::virt(cfg.recv_os_id),
@@ -105,14 +132,41 @@ pub struct AsyncBatchSyscallCfg {
     pub recv_task_id: usize,
 }
 
+impl AsyncBatchSyscallCfg {
+    pub fn send_queue(&self) -> &mut SyscallItemQueue {
+        unsafe { &mut *(self.recv_channel as *mut SyscallItemQueue) }
+    }
+
+    pub fn recv_queue(&self) -> &mut SyscallItemQueue {
+        unsafe { &mut *(self.send_channel as *mut SyscallItemQueue) }
+    }
+}
+
 use heapless::mpmc::MpMcQueue;
-type SyscallItemQueue = MpMcQueue<SyscallItem, 8>;
+pub type SyscallItemQueue = MpMcQueue<SyscallItem, 8>;
 
 #[repr(C, align(128))]
 #[derive(Debug)]
-struct SyscallItem {
+pub struct SyscallItem {
     id: usize,
     args: [usize; 6],
     ret_ptr: usize,
     waker: usize,
+}
+
+impl SyscallItem {
+    pub fn waker(&self) -> Waker {
+        crate::waker::waker_from_task(self.waker as *const Task)
+    }
+}
+
+impl From<&mut syscalls::SyscallFuture> for SyscallItem {
+    fn from(syscall_fut: &mut syscalls::SyscallFuture) -> Self {
+        Self {
+            id: syscall_fut.id,
+            args: syscall_fut.get_args(),
+            ret_ptr: syscall_fut.get_ret_ptr(),
+            waker: current_task().waker().data() as _,
+        }
+    }
 }

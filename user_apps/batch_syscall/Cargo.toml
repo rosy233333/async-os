@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 uruntime = { path = "../../uruntime" }
 syscalls = { path = "../../syscalls" }
+spin = "0.9"
