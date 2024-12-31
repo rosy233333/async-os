@@ -259,33 +259,37 @@ impl FileIO for EpollFile {
     }
 
     fn ready_to_read(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
-        // // 如果当前epoll事件确实正在等待事件响应，那么可以认为事件准备好read，尽管无法读到实际内容
-        // let process = current_executor();
-        // let fd_manager = &process.fd_manager;
-        // let fd_table = fd_manager.fd_table.lock().await;
-        // // let fd_table = fd_table.await;
-        // for (fd, req_event) in self.inner.lock().await.monitor_list.iter() {
-        //     if let Some(file) = fd_table[*fd as usize].as_ref() {
-        //         let mut ret_event_type = EpollEventType::empty();
-        //         let req_type = req_event.event_type;
-        //         if file.is_hang_up().await {
-        //             ret_event_type |= EpollEventType::EPOLLHUP;
-        //         }
-        //         if file.in_exceptional_conditions().await {
-        //             ret_event_type |= EpollEventType::EPOLLERR;
-        //         }
-        //         if file.ready_to_read().await && req_type.contains(EpollEventType::EPOLLIN) {
-        //             ret_event_type |= EpollEventType::EPOLLIN;
-        //         }
-        //         if file.ready_to_write().await && req_type.contains(EpollEventType::EPOLLOUT) {
-        //             ret_event_type |= EpollEventType::EPOLLOUT;
-        //         }
-        //         if !ret_event_type.is_empty() {
-        //             return Poll::Ready(true);
-        //         }
-        //     }
-        // }
-        Poll::Ready(false)
+        // 如果当前epoll事件确实正在等待事件响应，那么可以认为事件准备好read，尽管无法读到实际内容
+        let fut = async {
+            let process = current_executor().await;
+            let fd_manager = &process.fd_manager;
+            let fd_table = fd_manager.fd_table.lock().await;
+            // let fd_table = fd_table.await;
+            for (fd, req_event) in self.inner.lock().await.monitor_list.iter() {
+                if let Some(file) = fd_table[*fd as usize].as_ref() {
+                    let mut ret_event_type = EpollEventType::empty();
+                    let req_type = req_event.event_type;
+                    if file.is_hang_up().await {
+                        ret_event_type |= EpollEventType::EPOLLHUP;
+                    }
+                    if file.in_exceptional_conditions().await {
+                        ret_event_type |= EpollEventType::EPOLLERR;
+                    }
+                    if file.ready_to_read().await && req_type.contains(EpollEventType::EPOLLIN) {
+                        ret_event_type |= EpollEventType::EPOLLIN;
+                    }
+                    if file.ready_to_write().await && req_type.contains(EpollEventType::EPOLLOUT) {
+                        ret_event_type |= EpollEventType::EPOLLOUT;
+                    }
+                    if !ret_event_type.is_empty() {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+        let res = alloc::boxed::Box::pin(fut).as_mut().poll(_cx);
+        res
     }
 
     fn as_any(&self) -> &dyn core::any::Any {

@@ -1,8 +1,8 @@
 //! 对文件系统的管理,包括目录项的创建、文件权限设置等内容
 use alloc::string::ToString;
 use async_fs::api::{
-    remove_dir, remove_file, rename, AsAny, AsyncFileIO, ConsoleWinSize, OpenFlags, Permissions,
-    FIOCLEX, FIONBIO, TCGETS, TIOCGPGRP, TIOCGWINSZ, TIOCSPGRP,
+    remove_dir, remove_file, rename, AsyncFileIO, ConsoleWinSize, OpenFlags, Permissions, FIOCLEX,
+    FIONBIO, TCGETS, TIOCGPGRP, TIOCGWINSZ, TIOCSPGRP,
 };
 use async_io::Stream;
 use axlog::{debug, error, info};
