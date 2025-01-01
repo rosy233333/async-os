@@ -1,6 +1,7 @@
 #![no_std]
 #![feature(doc_cfg)]
 #![feature(async_iterator)]
+#![feature(async_closure)]
 
 extern crate alloc;
 extern crate arch_boot;

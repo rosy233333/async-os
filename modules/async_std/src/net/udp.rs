@@ -1,7 +1,7 @@
 use super::{SocketAddr, ToSocketAddrs};
 use crate::io;
 
-use async_api::net::{self as api, AxUdpSocketHandle};
+use aos_api::net::{self as api, AxUdpSocketHandle};
 
 /// A UDP socket.
 pub struct UdpSocket(AxUdpSocketHandle);
@@ -16,13 +16,14 @@ impl UdpSocket {
     /// each of the addresses until one succeeds and returns the socket. If none
     /// of the addresses succeed in creating a socket, the error returned from
     /// the last attempt (the last address) is returned.
-    pub fn bind<A: ToSocketAddrs>(addr: A) -> io::Result<UdpSocket> {
-        super::each_addr(addr, |addr: io::Result<&SocketAddr>| {
+    pub async fn bind<A: ToSocketAddrs>(addr: A) -> io::Result<UdpSocket> {
+        super::each_addr(addr, async |addr: io::Result<&SocketAddr>| {
             let addr = addr?;
-            let socket = api::ax_udp_socket();
-            api::ax_udp_bind(&socket, *addr)?;
+            let socket = api::ax_udp_socket().await;
+            api::ax_udp_bind(&socket, *addr).await?;
             Ok(UdpSocket(socket))
         })
+        .await
     }
 
     /// Returns the socket address that this socket was created from.
@@ -37,14 +38,14 @@ impl UdpSocket {
 
     /// Receives a single datagram message on the socket. On success, returns
     /// the number of bytes read and the origin.
-    pub fn recv_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-        api::ax_udp_recv_from(&self.0, buf)
+    pub async fn recv_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
+        api::ax_udp_recv_from(&self.0, buf).await
     }
 
     /// Receives a single datagram message on the socket, without removing it from
     /// the queue. On success, returns the number of bytes read and the origin.
-    pub fn peek_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-        api::ax_udp_peek_from(&self.0, buf)
+    pub async fn peek_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
+        api::ax_udp_peek_from(&self.0, buf).await
     }
 
     /// Sends data on the socket to the given address. On success, returns the
@@ -55,9 +56,9 @@ impl UdpSocket {
     ///
     /// It is possible for `addr` to yield multiple addresses, but `send_to`
     /// will only send data to the first address yielded by `addr`.
-    pub fn send_to<A: ToSocketAddrs>(&self, buf: &[u8], addr: A) -> io::Result<usize> {
+    pub async fn send_to<A: ToSocketAddrs>(&self, buf: &[u8], addr: A) -> io::Result<usize> {
         match addr.to_socket_addrs()?.next() {
-            Some(addr) => api::ax_udp_send_to(&self.0, buf, addr),
+            Some(addr) => api::ax_udp_send_to(&self.0, buf, addr).await,
             None => axerrno::ax_err!(InvalidInput, "no addresses to send data to"),
         }
     }
@@ -73,24 +74,25 @@ impl UdpSocket {
     /// error would only be detected after the first send. If the OS returns an
     /// error for each of the specified addresses, the error returned from the
     /// last connection attempt (the last address) is returned.
-    pub fn connect(&self, addr: SocketAddr) -> io::Result<()> {
-        super::each_addr(addr, |addr: io::Result<&SocketAddr>| {
+    pub async fn connect(&self, addr: SocketAddr) -> io::Result<()> {
+        super::each_addr(addr, async |addr: io::Result<&SocketAddr>| {
             let addr = addr?;
-            api::ax_udp_connect(&self.0, *addr)
+            api::ax_udp_connect(&self.0, *addr).await
         })
+        .await
     }
 
     /// Sends data on the socket to the remote address to which it is connected.
     ///
     /// [`UdpSocket::connect`] will connect this socket to a remote address. This
     /// method will fail if the socket is not connected.
-    pub fn send(&self, buf: &[u8]) -> io::Result<usize> {
-        api::ax_udp_send(&self.0, buf)
+    pub async fn send(&self, buf: &[u8]) -> io::Result<usize> {
+        api::ax_udp_send(&self.0, buf).await
     }
 
     /// Receives a single datagram message on the socket from the remote address to
     /// which it is connected. On success, returns the number of bytes read.
-    pub fn recv(&self, buf: &mut [u8]) -> io::Result<usize> {
-        api::ax_udp_recv(&self.0, buf)
+    pub async fn recv(&self, buf: &mut [u8]) -> io::Result<usize> {
+        api::ax_udp_recv(&self.0, buf).await
     }
 }

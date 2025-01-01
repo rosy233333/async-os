@@ -2,6 +2,7 @@
 #![cfg_attr(all(not(test), not(doc)), no_std)]
 #![feature(stmt_expr_attributes)]
 #![feature(never_type)]
+#![feature(async_closure)]
 #![cfg_attr(test, feature(noop_waker))]
 
 extern crate alloc;
@@ -13,7 +14,7 @@ use ctypes::*;
 mod syscall;
 mod syscall_fs;
 mod syscall_mem;
-// mod syscall_net;
+mod syscall_net;
 mod syscall_task;
 mod syscll_taic;
 

@@ -6,15 +6,15 @@ pub async fn syscall(syscall_id: usize, args: [usize; 6]) -> isize {
     #[allow(unused_mut, unused_assignments)]
     let mut ans: Option<SyscallResult> = None;
 
-    // if let Ok(net_syscall_id) = crate::syscall_net::NetSyscallId::try_from(syscall_id) {
-    //     info!(
-    //         "[syscall] id = {:#?}, args = {:?}, entry",
-    //         net_syscall_id, args
-    //     );
+    if let Ok(net_syscall_id) = crate::syscall_net::NetSyscallId::try_from(syscall_id) {
+        info!(
+            "[syscall] id = {:#?}, args = {:?}, entry",
+            net_syscall_id, args
+        );
 
-    //     (#[allow(unused_assignments)]
-    //     ans) = Some(crate::syscall_net::net_syscall(net_syscall_id, args));
-    // }
+        (#[allow(unused_assignments)]
+        ans) = Some(crate::syscall_net::net_syscall(net_syscall_id, args).await);
+    }
 
     if let Ok(mem_syscall_id) = super::syscall_mem::MemSyscallId::try_from(syscall_id) {
         info!(

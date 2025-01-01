@@ -3,14 +3,13 @@ extern crate alloc;
 use super::socket::*;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 
-use alloc::sync::Arc;
-use axfs::api::{FileIO, OpenFlags};
-
 use crate::{syscall_fs::ctype::pipe::make_pipe, SyscallError, SyscallResult};
+use alloc::sync::Arc;
+use async_fs::api::{AsyncFileIO, OpenFlags};
 use axerrno::AxError;
 use axlog::{debug, error, info, warn};
 
-use axprocess::current_process;
+use executor::current_executor;
 use num_enum::TryFromPrimitive;
 
 pub const SOCKET_TYPE_MASK: usize = 0xFF;
@@ -19,7 +18,7 @@ pub const SOCKET_TYPE_MASK: usize = 0xFF;
 /// * `domain` - usize
 /// * `s_type` - usize
 /// * `protocol` - usize
-pub fn syscall_socket(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_socket(args: [usize; 6]) -> SyscallResult {
     let domain = args[0];
     let s_type = args[1];
     let _protocol = args[2];
@@ -32,11 +31,11 @@ pub fn syscall_socket(args: [usize; 6]) -> SyscallResult {
         // return ErrorNo::EINVAL as isize;
         return Err(SyscallError::EINVAL);
     };
-    let socket = Socket::new(domain, socket_type);
+    let socket = Socket::new(domain, socket_type).await;
     socket.set_nonblocking((s_type & SOCK_NONBLOCK) != 0);
-    socket.set_close_on_exec((s_type & SOCK_CLOEXEC) != 0);
-    let curr = current_process();
-    let mut fd_table = curr.fd_manager.fd_table.lock();
+    socket.set_close_on_exec((s_type & SOCK_CLOEXEC) != 0).await;
+    let curr = current_executor().await;
+    let mut fd_table = curr.fd_manager.fd_table.lock().await;
     let Ok(fd) = curr.alloc_fd(&mut fd_table) else {
         return Err(SyscallError::EMFILE);
     };
@@ -52,13 +51,13 @@ pub fn syscall_socket(args: [usize; 6]) -> SyscallResult {
 /// * `fd` - usize
 /// * `addr` - *const u8
 /// * `addr_len` - usize
-pub fn syscall_bind(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_bind(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let addr = args[1] as *const u8;
     let _addr_len = args[2];
-    let curr = current_process();
+    let curr = current_executor().await;
 
-    let file = match curr.fd_manager.fd_table.lock().get(fd) {
+    let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
         _ => return Err(SyscallError::EBADF),
     };
@@ -71,19 +70,19 @@ pub fn syscall_bind(args: [usize; 6]) -> SyscallResult {
 
     info!("[bind()] binding socket {} to {:?}", fd, addr);
 
-    Ok(socket.bind(addr).map_or(-1, |_| 0))
+    Ok(socket.bind(addr).await.map_or(-1, |_| 0))
 }
 
 // TODO: support change `backlog` for tcp socket
 /// # Arguments
 /// * `fd` - usize
 /// * `backlog` - usize
-pub fn syscall_listen(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_listen(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let _backlog = args[1];
-    let curr = current_process();
+    let curr = current_executor().await;
 
-    let file = match curr.fd_manager.fd_table.lock().get(fd) {
+    let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
         _ => return Err(SyscallError::EBADF),
     };
@@ -92,7 +91,7 @@ pub fn syscall_listen(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::ENOTSOCK);
     };
 
-    Ok(socket.listen().map_or(-1, |_| 0))
+    Ok(socket.listen().await.map_or(-1, |_| 0))
 }
 
 /// # Arguments
@@ -100,14 +99,14 @@ pub fn syscall_listen(args: [usize; 6]) -> SyscallResult {
 /// * `addr_buf` - *mut u8
 /// * `addr_len` - *mut u32
 /// * `flags` - usize
-pub fn syscall_accept4(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_accept4(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let addr_buf = args[1] as *mut u8;
     let addr_len = args[2] as *mut u32;
     let flags = args[3];
-    let curr = current_process();
+    let curr = current_executor().await;
 
-    let file = match curr.fd_manager.fd_table.lock().get(fd) {
+    let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
         _ => return Err(SyscallError::EBADF),
     };
@@ -119,7 +118,7 @@ pub fn syscall_accept4(args: [usize; 6]) -> SyscallResult {
     debug!("[accept()] socket {fd} accept");
 
     // socket.accept() might block, we need to release all lock now.
-    if curr.manual_alloc_type_for_lazy(addr_len).is_err() {
+    if curr.manual_alloc_type_for_lazy(addr_len).await.is_err() {
         return Err(SyscallError::EFAULT);
     }
     let buf_len = unsafe { *addr_len } as usize;
@@ -128,15 +127,16 @@ pub fn syscall_accept4(args: [usize; 6]) -> SyscallResult {
     }
     if curr
         .manual_alloc_range_for_lazy(args[1].into(), (args[1] + buf_len).into())
+        .await
         .is_err()
     {
         return Err(SyscallError::EFAULT);
     }
-    match socket.accept() {
+    match socket.accept().await {
         Ok((s, addr)) => {
             let _ = unsafe { socket_address_to(addr, addr_buf, buf_len, addr_len) };
 
-            let mut fd_table = curr.fd_manager.fd_table.lock();
+            let mut fd_table = curr.fd_manager.fd_table.lock().await;
             let Ok(new_fd) = curr.alloc_fd(&mut fd_table) else {
                 return Err(SyscallError::ENFILE); // Maybe ENFILE
             };
@@ -147,7 +147,7 @@ pub fn syscall_accept4(args: [usize; 6]) -> SyscallResult {
 
             s.set_nonblocking((flags & SOCK_NONBLOCK) != 0);
 
-            s.set_close_on_exec((flags & SOCK_CLOEXEC) != 0);
+            s.set_close_on_exec((flags & SOCK_CLOEXEC) != 0).await;
 
             fd_table[new_fd] = Some(Arc::new(s));
             Ok(new_fd as isize)
@@ -167,13 +167,13 @@ pub fn syscall_accept4(args: [usize; 6]) -> SyscallResult {
 /// * `fd` - usize
 /// * `addr_buf` - *const u8
 /// * `addr_len` - usize
-pub fn syscall_connect(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_connect(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let addr_buf = args[1] as *const u8;
     let _addr_len = args[2];
-    let curr = current_process();
+    let curr = current_executor().await;
 
-    let file = match curr.fd_manager.fd_table.lock().get(fd) {
+    let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
         _ => return Err(SyscallError::EBADF),
     };
@@ -186,7 +186,7 @@ pub fn syscall_connect(args: [usize; 6]) -> SyscallResult {
 
     info!("[connect()] socket {fd} connecting to {addr:?}");
 
-    match socket.connect(addr) {
+    match socket.connect(addr).await {
         Ok(_) => Ok(0),
         Err(AxError::WouldBlock) => Err(SyscallError::EINPROGRESS),
         Err(AxError::Interrupted) => Err(SyscallError::EINTR),
@@ -201,13 +201,13 @@ pub fn syscall_connect(args: [usize; 6]) -> SyscallResult {
 /// * `fd` - usize
 /// * `addr` - *mut u8
 /// * `addr_len` - *mut u32
-pub fn syscall_get_sock_name(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_get_sock_name(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let addr = args[1] as *mut u8;
     let addr_len = args[2] as *mut u32;
-    let curr = current_process();
+    let curr = current_executor().await;
 
-    let file = match curr.fd_manager.fd_table.lock().get(fd) {
+    let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
         _ => return Err(SyscallError::EBADF),
     };
@@ -215,7 +215,7 @@ pub fn syscall_get_sock_name(args: [usize; 6]) -> SyscallResult {
     let Some(socket) = file.as_any().downcast_ref::<Socket>() else {
         return Err(SyscallError::ENOTSOCK);
     };
-    if curr.manual_alloc_type_for_lazy(addr_len).is_err() {
+    if curr.manual_alloc_type_for_lazy(addr_len).await.is_err() {
         return Err(SyscallError::EFAULT);
     }
     let buf_len = unsafe { *addr_len } as usize;
@@ -224,6 +224,7 @@ pub fn syscall_get_sock_name(args: [usize; 6]) -> SyscallResult {
     }
     if curr
         .manual_alloc_range_for_lazy(args[1].into(), (args[1] + buf_len).into())
+        .await
         .is_err()
     {
         return Err(SyscallError::EFAULT);
@@ -244,18 +245,18 @@ pub fn syscall_get_sock_name(args: [usize; 6]) -> SyscallResult {
 /// * `fd` - usize
 /// * `addr_buf` - *mut u8
 /// * `addr_len` - *mut u32
-pub fn syscall_getpeername(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_getpeername(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let addr_buf = args[1] as *mut u8;
     let addr_len = args[2] as *mut u32;
-    let curr = current_process();
+    let curr = current_executor().await;
 
-    let file = match curr.fd_manager.fd_table.lock().get(fd) {
+    let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
         _ => return Err(SyscallError::EBADF),
     };
 
-    let buf_len = match curr.manual_alloc_type_for_lazy(addr_len) {
+    let buf_len = match curr.manual_alloc_type_for_lazy(addr_len).await {
         Ok(_) => unsafe { *addr_len as usize },
         Err(_) => return Err(SyscallError::EFAULT),
     };
@@ -269,6 +270,7 @@ pub fn syscall_getpeername(args: [usize; 6]) -> SyscallResult {
             (addr_buf as usize).into(),
             unsafe { addr_buf.add(buf_len as usize) as usize }.into(),
         )
+        .await
         .is_err()
     {
         return Err(SyscallError::EFAULT);
@@ -277,12 +279,13 @@ pub fn syscall_getpeername(args: [usize; 6]) -> SyscallResult {
     let Some(socket) = file.as_any().downcast_ref::<Socket>() else {
         return Err(SyscallError::ENOTSOCK);
     };
-    if curr.manual_alloc_for_lazy(args[2].into()).is_err() {
+    if curr.manual_alloc_for_lazy(args[2].into()).await.is_err() {
         return Err(SyscallError::EFAULT);
     }
 
     if curr
         .manual_alloc_range_for_lazy(args[1].into(), (args[1] + buf_len).into())
+        .await
         .is_err()
     {
         return Err(SyscallError::EFAULT);
@@ -305,16 +308,16 @@ pub fn syscall_getpeername(args: [usize; 6]) -> SyscallResult {
 /// * `flags` - usize
 /// * `addr` - *const u8
 /// * `addr_len` - usize
-pub fn syscall_sendto(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_sendto(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let buf = args[1] as *const u8;
     let len = args[2];
     let _flags = args[3];
     let addr = args[4] as *const u8;
     let addr_len = args[5];
-    let curr = current_process();
+    let curr = current_executor().await;
 
-    let file = match curr.fd_manager.fd_table.lock().get(fd) {
+    let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
         _ => return Err(SyscallError::EBADF),
     };
@@ -331,6 +334,7 @@ pub fn syscall_sendto(args: [usize; 6]) -> SyscallResult {
             (buf as usize).into(),
             unsafe { buf.add(len) as usize }.into(),
         )
+        .await
         .map(|_| unsafe { from_raw_parts(buf, len) })
     else {
         error!("[sendto()] buf address {buf:?} invalid");
@@ -338,10 +342,13 @@ pub fn syscall_sendto(args: [usize; 6]) -> SyscallResult {
     };
 
     let addr = if !addr.is_null() && addr_len != 0 {
-        match curr.manual_alloc_range_for_lazy(
-            (addr as usize).into(),
-            unsafe { addr.add(addr_len) as usize }.into(),
-        ) {
+        match curr
+            .manual_alloc_range_for_lazy(
+                (addr as usize).into(),
+                unsafe { addr.add(addr_len) as usize }.into(),
+            )
+            .await
+        {
             Ok(_) => Some(unsafe { socket_address_from(addr, socket) }),
             Err(_) => {
                 error!("[sendto()] addr address {addr:?} invalid");
@@ -351,7 +358,7 @@ pub fn syscall_sendto(args: [usize; 6]) -> SyscallResult {
     } else {
         None
     };
-    match socket.sendto(buf, addr) {
+    match socket.sendto(buf, addr).await {
         Ok(len) => {
             info!("[sendto()] socket {fd} sent {len} bytes to addr {:?}", addr);
             Ok(len as isize)
@@ -374,33 +381,34 @@ pub fn syscall_sendto(args: [usize; 6]) -> SyscallResult {
 /// * `flags` - usize
 /// * `addr_buf` - *mut u8
 /// * `addr_len` - *mut u32
-pub fn syscall_recvfrom(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_recvfrom(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let buf = args[1] as *mut u8;
     let len = args[2];
     let _flags = args[3];
     let addr_buf = args[4] as *mut u8;
     let addr_len = args[5] as *mut u32;
-    let curr = current_process();
+    let curr = current_executor().await;
 
-    let file = match curr.fd_manager.fd_table.lock().get(fd) {
+    let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
         _ => return Err(SyscallError::EBADF),
     };
     let Some(socket) = file.as_any().downcast_ref::<Socket>() else {
         return Err(SyscallError::ENOTSOCK);
     };
-    if !addr_len.is_null() && curr.manual_alloc_type_for_lazy(addr_len).is_err() {
+    if !addr_len.is_null() && curr.manual_alloc_type_for_lazy(addr_len).await.is_err() {
         error!("[recvfrom()] addr_len address {addr_len:?} invalid");
         return Err(SyscallError::EFAULT);
     }
 
-    if !addr_buf.is_null() && curr.manual_alloc_type_for_lazy(addr_buf).is_err() {
+    if !addr_buf.is_null() && curr.manual_alloc_type_for_lazy(addr_buf).await.is_err() {
         return Err(SyscallError::EFAULT);
     }
 
     if curr
         .manual_alloc_range_for_lazy(args[1].into(), (args[1] + len).into())
+        .await
         .is_err()
     {
         error!(
@@ -411,7 +419,7 @@ pub fn syscall_recvfrom(args: [usize; 6]) -> SyscallResult {
     }
     let buf = unsafe { from_raw_parts_mut(buf, len) };
     info!("recv addr: {:?}", socket.name().unwrap());
-    match socket.recv_from(buf) {
+    match socket.recv_from(buf).await {
         Ok((len, addr)) => {
             info!("socket {fd} recv {len} bytes from {addr:?}");
             if !addr_buf.is_null() && !addr_len.is_null() {
@@ -442,7 +450,7 @@ pub fn syscall_recvfrom(args: [usize; 6]) -> SyscallResult {
 /// * `opt_name` - usize
 /// * `opt_value` - *const u8
 /// * `opt_len` - u32
-pub fn syscall_set_sock_opt(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_set_sock_opt(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let level = args[1];
     let opt_name = args[2];
@@ -453,9 +461,9 @@ pub fn syscall_set_sock_opt(args: [usize; 6]) -> SyscallResult {
         unimplemented!();
     };
 
-    let curr = current_process();
+    let curr = current_executor().await;
 
-    let file = match curr.fd_manager.fd_table.lock().get(fd) {
+    let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
         _ => return Err(SyscallError::EBADF),
     };
@@ -481,7 +489,7 @@ pub fn syscall_set_sock_opt(args: [usize; 6]) -> SyscallResult {
                 return Ok(0);
             };
 
-            option.set(socket, opt)
+            option.set(socket, opt).await
         }
         SocketOptionLevel::Tcp => {
             let Ok(option) = TcpSocketOption::try_from(opt_name) else {
@@ -508,7 +516,7 @@ pub fn syscall_set_sock_opt(args: [usize; 6]) -> SyscallResult {
 /// * `opt_name` - usize
 /// * `opt_value` - *mut u8
 /// * `opt_len` - *mut u32
-pub fn syscall_get_sock_opt(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_get_sock_opt(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let level = args[1];
     let opt_name = args[2];
@@ -523,9 +531,9 @@ pub fn syscall_get_sock_opt(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EFAULT);
     }
 
-    let curr = current_process();
+    let curr = current_executor().await;
 
-    let file = match curr.fd_manager.fd_table.lock().get(fd) {
+    let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
         _ => return Err(SyscallError::EBADF),
     };
@@ -536,6 +544,7 @@ pub fn syscall_get_sock_opt(args: [usize; 6]) -> SyscallResult {
 
     if curr
         .manual_alloc_type_for_lazy(opt_len as *const u32)
+        .await
         .is_err()
     {
         error!("[getsockopt()] opt_len address {opt_len:?} invalid");
@@ -546,6 +555,7 @@ pub fn syscall_get_sock_opt(args: [usize; 6]) -> SyscallResult {
             (opt_value as usize).into(),
             (unsafe { opt_value.add(*opt_len as usize) } as usize).into(),
         )
+        .await
         .is_err()
     {
         error!(
@@ -562,7 +572,7 @@ pub fn syscall_get_sock_opt(args: [usize; 6]) -> SyscallResult {
                 panic!("[setsockopt()] option {opt_name} not supported in socket level");
             };
 
-            option.get(socket, opt_value, opt_len);
+            option.get(socket, opt_value, opt_len).await;
         }
         SocketOptionLevel::Tcp => {
             let Ok(option) = TcpSocketOption::try_from(opt_name) else {
@@ -573,7 +583,7 @@ pub fn syscall_get_sock_opt(args: [usize; 6]) -> SyscallResult {
                 return Err(SyscallError::ENOPROTOOPT);
             }
 
-            option.get(socket, opt_value, opt_len);
+            option.get(socket, opt_value, opt_len).await;
         }
         // TODO: achieve the real implementation of ipv6
         SocketOptionLevel::IPv6 => {}
@@ -593,12 +603,12 @@ enum SocketShutdown {
 /// # Arguments
 /// * `fd` - usize
 /// * `how` - usize
-pub fn syscall_shutdown(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_shutdown(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let how = args[1];
-    let curr = current_process();
+    let curr = current_executor().await;
 
-    let file = match curr.fd_manager.fd_table.lock().get(fd) {
+    let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
         _ => return Err(SyscallError::EBADF),
     };
@@ -615,21 +625,25 @@ pub fn syscall_shutdown(args: [usize; 6]) -> SyscallResult {
         SocketShutdown::Read => {
             error!("[shutdown()] SHUT_RD is noop")
         }
-        SocketShutdown::Write => socket.shutdown(),
+        SocketShutdown::Write => socket.shutdown().await,
         SocketShutdown::ReadWrite => {
-            socket.abort();
+            socket.abort().await;
         }
     }
 
     Ok(0)
 }
 
-pub fn syscall_socketpair(args: [usize; 6]) -> SyscallResult {
+pub async fn syscall_socketpair(args: [usize; 6]) -> SyscallResult {
     let fd: *mut u32 = args[3] as *mut u32;
     let s_type = args[1];
     let domain = args[0];
-    let process = current_process();
-    if process.manual_alloc_for_lazy((fd as usize).into()).is_err() {
+    let process = current_executor().await;
+    if process
+        .manual_alloc_for_lazy((fd as usize).into())
+        .await
+        .is_err()
+    {
         return Err(SyscallError::EINVAL);
     }
     if domain != Domain::AF_UNIX as usize {
@@ -640,8 +654,8 @@ pub fn syscall_socketpair(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EINVAL);
     };
 
-    let (fd1, fd2) = make_socketpair(s_type);
-    let mut fd_table = process.fd_manager.fd_table.lock();
+    let (fd1, fd2) = make_socketpair(s_type).await;
+    let mut fd_table = process.fd_manager.fd_table.lock().await;
     let fd_num = if let Ok(fd) = process.alloc_fd(&mut fd_table) {
         fd
     } else {
@@ -665,12 +679,11 @@ pub fn syscall_socketpair(args: [usize; 6]) -> SyscallResult {
     Ok(0)
 }
 
-
 /// return sockerpair read write
-pub fn make_socketpair(socket_type: usize) -> (Arc<Socket>, Arc<Socket>) {
+pub async fn make_socketpair(socket_type: usize) -> (Arc<Socket>, Arc<Socket>) {
     let s_type = SocketType::try_from(socket_type & SOCKET_TYPE_MASK).unwrap();
-    let mut fd1 = Socket::new(Domain::AF_UNIX, s_type);
-    let mut fd2 = Socket::new(Domain::AF_UNIX, s_type);
+    let mut fd1 = Socket::new(Domain::AF_UNIX, s_type).await;
+    let mut fd2 = Socket::new(Domain::AF_UNIX, s_type).await;
     let mut pipe_flag = OpenFlags::empty();
     if socket_type & SOCK_NONBLOCK != 0 {
         pipe_flag |= OpenFlags::NON_BLOCK;
@@ -679,10 +692,10 @@ pub fn make_socketpair(socket_type: usize) -> (Arc<Socket>, Arc<Socket>) {
     }
     if socket_type & SOCK_CLOEXEC != 0 {
         pipe_flag |= OpenFlags::CLOEXEC;
-        fd1.set_close_on_exec(true);
-        fd2.set_close_on_exec(true);
+        fd1.set_close_on_exec(true).await;
+        fd2.set_close_on_exec(true).await;
     }
-    let (pipe1, pipe2) = make_pipe(pipe_flag);
+    let (pipe1, pipe2) = make_pipe(pipe_flag).await;
     fd1.buffer = Some(pipe1);
     fd2.buffer = Some(pipe2);
     (Arc::new(fd1), Arc::new(fd2))

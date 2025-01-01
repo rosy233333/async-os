@@ -12,9 +12,8 @@ alloc = ["dep:axalloc", "feat/alloc"]
 multitask = ["feat/multitask"]
 fs = ["dep:async_fs", "feat/fs"]
 myfs = []
-net = []
 display = []
-# net = ["dep:axnet", "feat/net"]
+net = ["dep:async_net", "feat/net"]
 # display = ["dep:axdisplay", "feat/display"]
 
 # myfs = ["feat/myfs"]
@@ -37,5 +36,6 @@ async_io = { path = "../async_io" }
 axhal = { path = "../axhal" }
 sync = { path = "../sync" }
 async_fs = { path = "../async_fs", optional = true }
+async_net = { path = "../async_net", optional = true }
 
 task_api = { path = "../task_api" }

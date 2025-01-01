@@ -1,23 +1,25 @@
 extern crate alloc;
+use alloc::string::String;
 use alloc::{sync::Arc, vec::Vec};
+use async_fs::api::AsyncFileIO;
+use async_fs::api::{FileIO, FileIOType, OpenFlags};
+use async_io::{AsyncRead, AsyncWrite};
+use axerrno::{AxError, AxResult};
 use core::{
     mem::size_of,
     net::Ipv4Addr,
     ptr::copy_nonoverlapping,
     sync::atomic::{AtomicBool, AtomicU64},
 };
+use executor::current_task;
 
-use alloc::string::String;
-use axerrno::{AxError, AxResult};
-use axfs::api::{FileIO, FileIOType, OpenFlags, Read, Write};
-
-use axlog::{error, warn};
-use axnet::{
+use async_net::{
     add_membership, from_core_sockaddr, into_core_sockaddr, poll_interfaces, IpAddr, SocketAddr,
     TcpSocket, UdpSocket,
 };
-use axsync::Mutex;
+use axlog::{error, warn};
 use num_enum::TryFromPrimitive;
+use sync::Mutex;
 
 use crate::{
     syscall_fs::ctype::pipe::{make_pipe, Pipe},
@@ -148,7 +150,7 @@ impl IpOption {
 }
 
 impl SocketOption {
-    pub fn set(&self, socket: &Socket, opt: &[u8]) -> SyscallResult {
+    pub async fn set(&self, socket: &Socket, opt: &[u8]) -> SyscallResult {
         match self {
             SocketOption::SO_REUSEADDR => {
                 if opt.len() < 4 {
@@ -199,7 +201,7 @@ impl SocketOption {
                 let opt_value = i32::from_ne_bytes(<[u8; 4]>::try_from(&opt[0..4]).unwrap());
 
                 let interval = if opt_value != 0 {
-                    Some(axnet::Duration::from_secs(45))
+                    Some(async_net::Duration::from_secs(45))
                 } else {
                     None
                 };
@@ -208,12 +210,15 @@ impl SocketOption {
                     SocketInner::Udp(_) => {
                         warn!("[setsockopt()] set SO_KEEPALIVE on udp socket, ignored")
                     }
-                    SocketInner::Tcp(s) => s.with_socket_mut(|s| match s {
-                        Some(s) => s.set_keep_alive(interval),
-                        None => warn!(
-                            "[setsockopt()] set keep-alive for tcp socket not created, ignored"
-                        ),
-                    }),
+                    SocketInner::Tcp(s) => {
+                        s.with_socket_mut(async |s| match s {
+                            Some(s) => s.set_keep_alive(interval),
+                            None => warn!(
+                                "[setsockopt()] set keep-alive for tcp socket not created, ignored"
+                            ),
+                        })
+                        .await
+                    }
                 };
 
                 socket.set_recv_buf_size(opt_value as u64);
@@ -240,7 +245,7 @@ impl SocketOption {
         }
     }
 
-    pub fn get(&self, socket: &Socket, opt_value: *mut u8, opt_len: *mut u32) {
+    pub async fn get(&self, socket: &Socket, opt_value: *mut u8, opt_len: *mut u32) {
         let buf_len = unsafe { *opt_len } as usize;
 
         match self {
@@ -302,13 +307,13 @@ impl SocketOption {
                         warn!("[getsockopt()] get SO_KEEPALIVE on udp socket, returning false");
                         0
                     }
-                    SocketInner::Tcp(s) => s.with_socket(|s| match s {
+                    SocketInner::Tcp(s) => s.with_socket(async |s| match s {
                         Some(s) => if s.keep_alive().is_some() { 1 } else { 0 },
-                        None => {warn!(
-                            "[setsockopt()] set keep-alive for tcp socket not created, returning false"
-                        );
-                            0},
-                    }),
+                        None => {
+                            warn!("[setsockopt()] set keep-alive for tcp socket not created, returning false");
+                            0
+                        },
+                    }).await,
                 };
 
                 unsafe {
@@ -322,7 +327,7 @@ impl SocketOption {
                 }
 
                 unsafe {
-                    match socket.get_recv_timeout() {
+                    match socket.get_recv_timeout().await {
                         Some(time) => copy_nonoverlapping(
                             (&time) as *const TimeVal,
                             opt_value as *mut TimeVal,
@@ -377,7 +382,7 @@ impl TcpSocketOption {
         }
     }
 
-    pub fn get(&self, raw_socket: &Socket, opt_value: *mut u8, opt_len: *mut u32) {
+    pub async fn get(&self, raw_socket: &Socket, opt_value: *mut u8, opt_len: *mut u32) {
         let socket = match &raw_socket.inner {
             SocketInner::Tcp(ref s) => s,
             _ => panic!("calling tcp option on a wrong type of socket"),
@@ -391,7 +396,7 @@ impl TcpSocketOption {
                     panic!("can't write a int to socket opt value");
                 }
 
-                let value: i32 = if socket.nagle_enabled() { 0 } else { 1 };
+                let value: i32 = if socket.nagle_enabled().await { 0 } else { 1 };
 
                 let value = value.to_ne_bytes();
 
@@ -412,7 +417,7 @@ impl TcpSocketOption {
             }
             TcpSocketOption::TCP_INFO => {}
             TcpSocketOption::TCP_CONGESTION => {
-                let bytes = raw_socket.get_congestion();
+                let bytes = raw_socket.get_congestion().await;
                 let bytes = bytes.as_bytes();
 
                 unsafe {
@@ -465,8 +470,8 @@ pub enum SocketInner {
 }
 
 impl Socket {
-    fn get_recv_timeout(&self) -> Option<TimeVal> {
-        *self.recv_timeout.lock()
+    async fn get_recv_timeout(&self) -> Option<TimeVal> {
+        *self.recv_timeout.lock().await
     }
     fn get_reuse_addr(&self) -> bool {
         match &self.inner {
@@ -485,12 +490,12 @@ impl Socket {
             .load(core::sync::atomic::Ordering::Acquire)
     }
 
-    fn get_congestion(&self) -> String {
-        self.congestion.lock().clone()
+    async fn get_congestion(&self) -> String {
+        self.congestion.lock().await.clone()
     }
 
-    fn set_recv_timeout(&self, val: Option<TimeVal>) {
-        *self.recv_timeout.lock() = val;
+    async fn set_recv_timeout(&self, val: Option<TimeVal>) {
+        *self.recv_timeout.lock().await = val;
     }
 
     fn set_reuse_addr(&self, flag: bool) {
@@ -510,17 +515,17 @@ impl Socket {
             .store(size, core::sync::atomic::Ordering::Release)
     }
 
-    fn set_congestion(&self, congestion: String) {
-        *self.congestion.lock() = congestion;
+    async fn set_congestion(&self, congestion: String) {
+        *self.congestion.lock().await = congestion;
     }
 
     /// Create a new socket with the given domain and socket type.
-    pub fn new(domain: Domain, socket_type: SocketType) -> Self {
+    pub async fn new(domain: Domain, socket_type: SocketType) -> Self {
         let inner = match socket_type {
             SocketType::SOCK_STREAM | SocketType::SOCK_SEQPACKET => {
                 SocketInner::Tcp(TcpSocket::new())
             }
-            SocketType::SOCK_DGRAM => SocketInner::Udp(UdpSocket::new()),
+            SocketType::SOCK_DGRAM => SocketInner::Udp(UdpSocket::new().await),
             _ => {
                 error!("unimplemented SocketType: {:?}", socket_type);
                 unimplemented!();
@@ -557,10 +562,10 @@ impl Socket {
     }
 
     /// Socket may send or recv.
-    pub fn is_connected(&self) -> bool {
+    pub async fn is_connected(&self) -> bool {
         match &self.inner {
             SocketInner::Tcp(s) => s.is_connected(),
-            SocketInner::Udp(s) => s.with_socket(|s| s.is_open()),
+            SocketInner::Udp(s) => s.with_socket(|s| s.is_open()).await,
         }
     }
 
@@ -583,10 +588,10 @@ impl Socket {
     }
 
     /// Bind the socket to the given address.
-    pub fn bind(&self, addr: SocketAddr) -> AxResult {
+    pub async fn bind(&self, addr: SocketAddr) -> AxResult {
         match &self.inner {
-            SocketInner::Tcp(s) => s.bind(into_core_sockaddr(addr)),
-            SocketInner::Udp(s) => s.bind(into_core_sockaddr(addr)),
+            SocketInner::Tcp(s) => s.bind(into_core_sockaddr(addr)).await,
+            SocketInner::Udp(s) => s.bind(into_core_sockaddr(addr)).await,
         }
     }
 
@@ -595,20 +600,20 @@ impl Socket {
     /// Only support socket with type SOCK_STREAM or SOCK_SEQPACKET
     ///
     /// Err(Unsupported): EOPNOTSUPP
-    pub fn listen(&self) -> AxResult {
+    pub async fn listen(&self) -> AxResult {
         if self.socket_type != SocketType::SOCK_STREAM
             && self.socket_type != SocketType::SOCK_SEQPACKET
         {
             return Err(AxError::Unsupported);
         }
         match &self.inner {
-            SocketInner::Tcp(s) => s.listen(),
+            SocketInner::Tcp(s) => s.listen().await,
             SocketInner::Udp(_) => Err(AxError::Unsupported),
         }
     }
 
     /// Accept a new connection.
-    pub fn accept(&self) -> AxResult<(Self, SocketAddr)> {
+    pub async fn accept(&self) -> AxResult<(Self, SocketAddr)> {
         if self.socket_type != SocketType::SOCK_STREAM
             && self.socket_type != SocketType::SOCK_SEQPACKET
         {
@@ -616,7 +621,7 @@ impl Socket {
         }
 
         let new_socket = match &self.inner {
-            SocketInner::Tcp(s) => s.accept()?,
+            SocketInner::Tcp(s) => s.accept().await?,
             SocketInner::Udp(_) => Err(AxError::Unsupported)?,
         };
         let addr = new_socket.peer_addr()?;
@@ -639,10 +644,10 @@ impl Socket {
     }
 
     /// Connect to the given address.
-    pub fn connect(&self, addr: SocketAddr) -> AxResult {
+    pub async fn connect(&self, addr: SocketAddr) -> AxResult {
         match &self.inner {
-            SocketInner::Tcp(s) => s.connect(into_core_sockaddr(addr)),
-            SocketInner::Udp(s) => s.connect(into_core_sockaddr(addr)),
+            SocketInner::Tcp(s) => s.connect(into_core_sockaddr(addr)).await,
+            SocketInner::Udp(s) => s.connect(into_core_sockaddr(addr)).await,
         }
     }
 
@@ -656,9 +661,9 @@ impl Socket {
     }
     #[allow(unused)]
     /// let the socket send data to the given address
-    pub fn sendto(&self, buf: &[u8], addr: Option<SocketAddr>) -> AxResult<usize> {
+    pub async fn sendto(&self, buf: &[u8], addr: Option<SocketAddr>) -> AxResult<usize> {
         if self.domain == Domain::AF_UNIX {
-            return self.buffer.as_ref().unwrap().write(buf);
+            return self.buffer.as_ref().unwrap().write(buf).await;
         }
         match &self.inner {
             SocketInner::Udp(s) => {
@@ -668,17 +673,18 @@ impl Socket {
                         IpAddr::v4(0, 0, 0, 0),
                         0,
                     )))
+                    .await
                     .unwrap();
                 }
                 match addr {
-                    Some(addr) => s.send_to(buf, into_core_sockaddr(addr)),
+                    Some(addr) => s.send_to(buf, into_core_sockaddr(addr)).await,
                     None => {
                         // not connected and no target is given
                         if s.peer_addr().is_err() {
                             // return Err(SyscallError::ENOTCONN);
                             return Err(AxError::NotConnected);
                         }
-                        s.send(buf)
+                        s.send(buf).await
                     }
                 }
             }
@@ -690,124 +696,207 @@ impl Socket {
                 // if !s.is_connected() {
                 //     return Err(SyscallError::ENOTCONN);
                 // }
-                s.send(buf)
+                s.send(buf).await
             }
         }
     }
 
     /// let the socket receive data and write it to the given buffer
-    pub fn recv_from(&self, buf: &mut [u8]) -> AxResult<(usize, SocketAddr)> {
+    pub async fn recv_from(&self, buf: &mut [u8]) -> AxResult<(usize, SocketAddr)> {
         if self.domain == Domain::AF_UNIX {
-            let ans = self.buffer.as_ref().unwrap().read(buf)?;
+            let ans = self.buffer.as_ref().unwrap().read(buf).await?;
             return Ok((
                 ans,
-                SocketAddr::new(IpAddr::Ipv4(axnet::Ipv4Addr::new(127, 0, 0, 1)), 0),
+                SocketAddr::new(IpAddr::Ipv4(async_net::Ipv4Addr::new(127, 0, 0, 1)), 0),
             ));
         }
+        // warn!("recv_from on socket {:?}", self.socket_type);
         match &self.inner {
             SocketInner::Tcp(s) => {
                 let addr = s.peer_addr()?;
 
-                match self.get_recv_timeout() {
-                    Some(time) => s.recv_timeout(buf, time.turn_to_ticks()),
-                    None => s.recv(buf),
+                match self.get_recv_timeout().await {
+                    Some(time) => s.recv_timeout(buf, time.turn_to_ticks()).await,
+                    None => s.recv(buf).await,
                 }
                 .map(|len| (len, from_core_sockaddr(addr)))
             }
-            SocketInner::Udp(s) => match self.get_recv_timeout() {
+            SocketInner::Udp(s) => match self.get_recv_timeout().await {
                 Some(time) => s
                     .recv_from_timeout(buf, time.turn_to_ticks())
+                    .await
                     .map(|(val, addr)| (val, from_core_sockaddr(addr))),
                 None => s
                     .recv_from(buf)
+                    .await
                     .map(|(val, addr)| (val, from_core_sockaddr(addr))),
             },
         }
     }
 
     /// For shutdown(fd, SHUT_WR)
-    pub fn shutdown(&self) {
+    pub async fn shutdown(&self) {
         match &self.inner {
             SocketInner::Udp(s) => {
-                s.shutdown();
+                s.shutdown().await;
             }
             SocketInner::Tcp(s) => {
-                s.close();
+                s.close().await;
             }
         };
     }
 
     /// For shutdown(fd, SHUT_RDWR)
-    pub fn abort(&self) {
+    pub async fn abort(&self) {
         match &self.inner {
             SocketInner::Udp(s) => {
-                let _ = s.shutdown();
+                let _ = s.shutdown().await;
             }
-            SocketInner::Tcp(s) => s.with_socket_mut(|s| {
-                if let Some(s) = s {
-                    s.abort();
-                }
-            }),
+            SocketInner::Tcp(s) => {
+                s.with_socket_mut(async |s| {
+                    if let Some(s) = s {
+                        s.abort();
+                    }
+                })
+                .await
+            }
         }
     }
 }
 
+use alloc::boxed::Box;
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 impl FileIO for Socket {
-    fn read(&self, buf: &mut [u8]) -> AxResult<usize> {
-        if self.domain == Domain::AF_UNIX {
-            return self.buffer.as_ref().unwrap().read(buf);
-        }
-        match &self.inner {
-            SocketInner::Tcp(s) => s.recv(buf),
-            SocketInner::Udp(s) => s.recv(buf),
-        }
+    // fn read(&self, buf: &mut [u8]) -> AxResult<usize> {
+    //     if self.domain == Domain::AF_UNIX {
+    //         return self.buffer.as_ref().unwrap().read(buf);
+    //     }
+    //     match &self.inner {
+    //         SocketInner::Tcp(s) => s.recv(buf),
+    //         SocketInner::Udp(s) => s.recv(buf),
+    //     }
+    // }
+    fn read(self: Pin<&Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<AxResult<usize>> {
+        Box::pin(async {
+            if self.domain == Domain::AF_UNIX {
+                return self.buffer.as_ref().unwrap().read(buf).await;
+            }
+            match &self.inner {
+                SocketInner::Tcp(s) => s.recv(buf).await,
+                SocketInner::Udp(s) => s.recv(buf).await,
+            }
+        })
+        .as_mut()
+        .poll(cx)
+        // if self.domain == Domain::AF_UNIX {
+        //     return self.buffer.as_ref().unwrap().read(buf);
+        // }
+        // match &self.inner {
+        //     SocketInner::Tcp(s) => s.recv(buf),
+        //     SocketInner::Udp(s) => s.recv(buf),
+        // }
     }
 
-    fn write(&self, buf: &[u8]) -> AxResult<usize> {
-        if self.domain == Domain::AF_UNIX {
-            return self.buffer.as_ref().unwrap().write(buf);
-        }
-        match &self.inner {
-            SocketInner::Tcp(s) => s.send(buf),
-            SocketInner::Udp(s) => s.send(buf),
-        }
+    fn write(self: Pin<&Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<AxResult<usize>> {
+        Box::pin(async {
+            if self.domain == Domain::AF_UNIX {
+                return self.buffer.as_ref().unwrap().write(buf).await;
+            }
+            match &self.inner {
+                SocketInner::Tcp(s) => s.send(buf).await,
+                SocketInner::Udp(s) => s.send(buf).await,
+            }
+        })
+        .as_mut()
+        .poll(cx)
     }
 
-    fn flush(&self) -> AxResult {
-        Err(AxError::Unsupported)
+    // fn write(&self, buf: &[u8]) -> AxResult<usize> {
+    //     if self.domain == Domain::AF_UNIX {
+    //         return self.buffer.as_ref().unwrap().write(buf);
+    //     }
+    //     match &self.inner {
+    //         SocketInner::Tcp(s) => s.send(buf),
+    //         SocketInner::Udp(s) => s.send(buf),
+    //     }
+    // }
+
+    fn flush(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<AxResult<()>> {
+        Poll::Ready(Err(AxError::Unsupported))
+    }
+    // fn flush(&self) -> AxResult {
+    //     Err(AxError::Unsupported)
+    // }
+
+    // fn readable(&self) -> bool {
+    //     if self.domain == Domain::AF_UNIX {
+    //         return self.buffer.as_ref().unwrap().readable();
+    //     }
+    //     poll_interfaces();
+    //     match &self.inner {
+    //         SocketInner::Tcp(s) => s.poll().map_or(false, |p| p.readable),
+    //         SocketInner::Udp(s) => s.poll().map_or(false, |p| p.readable),
+    //     }
+    // }
+    fn readable(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool> {
+        Box::pin(async {
+            if self.domain == Domain::AF_UNIX {
+                return self.buffer.as_ref().unwrap().readable().await;
+            }
+            poll_interfaces().await;
+            match &self.inner {
+                SocketInner::Tcp(s) => s.poll().await.map_or(false, |p| p.readable),
+                SocketInner::Udp(s) => s.poll().await.map_or(false, |p| p.readable),
+            }
+        })
+        .as_mut()
+        .poll(cx)
     }
 
-    fn readable(&self) -> bool {
-        if self.domain == Domain::AF_UNIX {
-            return self.buffer.as_ref().unwrap().readable();
-        }
-        poll_interfaces();
-        match &self.inner {
-            SocketInner::Tcp(s) => s.poll().map_or(false, |p| p.readable),
-            SocketInner::Udp(s) => s.poll().map_or(false, |p| p.readable),
-        }
+    // fn writable(&self) -> bool {
+    //     if self.domain == Domain::AF_UNIX {
+    //         return self.buffer.as_ref().unwrap().writable();
+    //     }
+    //     poll_interfaces();
+    //     match &self.inner {
+    //         SocketInner::Tcp(s) => s.poll().map_or(false, |p| p.writable),
+    //         SocketInner::Udp(s) => s.poll().map_or(false, |p| p.writable),
+    //     }
+    // }
+    fn writable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
+        Box::pin(async {
+            if self.domain == Domain::AF_UNIX {
+                return self.buffer.as_ref().unwrap().writable().await;
+            }
+            poll_interfaces().await;
+            match &self.inner {
+                SocketInner::Tcp(s) => s.poll().await.map_or(false, |p| p.writable),
+                SocketInner::Udp(s) => s.poll().await.map_or(false, |p| p.writable),
+            }
+        })
+        .as_mut()
+        .poll(_cx)
     }
 
-    fn writable(&self) -> bool {
-        if self.domain == Domain::AF_UNIX {
-            return self.buffer.as_ref().unwrap().writable();
-        }
-        poll_interfaces();
-        match &self.inner {
-            SocketInner::Tcp(s) => s.poll().map_or(false, |p| p.writable),
-            SocketInner::Udp(s) => s.poll().map_or(false, |p| p.writable),
-        }
+    // fn executable(&self) -> bool {
+    //     false
+    // }
+    fn executable(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
+        Poll::Ready(false)
     }
 
-    fn executable(&self) -> bool {
-        false
+    fn get_type(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<FileIOType> {
+        Poll::Ready(FileIOType::Socket)
     }
+    // fn get_type(&self) -> FileIOType {
+    //     FileIOType::Socket
+    // }
 
-    fn get_type(&self) -> FileIOType {
-        FileIOType::Socket
-    }
-
-    fn get_status(&self) -> OpenFlags {
+    fn get_status(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<OpenFlags> {
         let mut flags = OpenFlags::default();
 
         if self.close_exec.load(core::sync::atomic::Ordering::Acquire) {
@@ -818,30 +907,59 @@ impl FileIO for Socket {
             flags |= OpenFlags::NON_BLOCK;
         }
 
-        flags
+        Poll::Ready(flags)
     }
+    // fn get_status(&self) -> OpenFlags {
+    //     let mut flags = OpenFlags::default();
 
-    fn set_status(&self, flags: OpenFlags) -> bool {
-        self.set_nonblocking(flags.contains(OpenFlags::NON_BLOCK));
+    //     if self.close_exec.load(core::sync::atomic::Ordering::Acquire) {
+    //         flags |= OpenFlags::CLOEXEC;
+    //     }
 
-        true
+    //     if self.is_nonblocking() {
+    //         flags |= OpenFlags::NON_BLOCK;
+    //     }
+
+    //     flags
+    // }
+
+    fn set_status(self: Pin<&Self>, _cx: &mut Context<'_>, _flags: OpenFlags) -> Poll<bool> {
+        self.set_nonblocking(_flags.contains(OpenFlags::NON_BLOCK));
+        Poll::Ready(true)
     }
+    // fn set_status(&self, flags: OpenFlags) -> bool {
+    //     self.set_nonblocking(flags.contains(OpenFlags::NON_BLOCK));
 
-    fn ready_to_read(&self) -> bool {
-        self.readable()
+    //     true
+    // }
+
+    fn ready_to_read(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool> {
+        self.readable(cx)
     }
+    // fn ready_to_read(&self) -> bool {
+    //     self.readable()
+    // }
 
-    fn ready_to_write(&self) -> bool {
-        self.writable()
+    fn ready_to_write(self: Pin<&Self>, cx: &mut Context<'_>) -> Poll<bool> {
+        self.writable(cx)
     }
+    // fn ready_to_write(&self) -> bool {
+    //     self.writable()
+    // }
 
-    fn set_close_on_exec(&self, _is_set: bool) -> bool {
+    fn set_close_on_exec(self: Pin<&Self>, _cx: &mut Context<'_>, _is_set: bool) -> Poll<bool> {
         self.close_exec
             .store(_is_set, core::sync::atomic::Ordering::Release);
-        true
+        Poll::Ready(true)
     }
 
-    fn as_any(&self) ->  &dyn core::any::Any {
+    // fn set_close_on_exec(&self, _is_set: bool) -> bool {
+    //     self.close_exec
+    //         .store(_is_set, core::sync::atomic::Ordering::Release);
+    //     true
+    // }
+
+    fn as_any(&self) -> &dyn core::any::Any {
         self
     }
 }
@@ -859,9 +977,8 @@ pub unsafe fn socket_address_from(addr: *const u8, socket: &Socket) -> SocketAdd
 
             let addr = IpAddr::v4(a[0], a[1], a[2], a[3]);
             SocketAddr { addr, port }
-        }
-        // TODO: support ipv6
-        // Domain::AF_INET6 => {}
+        } // TODO: support ipv6
+          // Domain::AF_INET6 => {}
     }
 }
 /// Only support INET (ipv4)

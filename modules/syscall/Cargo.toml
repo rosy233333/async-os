@@ -22,8 +22,8 @@ paging = []
 # # Fs
 # fs = ["feat/fs"]
 
-# ip = ["axnet/ip"]
-# net = ["ip", "axnet/monolithic"]
+ip = ["async_net/ip"]
+net = ["ip", "async_net/monolithic"]
 
 [dependencies]
 cfg-if = "1.0"
@@ -46,6 +46,7 @@ executor = { path = "../executor" }
 sync = { path = "../sync", package = "sync" }
 async_mem = { path = "../async_mem" }
 async_io = { path = "../async_io" }
+async_net = { path = "../async_net" }
 
 taic_driver = { path = "../../crates/taic_driver" }
 heapless = "0.8.0"

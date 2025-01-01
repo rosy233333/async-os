@@ -56,25 +56,25 @@ pub async fn syscall_read(args: [usize; 6]) -> SyscallResult {
         axlog::error!("fd is a dir");
         return Err(SyscallError::EISDIR);
     }
-    // if !file.readable().await {
-    //     // 1. nonblocking socket
-    //     //
-    //     // Normal socket will block while trying to read, so we don't return here.
+    if !file.readable().await {
+        // 1. nonblocking socket
+        //
+        // Normal socket will block while trying to read, so we don't return here.
 
-    //     if let Some(socket) = file.as_any().downcast_ref::<crate::syscall_net::Socket>() {
-    //         if socket.is_nonblocking() && socket.is_connected() {
-    //             return Err(SyscallError::EAGAIN);
-    //         }
-    //     } else {
-    //         // 2. nonblock file
-    //         // return ErrorNo::EAGAIN as isize;
-    //         // 3. regular file
-    //         return Err(SyscallError::EBADF);
-    //     }
+        if let Some(socket) = file.as_any().downcast_ref::<crate::syscall_net::Socket>() {
+            if socket.is_nonblocking() && socket.is_connected().await {
+                return Err(SyscallError::EAGAIN);
+            }
+        } else {
+            // 2. nonblock file
+            // return ErrorNo::EAGAIN as isize;
+            // 3. regular file
+            return Err(SyscallError::EBADF);
+        }
 
-    //     #[cfg(not(feature = "net"))]
-    //     return Err(SyscallError::EBADF);
-    // }
+        #[cfg(not(feature = "net"))]
+        return Err(SyscallError::EBADF);
+    }
 
     // for sockets:
     // Sockets are "readable" when:

@@ -35,14 +35,27 @@ sched_cfs = ["trampoline/sched_cfs", "trampoline/preempt"]
 sched_taic = ["trampoline/sched_taic", "paging"]
 
 # # File system
-fs = ["alloc", "paging", "axdriver/virtio-blk", "dep:async_fs", "runtime/fs"] # TODO: try to remove "paging"
+fs = [
+    "alloc",
+    "paging",
+    "axdriver/virtio-blk",
+    "dep:async_fs",
+    "runtime/fs",
+] # TODO: try to remove "paging"
 fatfs = ["async_fs/fatfs"]
 # lwext4_rust = ["axfs/lwext4_rust"]
 # myfs = ["axfs?/myfs"]
 # ext4_rs = ["axfs/ext4_rs"]
 
 # # Networking
-# net = ["alloc", "paging", "axdriver/virtio-net", "dep:axnet"]
+net = [
+    "alloc",
+    "paging",
+    "axdriver/virtio-net",
+    "dep:async_net",
+    "runtime/net",
+    "syscall/net",
+]
 
 # Display
 # display = ["alloc", "paging", "axdriver/virtio-gpu", "dep:axdisplay"]
@@ -77,3 +90,5 @@ axhal = { path = "../axhal" }
 async_fs = { path = "../async_fs", optional = true }
 sync = { path = "../sync", optional = true }
 trampoline = { path = "../trampoline", optional = true }
+async_net = { path = "../async_net", optional = true }
+syscall = { path = "../syscall", optional = true }

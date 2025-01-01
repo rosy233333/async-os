@@ -18,6 +18,8 @@ mod socket_addr;
 mod tcp;
 mod udp;
 
+use core::ops::AsyncFnMut;
+
 pub use self::socket_addr::{IpAddr, Ipv4Addr, Ipv6Addr};
 pub use self::socket_addr::{SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
 pub use self::tcp::{TcpListener, TcpStream};
@@ -25,17 +27,17 @@ pub use self::udp::UdpSocket;
 
 use crate::io;
 
-fn each_addr<A: ToSocketAddrs, F, T>(addr: A, mut f: F) -> io::Result<T>
+async fn each_addr<A: ToSocketAddrs, F, T>(addr: A, mut f: F) -> io::Result<T>
 where
-    F: FnMut(io::Result<&SocketAddr>) -> io::Result<T>,
+    F: AsyncFnMut(io::Result<&SocketAddr>) -> io::Result<T>,
 {
     let addrs = match addr.to_socket_addrs() {
         Ok(addrs) => addrs,
-        Err(e) => return f(Err(e)),
+        Err(e) => return f(Err(e)).await,
     };
     let mut last_err = None;
     for addr in addrs {
-        match f(Ok(&addr)) {
+        match f(Ok(&addr)).await {
             Ok(l) => return Ok(l),
             Err(e) => last_err = Some(e),
         }

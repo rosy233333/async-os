@@ -19,11 +19,10 @@ paging = ["axhal/paging", "lazy_init"]
 multitask = ["trampoline/multitask"]
 
 fs = ["axdriver", "async_fs"]
-net = []
 display = []
 
 tls = []
-# net = ["axdriver", "axnet"]
+net = ["axdriver", "async_net"]
 # display = ["axdriver", "axdisplay"]
 img = ["axdriver/img", "paging", "axhal/monolithic"]
 
@@ -39,9 +38,10 @@ crate_interface = { git = "https://github.com/Starry-OS/crate_interface.git" }
 percpu = { git = "https://github.com/Starry-OS/percpu.git", optional = true }
 kernel_guard = { path = "../kernel_guard", optional = true }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git", optional = true }
+async_net = { path = "../async_net", optional = true }
 
 
 axhal = { path = "../axhal" }
-async_utils = { path = "../async_utils"}
+async_utils = { path = "../async_utils" }
 async_fs = { path = "../async_fs", optional = true }
 trampoline = { path = "../trampoline" }

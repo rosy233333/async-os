@@ -1,6 +1,8 @@
 use super::{SocketAddr, ToSocketAddrs};
 
-use async_api::net::{self as api, AxTcpSocketHandle};
+use crate::io::Result;
+use aos_api::net::{self as api, AxTcpSocketHandle};
+use async_io::{AsyncRead, AsyncWrite};
 
 /// A TCP stream between a local and a remote socket.
 pub struct TcpStream(AxTcpSocketHandle);
@@ -19,44 +21,73 @@ impl TcpStream {
     /// each of the addresses until a connection is successful. If none of
     /// the addresses result in a successful connection, the error returned from
     /// the last connection attempt (the last address) is returned.
-    pub fn connect<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
-        super::each_addr(addr, |addr: io::Result<&SocketAddr>| {
+    pub async fn connect<A: ToSocketAddrs>(addr: A) -> Result<TcpStream> {
+        super::each_addr(addr, async |addr: Result<&SocketAddr>| {
             let addr = addr?;
             let socket = api::ax_tcp_socket();
-            api::ax_tcp_connect(&socket, *addr)?;
+            api::ax_tcp_connect(&socket, *addr).await?;
             Ok(TcpStream(socket))
         })
+        .await
     }
 
     /// Returns the socket address of the local half of this TCP connection.
-    pub fn local_addr(&self) -> io::Result<SocketAddr> {
+    pub fn local_addr(&self) -> Result<SocketAddr> {
         api::ax_tcp_socket_addr(&self.0)
     }
 
     /// Returns the socket address of the remote peer of this TCP connection.
-    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
+    pub fn peer_addr(&self) -> Result<SocketAddr> {
         api::ax_tcp_peer_addr(&self.0)
     }
 
     /// Shuts down the connection.
-    pub fn shutdown(&self) -> io::Result<()> {
-        api::ax_tcp_shutdown(&self.0)
+    pub async fn shutdown(&self) -> Result<()> {
+        api::ax_tcp_shutdown(&self.0).await
     }
 }
 
-impl Read for TcpStream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        api::ax_tcp_recv(&self.0, buf)
+use alloc::boxed::Box;
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
+impl AsyncRead for TcpStream {
+    // fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    //     api::ax_tcp_recv(&self.0, buf)
+    // }
+    fn read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<async_io::Result<usize>> {
+        Box::pin(api::ax_tcp_recv(&self.0, buf)).as_mut().poll(cx)
     }
 }
 
-impl Write for TcpStream {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        api::ax_tcp_send(&self.0, buf)
+impl AsyncWrite for TcpStream {
+    // fn write(&mut self, buf: &[u8]) -> Result<usize> {
+    //     api::ax_tcp_send(&self.0, buf)
+    // }
+
+    // fn flush(&mut self) -> Result<()> {
+    //     Ok(())
+    // }
+    fn write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<async_io::Result<usize>> {
+        Box::pin(api::ax_tcp_send(&self.0, buf)).as_mut().poll(cx)
     }
 
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
+    fn flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<async_io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<async_io::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 }
 
@@ -77,19 +108,20 @@ impl TcpListener {
     /// each of the addresses until one succeeds and returns the listener. If
     /// none of the addresses succeed in creating a listener, the error returned
     /// from the last attempt (the last address) is returned.
-    pub fn bind<A: ToSocketAddrs>(addr: A) -> io::Result<TcpListener> {
-        super::each_addr(addr, |addr: io::Result<&SocketAddr>| {
+    pub async fn bind<A: ToSocketAddrs>(addr: A) -> Result<TcpListener> {
+        super::each_addr(addr, async |addr: Result<&SocketAddr>| {
             let addr = addr?;
             let backlog = 128;
             let socket = api::ax_tcp_socket();
-            api::ax_tcp_bind(&socket, *addr)?;
-            api::ax_tcp_listen(&socket, backlog)?;
+            api::ax_tcp_bind(&socket, *addr).await?;
+            api::ax_tcp_listen(&socket, backlog).await?;
             Ok(TcpListener(socket))
         })
+        .await
     }
 
     /// Returns the local socket address of this listener.
-    pub fn local_addr(&self) -> io::Result<SocketAddr> {
+    pub fn local_addr(&self) -> Result<SocketAddr> {
         api::ax_tcp_socket_addr(&self.0)
     }
 
@@ -98,7 +130,9 @@ impl TcpListener {
     /// This function will block the calling thread until a new TCP connection
     /// is established. When established, the corresponding [`TcpStream`] and the
     /// remote peer's address will be returned.
-    pub fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
-        api::ax_tcp_accept(&self.0).map(|(a, b)| (TcpStream(a), b))
+    pub async fn accept(&self) -> Result<(TcpStream, SocketAddr)> {
+        api::ax_tcp_accept(&self.0)
+            .await
+            .map(|(a, b)| (TcpStream(a), b))
     }
 }

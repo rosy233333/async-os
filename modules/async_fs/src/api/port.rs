@@ -1,11 +1,17 @@
 //! 定义与文件I/O操作相关的trait泛型
 extern crate alloc;
-use core::{any::Any, pin::Pin, task::{Poll, Context}};
 use alloc::sync::Arc;
-use alloc::{string::String, boxed::Box, vec::Vec};
-use axerrno::{AxError, AxResult};
-use async_io::{AsyncRead, AsyncSeek, AsyncWrite, IoSlice, IoSliceMut, Read, Seek, SeekFrom, Write};
+use alloc::{boxed::Box, string::String, vec::Vec};
+use async_io::{
+    AsyncRead, AsyncSeek, AsyncWrite, IoSlice, IoSliceMut, Read, Seek, SeekFrom, Write,
+};
 pub use async_utils::async_trait;
+use axerrno::{AxError, AxResult};
+use core::{
+    any::Any,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 /// 文件系统信息
 #[derive(Debug, Clone, Copy, Default)]
@@ -199,11 +205,11 @@ pub enum FileIOType {
     Other,
 }
 
-pub trait FileExtTrait: FilePremTrait + AsyncRead + AsyncWrite + AsyncSeek + Send + Sync + Unpin {
+pub trait FileExtTrait:
+    FilePremTrait + AsyncRead + AsyncWrite + AsyncSeek + Send + Sync + Unpin
+{
     fn as_any(&self) -> &dyn Any;
 }
-
-
 
 #[async_trait]
 pub trait FilePremTrait {
@@ -218,7 +224,7 @@ pub trait FilePremTrait {
 }
 
 pub struct FileExt {
-    pub inner: Box<dyn FileExtTrait>
+    pub inner: Box<dyn FileExtTrait>,
 }
 
 impl FileExt {
@@ -239,7 +245,7 @@ impl FileExt {
     }
 
     /*********** Read interfaces ****************/
-    pub async fn read(& mut self, buf: & mut [u8]) -> AxResult<usize> {
+    pub async fn read(&mut self, buf: &mut [u8]) -> AxResult<usize> {
         self.inner.read(buf).await
     }
 
@@ -288,9 +294,26 @@ impl FileExt {
         self.inner.seek(pos).await
     }
 
+    async fn read_full(&mut self, mut buf: &mut [u8]) -> AxResult<usize> {
+        let buf_len = buf.len();
+
+        while !buf.is_empty() {
+            match self.inner.read(buf).await {
+                // read to EOF
+                Ok(0) => return Ok(buf_len - buf.len()),
+                // read n bytes
+                Ok(n) => buf = &mut buf[n..],
+                // error
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(buf_len)
+    }
+
     pub async fn read_from_seek(&mut self, pos: SeekFrom, buf: &mut [u8]) -> AxResult<usize> {
         // get old position
-        let old_pos = self.inner
+        let old_pos = self
+            .inner
             .seek(SeekFrom::Current(0))
             .await
             .expect("Error get current pos in file");
@@ -298,18 +321,7 @@ impl FileExt {
         // seek to read position
         let _ = self.inner.seek(pos).await.unwrap();
 
-        // read
-        let mut tmp = buf;
-        let mut read_len = 0;
-        while !tmp.is_empty() {
-            let n = self.inner.read(tmp).await?;
-            read_len += n;
-            let (_, rest) = tmp.split_at_mut(n);
-            tmp = rest;
-        }
-        if read_len == 0 {
-            return Err(AxError::UnexpectedEof);
-        }
+        let read_len = self.read_full(buf).await?;
         // seek back to old_pos
         let new_pos = self.inner.seek(SeekFrom::Start(old_pos)).await.unwrap();
 
@@ -320,7 +332,8 @@ impl FileExt {
 
     pub async fn write_to_seek(&mut self, pos: SeekFrom, buf: &[u8]) -> AxResult<usize> {
         // get old position
-        let old_pos = self.inner
+        let old_pos = self
+            .inner
             .seek(SeekFrom::Current(0))
             .await
             .expect("Error get current pos in file");
@@ -438,7 +451,12 @@ pub trait FileIO: Send + Sync {
     }
 
     /// To control the file descriptor
-    fn ioctl(self: Pin<&Self>, _cx: &mut Context<'_>, _request: usize, _arg1: usize) -> Poll<AxResult<isize>> {
+    fn ioctl(
+        self: Pin<&Self>,
+        _cx: &mut Context<'_>,
+        _request: usize,
+        _arg1: usize,
+    ) -> Poll<AxResult<isize>> {
         Poll::Ready(Err(AxError::Unsupported))
     }
 

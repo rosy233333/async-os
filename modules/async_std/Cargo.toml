@@ -7,7 +7,7 @@ edition = "2021"
 
 thread = ["trampoline/thread"]
 
-monolithic = ["feat/monolithic", "multitask", "alloc", "fs"]
+monolithic = ["feat/monolithic", "multitask", "alloc", "fs", "net"]
 
 img = ["feat/img"]
 
@@ -39,9 +39,8 @@ fatfs = ["feat/fatfs"]
 # lwext4_rust = ["feat/lwext4_rust", "fs"]
 
 # Networking
-net = []
-# net = ["aos_api/net", "feat/net"]
-# dns = []
+net = ["aos_api/net", "feat/net"]
+dns = []
 
 # Display
 display = []
@@ -74,8 +73,8 @@ spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
 arch_boot = { path = "../arch_boot" }
 feat = { path = "../feat", package = "feat" }
 aos_api = { path = "../aos_api" }
-async_utils = { path = "../async_utils"}
-async_io = { path = "../async_io"}
+async_utils = { path = "../async_utils" }
+async_io = { path = "../async_io" }
 sync = { path = "../sync" }
 axhal = { path = "../axhal" }
 trampoline = { path = "../trampoline" }

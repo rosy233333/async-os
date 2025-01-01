@@ -184,7 +184,7 @@ async fn init_devices() -> isize {
     async_fs::init_filesystems(all_devices.block).await;
 
     #[cfg(feature = "net")]
-    axnet::init_network(all_devices.net);
+    async_net::init_network(all_devices.net).await;
 
     #[cfg(feature = "display")]
     axdisplay::init_display(all_devices.display);
