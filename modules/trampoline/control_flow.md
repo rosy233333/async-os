@@ -28,15 +28,11 @@
 
 --call->
 
-`modules/executor/src/executor.rs:Executor::init_user`：创建用户进程（executor）和其中的主协程，将该executor的run协程放入内核executor
+`modules/executor/src/executor.rs:Executor::init_user`：创建用户进程（executor）和其中的主协程，将主协程放入内核executor
 
---内核调度运行该run协程->
+--内核调度运行该协程->
 
-`modules/executor/src/executor.rs:Executor::run`：切换地址空间和调度器
-
---（当前调度器已变为用户executor）调度运行进程的主协程->
-
-`modules/trampoline/src/task_api.rs:user_task_top`：（该async函数作为用户态任务的Future上下文）但在此过程中没有作用
+`modules/trampoline/src/task_api.rs:user_task_top`：（该async函数作为主协程的Future上下文）但在此过程中没有作用
 
 --return（从协程返回到executor）->
 
