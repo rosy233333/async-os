@@ -5,3 +5,4 @@ qemu.log
 *.asm
 modules/async-std
 *.img
+.vscode
