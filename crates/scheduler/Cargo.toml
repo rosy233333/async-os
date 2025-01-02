@@ -15,9 +15,5 @@ linked_list = { git = "https://github.com/Starry-OS/linked_list.git" }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 log = "0.4"
 
-taic_driver = { path = "../taic_driver" }
-
-[features]
-taic_load_balanced = []
-
-default = ["taic_load_balanced"]
+taic-driver = { git = "https://github.com/taic-repo/taic-driver.git" }
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }

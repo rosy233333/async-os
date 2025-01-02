@@ -16,7 +16,13 @@ irq = ["sync/irq", "executor/irq", "axhal/irq", "task_api/irq"]
 
 smp = ["spinlock/smp", "executor/smp"]
 
-preempt = ["irq", "percpu/preempt", "kernel_guard/preempt", "executor/preempt", "taskctx/preempt"]
+preempt = [
+    "irq",
+    "percpu/preempt",
+    "kernel_guard/preempt",
+    "executor/preempt",
+    "taskctx/preempt",
+]
 
 sched_fifo = ["multitask", "executor/sched_fifo"]
 sched_rr = ["multitask", "executor/sched_rr", "preempt"]
@@ -30,7 +36,7 @@ spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
 kernel_guard = { path = "../kernel_guard" }
 percpu = { git = "https://github.com/Starry-OS/percpu.git", optional = true }
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
-axconfig = { git = "https://github.com/Starry-OS/axconfig.git"}
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 spin = "0.9"
 crate_interface = "0.1"
 syscalls = { version = "0.6", default-features = false }
@@ -43,7 +49,7 @@ axhal = { path = "../axhal" }
 syscall = { path = "../syscall" }
 async_mem = { path = "../async_mem" }
 async_fs = { path = "../async_fs" }
-taic_driver = { path = "../../crates/taic_driver" }
+taic-driver = { git = "https://github.com/taic-repo/taic-driver.git" }
 
 
 [target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]

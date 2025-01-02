@@ -48,7 +48,7 @@ async_mem = { path = "../async_mem" }
 async_io = { path = "../async_io" }
 async_net = { path = "../async_net" }
 
-taic_driver = { path = "../../crates/taic_driver" }
+taic-driver = { git = "https://github.com/taic-repo/taic-driver.git" }
 heapless = "0.8.0"
 syscalls = { version = "0.6", default-features = false }
 

@@ -36,8 +36,8 @@ use crate::{
         ctype::pidfd::{new_pidfd, PidFd},
         imp::solve_path,
     },
-    CloneArgs, RLimit, SyscallError, SyscallResult, TimeSecs, WaitFlags, RLIMIT_AS, RLIMIT_NOFILE,
-    RLIMIT_STACK,
+    CloneArgs, RLimit, SyscallError, SyscallResult, TimeSecs, WaitFlags, LQS, RLIMIT_AS,
+    RLIMIT_NOFILE, RLIMIT_STACK,
 };
 use axlog::info;
 // use axtask::TaskId;
@@ -59,6 +59,8 @@ extern crate alloc;
 pub async fn syscall_exit(args: [usize; 6]) -> SyscallResult {
     let exit_code = args[0] as isize;
     info!("exit: exit_code = {}", exit_code);
+    let pid = current_executor().await.pid();
+    LQS.lock().await.remove(&(1, pid as usize));
     executor::exit(exit_code).await;
     Ok(exit_code as isize)
     // let cases = ["fcanf", "fgetwc_buffering", "lat_pipe"];

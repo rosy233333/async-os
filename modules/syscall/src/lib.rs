@@ -21,6 +21,7 @@ mod syscll_taic;
 pub use async_fs::api::{File, OpenFlags};
 pub use executor::link::{create_link, FilePath};
 pub use syscall_fs::new_file;
+pub use syscll_taic::LQS;
 
 pub use syscall_task::TaskSyscallId;
 

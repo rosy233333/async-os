@@ -10,7 +10,6 @@ use crate::task::TaskInner;
 use crate::Scheduler;
 use crate::Task;
 use crate::TaskRef;
-use taic_driver::TaskId;
 
 // Initializes the executor (for the primary CPU).
 pub fn init() {
@@ -113,12 +112,11 @@ pub fn init_batch_async_syscall() -> AsyncBatchSyscallCfg {
 }
 
 pub fn start(cfg: &AsyncBatchSyscallCfg) {
-    SCHEDULER.with(|s| unsafe {
-        s.borrow().lock().unwrap().send(
-            TaskId::virt(cfg.recv_os_id),
-            TaskId::virt(cfg.recv_process_id),
-            TaskId::virt(cfg.recv_task_id),
-        )
+    SCHEDULER.with(|s| {
+        s.borrow()
+            .lock()
+            .unwrap()
+            .send(cfg.recv_os_id, cfg.recv_process_id)
     })
 }
 
@@ -129,7 +127,6 @@ pub struct AsyncBatchSyscallCfg {
     pub recv_channel: usize,
     pub recv_os_id: usize,
     pub recv_process_id: usize,
-    pub recv_task_id: usize,
 }
 
 impl AsyncBatchSyscallCfg {
