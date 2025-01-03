@@ -28,7 +28,7 @@
 #     - `GW`: Gateway IPv4 address (default is 10.0.2.2 for QEMU user netdev)
 
 # General options
-ARCH ?= x86_64
+ARCH ?= riscv64
 PLATFORM ?=
 SMP ?= 1
 MODE ?= release
@@ -36,7 +36,7 @@ LOG ?= off
 V ?=
 LIBC_DIR = tools/axlibc
 # App options
-A ?= apps/coroutine_test
+A ?= apps/user_boot
 APP ?= $(A)
 FEATURES ?=
 APP_FEATURES ?=
@@ -44,7 +44,7 @@ RUSTFLAGS ?=
 STRUCT ?= Unikernel
 
 # QEMU options
-BLK ?= n
+BLK ?= y
 NET ?= n
 GRAPHIC ?= n
 BUS ?= pci
