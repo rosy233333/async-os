@@ -17,10 +17,12 @@ mod trap_api;
 
 use alloc::sync::Arc;
 pub use arch::init_interrupt;
+use executor::CurrentExecutor;
+use taskctx::*;
 use core::task::{Context, Poll};
 pub use fs_api::fs_init;
 pub use init_api::*;
-pub use taskctx::TrapFrame;
+// pub use taskctx::TrapFrame;
 
 pub use executor_api::*;
 use riscv::register::scause::{self, Trap};
@@ -28,16 +30,16 @@ pub use task_api::*;
 pub use trap_api::*;
 
 /// 进入 Trampoline 的方式：
-///   1. 初始化后函数调用：没有 Trap，但存在就绪任务
-///   2. 内核发生 Trap：存在任务被打断（CurrentTask 不为空），或者没有任务被打断（CurrentTask 为空）
-///   3. 用户态发生 Trap：任务被打断，CurrentTask 不为空
+///   1. （内核启动时或用户进程启动时）初始化后函数调用：没有 Trap，但存在就绪任务；内核启动时，Trampoline 运行在内核态；用户进程启动时，Trampoline 运行在用户态
+///   2. 内核发生 Trap：存在任务被打断（CurrentTask 不为空），或者没有任务被打断（CurrentTask 为空）；Trampoline 运行在内核态
+///   3. 用户态发生 Trap：任务被打断，CurrentTask 不为空；Trampoline 运行在内核态
 ///
 /// 内核发生 Trap 时，将 TrapFrame 保存在内核栈上
 /// 在用户态发生 Trap 时，将 TrapFrame 直接保存在任务控制块中，而不是在内核栈上
 ///
 /// 只有通过 trap 进入这个入口时，是处于关中断的状态，剩下的任务切换是没有关中断
 #[no_mangle]
-pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
+pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool, in_user: bool) {
     loop {
         if !from_user && has_trap {
             // 在内核中发生了 Trap，只处理中断，目前还不支持抢占，因此是否有任务被打断是不做处理的
@@ -64,12 +66,17 @@ pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
                     None
                 }
             }) {
-                run_task(curr);
+                run_task(curr, in_user);
             } else {
-                axhal::arch::enable_irqs();
-                // 没有就绪任务，等待中断
-                #[cfg(feature = "irq")]
-                axhal::arch::wait_for_irqs();
+                if !from_user {
+                    axhal::arch::enable_irqs();
+                    // 没有就绪任务，等待中断
+                    #[cfg(feature = "irq")]
+                    axhal::arch::wait_for_irqs();
+                }
+                else {
+                    todo!("如果用户态任务的就绪队列里没有任务，则阻塞该队列对应的内核线程。");
+                }
             }
         }
     }
@@ -77,7 +84,7 @@ pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
 
 const IS_ASYNC: usize = 0x5f5f5f5f;
 
-pub fn run_task(curr: CurrentTask) {
+pub fn run_task(curr: CurrentTask, in_user: bool) {
     let waker = curr.waker();
     let cx = &mut Context::from_waker(&waker);
     let page_table_token = curr.get_page_table_token();
@@ -104,7 +111,12 @@ pub fn run_task(curr: CurrentTask) {
                     "count {}",
                     Arc::strong_count(curr.as_task_ref())
                 );
-                axhal::misc::terminate();
+                if !in_user {
+                    axhal::misc::terminate();
+                }
+                else {
+                    todo!("如果用户态主任务退出，则将该进程的内核态任务也全部退出。");
+                }
             }
             CurrentTask::clean_current();
         }

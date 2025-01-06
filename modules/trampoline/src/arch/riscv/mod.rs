@@ -29,6 +29,7 @@ pub unsafe extern "C" fn trap_vector_base() {
         mv      a0, sp
         li      a1, 1                       // 设置 a1 寄存器，表示是通过 trap 进入到 trampoline 的
         li      a2, 0                       // 设置 a2 寄存器，表示是在内核中发生的 Trap
+        li      a3, 0                       // 设置 a3 寄存器，表示 trampoline 运行在内核中
         call    {trampoline}                // 调用 trampoline 处理中断
         RESTORE_REGS
         sret
@@ -48,6 +49,7 @@ pub unsafe extern "C" fn trap_vector_base() {
         mv      a0, sp                      // 传递 TrapFrame 的指针
         li      a1, 1                       // 设置 a0 寄存器，表示是通过 trap 进入到 trampoline 的
         li      a2, 1                       // 表示是由用户态进入
+        li      a3, 0                       // 表示 trampoline 运行在内核中
         LDR     sp, sp, 38                  // 从栈上加载 内核栈 的栈顶
         call    {trampoline}                // 调用 trampoline 处理中断
         // 当有任务在运行时，不会从这里返回，在 trampoline 中会调用 trap_frame 的 trap_return 直接返回

@@ -67,7 +67,8 @@ impl axlog::LogIf for LogIfImpl {
 
     fn current_task_id() -> Option<u64> {
         if is_init_ok() {
-            trampoline::current_task_may_uninit().map_or(None, |curr| Some(curr.id().as_u64()))
+            // trampoline::current_task_may_uninit().map_or(None, |curr| Some(curr.id().as_u64()))
+            executor::current_task_may_uninit().map_or(None, |curr| Some(curr.id().as_u64()))
         } else {
             None
         }
@@ -151,7 +152,8 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
         init_tls();
     }
 
-    trampoline::spawn_raw(main_fut, "main".into());
+    // trampoline::spawn_raw(main_fut, "main".into());
+    executor::spawn_raw(main_fut, "main".into());
 
     info!("Primary CPU {} init OK.", cpu_id);
     INITED_CPUS.fetch_add(1, Ordering::Relaxed);

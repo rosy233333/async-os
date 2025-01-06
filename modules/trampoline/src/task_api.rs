@@ -1,7 +1,10 @@
 use alloc::{boxed::Box, format, sync::Arc};
 use axhal::time::{current_time, TimeValue};
+use executor::{current_executor, current_task};
+use task_api::{BlockFuture, ExitFuture, JoinFuture, SleepFuture, YieldFuture};
 use core::{future::poll_fn, task::Poll, time::Duration};
-pub use executor::*;
+// pub use executor::*;
+use taskctx::*;
 use riscv::register::scause::{Exception, Trap};
 use spin::Mutex;
 use syscall::trap::{handle_page_fault, MappingFlags};
@@ -14,6 +17,8 @@ use kernel_guard::BaseGuard;
 /// This api called after handle irq,it may be on a
 /// disable_preempt ctx
 pub fn current_check_preempt_pending(tf: &mut TrapFrame) {
+    use executor::current_task_may_uninit;
+
     if let Some(curr) = current_task_may_uninit() {
         // if task is already exited or blocking,
         // no need preempt, they are rescheduling
@@ -39,6 +44,9 @@ pub fn current_check_preempt_pending(tf: &mut TrapFrame) {
 /// This api called after handle irq,it may be on a
 /// disable_preempt ctx
 pub async fn current_check_user_preempt_pending(_tf: &mut TrapFrame) {
+    use executor::current_task_may_uninit;
+    use task_api::yield_now;
+
     if let Some(curr) = current_task_may_uninit() {
         // if task is already exited or blocking,
         // no need preempt, they are rescheduling
@@ -309,6 +317,8 @@ pub fn thread_join(_task: &TaskRef) -> Option<i32> {
 
 #[cfg(any(feature = "thread", feature = "preempt"))]
 pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
+    use executor::current_task;
+
     let curr = current_task();
     let mut state = curr.state_lock_manual();
     curr.set_stack_ctx(tf as *const _, ctx_type);
@@ -348,6 +358,7 @@ pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
         core::arch::asm!(
             "li a1, 0",
             "li a2, 0",
+            "li a3, 0",
             "mv sp, {new_kstack_top}",
             "j  {trampoline}",
             new_kstack_top = in(reg) new_kstack_top,
