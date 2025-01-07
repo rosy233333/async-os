@@ -1,0 +1,10 @@
+[package]
+name = "shared_scheduler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+taskctx = { path = "../../modules/taskctx"}
+utaskctx = { path = "../../uruntime/utaskctx" }
+spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
+scheduler = { path = "../../crates/scheduler" }

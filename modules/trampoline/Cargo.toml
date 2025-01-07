@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["multitask"]
+default = ["multitask", "shared_scheduler"]
 
 thread = ["taskctx/thread", "sync/thread", "executor/thread", "task_api/thread"]
 
@@ -44,6 +44,7 @@ syscall = { path = "../syscall" }
 async_mem = { path = "../async_mem" }
 async_fs = { path = "../async_fs" }
 taic_driver = { path = "../../crates/taic_driver" }
+shared_scheduler = { path = "../../vdso/shared_scheduler", optional = true }
 
 
 [target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]

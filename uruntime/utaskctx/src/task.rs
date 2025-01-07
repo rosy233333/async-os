@@ -1,5 +1,6 @@
 use crate::Scheduler;
 use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, sync::Arc};
+use spinlock::{SpinRaw, SpinRawGuard};
 use core::{
     cell::UnsafeCell,
     fmt,
@@ -8,7 +9,7 @@ use core::{
     sync::atomic::{AtomicIsize, AtomicU64, Ordering},
     task::Waker,
 };
-use std::sync::{Mutex, MutexGuard};
+// use std::sync::{Mutex, MutexGuard};
 
 /// A unique identifier for a thread.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -49,16 +50,16 @@ pub enum TaskState {
 pub struct TaskInner {
     fut: UnsafeCell<Pin<Box<dyn Future<Output = isize> + 'static>>>,
 
-    pub(crate) wait_wakers: UnsafeCell<VecDeque<Waker>>,
-    pub(crate) scheduler: Mutex<Arc<Mutex<Scheduler>>>,
+    pub wait_wakers: UnsafeCell<VecDeque<Waker>>,
+    pub scheduler: SpinRaw<Arc<SpinRaw<Scheduler>>>,
 
-    pub(crate) id: TaskId,
-    pub(crate) name: UnsafeCell<String>,
+    pub id: TaskId,
+    pub name: UnsafeCell<String>,
     /// Whether the task is the initial task
     ///
     /// If the task is the initial task, the kernel will terminate
     /// when the task exits.
-    pub(crate) state: Mutex<TaskState>,
+    pub state: SpinRaw<TaskState>,
     exit_code: AtomicIsize,
 }
 
@@ -68,7 +69,7 @@ unsafe impl Sync for TaskInner {}
 impl TaskInner {
     pub fn new(
         name: String,
-        scheduler: Arc<Mutex<Scheduler>>,
+        scheduler: Arc<SpinRaw<Scheduler>>,
         fut: Pin<Box<dyn Future<Output = isize> + 'static>>,
     ) -> Self {
         let t = Self {
@@ -77,8 +78,8 @@ impl TaskInner {
             exit_code: AtomicIsize::new(0),
             fut: UnsafeCell::new(fut),
             wait_wakers: UnsafeCell::new(VecDeque::new()),
-            scheduler: Mutex::new(scheduler),
-            state: Mutex::new(TaskState::Runable),
+            scheduler: SpinRaw::new(scheduler),
+            state: SpinRaw::new(TaskState::Runable),
         };
         t
     }
@@ -125,19 +126,19 @@ impl TaskInner {
     #[inline]
     /// set the state of the task
     pub fn state(&self) -> TaskState {
-        *self.state.lock().unwrap()
+        *self.state.lock()
     }
 
     #[inline]
     /// state lock manually
-    pub fn state_lock_manual(&self) -> MutexGuard<TaskState> {
-        self.state.lock().unwrap()
+    pub fn state_lock_manual(&self) -> SpinRawGuard<TaskState> {
+        self.state.lock()
     }
 
     #[inline]
     /// set the state of the task
     pub fn set_state(&self, state: TaskState) {
-        *self.state.lock().unwrap() = state
+        *self.state.lock() = state
     }
 
     /// Whether the task is Exited
@@ -164,12 +165,12 @@ impl TaskInner {
         matches!(self.state(), TaskState::Blocked)
     }
 
-    pub fn get_scheduler(&self) -> Arc<Mutex<Scheduler>> {
-        self.scheduler.lock().unwrap().clone()
+    pub fn get_scheduler(&self) -> Arc<SpinRaw<Scheduler>> {
+        self.scheduler.lock().clone()
     }
 
-    pub fn set_scheduler(&self, scheduler: Arc<Mutex<Scheduler>>) {
-        *self.scheduler.lock().unwrap() = scheduler;
+    pub fn set_scheduler(&self, scheduler: Arc<SpinRaw<Scheduler>>) {
+        *self.scheduler.lock() = scheduler;
     }
 }
 
@@ -201,6 +202,6 @@ impl fmt::Debug for TaskInner {
 
 impl Drop for TaskInner {
     fn drop(&mut self) {
-        println!("drop {}", self.id_name());
+        // println!("drop {}", self.id_name());
     }
 }

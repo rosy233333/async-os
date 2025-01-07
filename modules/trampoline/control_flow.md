@@ -129,3 +129,31 @@
 --return->
 
 `poll`：如果系统调用处理未完成，则poll函数没有查询到结果，返回Pending；否则，返回Ready。
+
+## 线程式任务API调用
+
+`modules/trampoline/src/task_api.rs:TaskApiImpl::<xxapi>`：调用任务API
+
+--call->
+
+`modules/trampoline/src/task_api.rs:threadxx`：使用线程方式调用任务API
+
+--call->
+
+`modules/taskctx/src/arch/riscv/mod.rs:TrapFrame::thread_ctx`：构建线程上下文，同时设置本次执行的返回地址为`set_task_tf`函数。
+
+--return->
+
+`modules/trampoline/src/task_api.rs:set_task_tf`：设置线程上下文，且让出或阻塞当前任务。
+
+--下次内核调度运行该线程->
+
+`modules/trampoline/src/lib.rs:run_task`
+
+--call->
+
+`modules/trampoline/src/task_api.rs:restore_from_stack_ctx`：恢复到保存的上下文
+
+--return->
+
+`threadxx`（`thread_ctx`在构建线程上下文时，保存了原有的返回地址到上下文中）

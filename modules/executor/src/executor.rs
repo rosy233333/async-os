@@ -258,7 +258,11 @@ impl Executor {
     /// Pick one task from Executor
     pub fn pick_next_task(&self) -> Option<TaskRef> {
         // self.scheduler.lock().pick_next_task()
-        KERNEL_SCHEDULER.lock().pick_next_task()
+        #[cfg(feature = "shared_scheduler")]
+        let task = shared_scheduler::pick_next_ktask();
+        #[cfg(not(feature = "shared_scheduler"))]
+        let task = KERNEL_SCHEDULER.lock().pick_next_task();
+        task
     }
 
     // #[inline]
@@ -465,13 +469,21 @@ impl Executor {
             path = format!("{}{}", cwd, path);
         }
         new_executor.set_file_path(path.clone()).await;
-        let scheduler = KERNEL_SCHEDULER.clone();
+        #[cfg(feature = "shared_scheduler")]
+        let kscheduler = if let shared_scheduler::CurrentScheduler::Kernel(scheduler) = shared_scheduler::get_current_scheduler() {
+            scheduler
+        }
+        else {
+            panic!("init_user: current scheduler is not a kernel executor!");
+        };
+        #[cfg(not(feature = "shared_scheduler"))]
+        let kscheduler = KERNEL_SCHEDULER.clone();
         let fut = UTRAP_HANDLER();
         let pid = new_executor.pid();
-        let new_task = Arc::new(Task::new(TaskInner::new_user(
+        let new_ktask_in_uprocess = Arc::new(Task::new(TaskInner::new_user(
             path,
             pid,
-            scheduler,
+            kscheduler,
             page_table_token,
             fut,
             Box::new(TrapFrame::init_user_context(
@@ -479,25 +491,28 @@ impl Executor {
                 user_stack_bottom.into(),
             )),
         )));
-        new_executor.tasks.lock().await.push(new_task.clone());
-        new_task.get_scheduler().lock().add_task(new_task.clone());
+        new_executor.tasks.lock().await.push(new_ktask_in_uprocess.clone());
+        #[cfg(feature = "shared_scheduler")]
+        shared_scheduler::add_ktask(new_ktask_in_uprocess.clone());
+        #[cfg(not(feature = "shared_scheduler"))]
+        new_ktask.get_scheduler().lock().add_task(new_ktask.clone());
         TID2TASK
             .lock()
             .await
-            .insert(new_task.id().as_u64(), Arc::clone(&new_task));
-        new_task.set_leader(true);
-        new_executor.set_main_task(new_task.clone()).await;
+            .insert(new_ktask_in_uprocess.id().as_u64(), Arc::clone(&new_ktask_in_uprocess));
+        new_ktask_in_uprocess.set_leader(true);
+        new_executor.set_main_task(new_ktask_in_uprocess.clone()).await;
 
         new_executor
             .signal_modules
             .lock()
             .await
-            .insert(new_task.id().as_u64(), SignalModule::init_signal(None));
+            .insert(new_ktask_in_uprocess.id().as_u64(), SignalModule::init_signal(None));
         new_executor
             .robust_list
             .lock()
             .await
-            .insert(new_task.id().as_u64(), FutexRobustList::default());
+            .insert(new_ktask_in_uprocess.id().as_u64(), FutexRobustList::default());
         PID2PC
             .lock()
             .await
@@ -513,7 +528,7 @@ impl Executor {
             .lock()
             .await
             .push(new_executor.clone());
-        Ok(new_task)
+        Ok(new_ktask_in_uprocess)
     }
 
     /// 实现简易的clone系统调用
@@ -573,13 +588,21 @@ impl Executor {
             self.pid
         };
         let page_table_token = new_memory_set.lock().await.page_table_token();
-        let scheduler = KERNEL_SCHEDULER.clone();
+        #[cfg(feature = "shared_scheduler")]
+        let kscheduler = if let shared_scheduler::CurrentScheduler::Kernel(scheduler) = shared_scheduler::get_current_scheduler() {
+            scheduler
+        }
+        else {
+            panic!("init_user: current scheduler is not a kernel executor!");
+        };
+        #[cfg(not(feature = "shared_scheduler"))]
+        let kscheduler = KERNEL_SCHEDULER.clone();
         let fut = UTRAP_HANDLER();
         let utrap_frame = Box::new(*current_task().utrap_frame().unwrap());
         let new_task = Arc::new(Task::new(TaskInner::new_user(
             String::from(current_task().name().split('/').last().unwrap()),
             process_id,
-            scheduler,
+            kscheduler,
             page_table_token,
             fut,
             utrap_frame,
@@ -806,6 +829,9 @@ impl Executor {
             //     trap_frame.sepc, trap_frame.regs.sp
             // );
         }
+        #[cfg(feature = "shared_scheduler")]
+        shared_scheduler::add_ktask(new_task.clone());
+        #[cfg(not(feature = "shared_scheduler"))]
         new_task.get_scheduler().lock().add_task(new_task.clone());
         // 判断是否为VFORK
         if clone_flags.contains(CloneFlags::CLONE_VFORK) {
@@ -958,17 +984,25 @@ impl Executor {
 }
 
 impl Executor {
-    pub async fn new_ktask(
+    pub async fn new_ktask_in_kprocess(
         &self,
         name: String,
         fut: Pin<Box<dyn Future<Output = isize> + 'static>>,
     ) -> TaskRef {
-        let scheduler = KERNEL_SCHEDULER.clone();
+        #[cfg(feature = "shared_scheduler")]
+        let kscheduler = if let shared_scheduler::CurrentScheduler::Kernel(scheduler) = shared_scheduler::get_current_scheduler() {
+            scheduler
+        }
+        else {
+            panic!("init_user: current scheduler is not a kernel executor!");
+        };
+        #[cfg(not(feature = "shared_scheduler"))]
+        let kscheduler = KERNEL_SCHEDULER.clone();
         let page_table_token = self.memory_set.lock().await.page_table_token();
         let ktask = Arc::new(Task::new(TaskInner::new(
             name,
             self.pid,
-            scheduler,
+            kscheduler,
             page_table_token,
             fut,
         )));

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["sched_fifo"]
+default = ["sched_fifo", "shared_scheduler"]
 
 sched_fifo = []
 sched_rr = []
@@ -16,6 +16,11 @@ cfg-if = "1.0"
 taic_driver = { path = "../crates/taic_driver" }
 syscalls = { path = "../syscalls" }
 heapless = "0.8.0"
+
+shared_scheduler = { path = "../vdso/shared_scheduler", optional = true }
+scheduler = { path = "../crates/scheduler" }
+spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
+utaskctx = { path = "./utaskctx" }
 
 [target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
 riscv = "0.11"

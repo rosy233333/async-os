@@ -54,8 +54,16 @@ pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
             return;
         } else {
             // 用户态发生了 Trap 或者需要调度
+            #[cfg(feature = "shared_scheduler")]
+            if from_user {
+                shared_scheduler::into_kernel();
+            }
             if let Some(curr) = CurrentTask::try_get().or_else(|| {
-                if let Some(task) = CurrentExecutor::get().pick_next_task() {
+                #[cfg(feature = "shared_scheduler")]
+                let task_option = shared_scheduler::pick_next_ktask();
+                #[cfg(not(feature = "shared_scheduler"))]
+                let task_option = CurrentExecutor::get().pick_next_task();
+                if let Some(task) = task_option {
                     unsafe {
                         CurrentTask::init_current(task);
                     }
@@ -120,6 +128,8 @@ pub fn run_task(curr: CurrentTask) {
                             // 这里不能打开中断
                             axhal::arch::disable_irqs();
                             drop(core::mem::ManuallyDrop::into_inner(state));
+                            #[cfg(feature = "shared_scheduler")]
+                            unsafe { shared_scheduler::into_user(); }
                             unsafe {
                                 tf.user_return();
                             }
@@ -127,6 +137,9 @@ pub fn run_task(curr: CurrentTask) {
                         }
                     }
                     **state = TaskState::Runable;
+                    #[cfg(feature = "shared_scheduler")]
+                    shared_scheduler::put_prev_ktask(curr.clone(), false);
+                    #[cfg(not(feature = "shared_scheduler"))]
                     curr.get_scheduler()
                         .lock()
                         .put_prev_task(curr.clone(), false);

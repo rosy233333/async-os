@@ -107,7 +107,7 @@ pub async fn syscall_init_async_batch(waker: usize, res_ptr: usize) -> SyscallRe
     drop(memory_set);
     debug!("syscall_init_async_syscall new ktask");
     let ktask = current_executor
-        .new_ktask(
+        .new_ktask_in_kprocess(
             format!("async_syscall_handler {}", current_executor.pid()),
             fut,
         )

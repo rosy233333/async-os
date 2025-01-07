@@ -1,0 +1,12 @@
+[package]
+name = "utaskctx"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+scheduler = { path = "../../crates/scheduler" }
+spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
+
+[features]
+shared_scheduler = []
+default = ["shared_scheduler"]

@@ -17,6 +17,7 @@ pub fn init(utrap_handler: fn() -> Pin<Box<dyn Future<Output = isize> + 'static>
     UTRAP_HANDLER.init_by(utrap_handler);
     let mut scheduler = Scheduler::new();
     scheduler.init();
+    #[cfg(not(feature = "shared_scheduler"))]
     KERNEL_SCHEDULER.init_by(Arc::new(SpinNoIrq::new(scheduler)));
     let kexecutor = Arc::new(Executor::new_init());
     KERNEL_EXECUTOR.init_by(kexecutor.clone());
@@ -63,16 +64,34 @@ where
     F: FnOnce() -> T,
     T: Future<Output = isize> + 'static,
 {
-    let scheduler = &*KERNEL_SCHEDULER;
-    let task = Arc::new(Task::new(TaskInner::new(
-        name,
-        KERNEL_EXECUTOR_ID,
-        scheduler.clone(),
-        0,
-        Box::pin(f()),
-    )));
-    scheduler.lock().add_task(task.clone());
-    task
+    #[cfg(feature = "shared_scheduler")]
+    if let shared_scheduler::CurrentScheduler::Kernel(scheduler) = shared_scheduler::get_current_scheduler() {
+        let task = Arc::new(Task::new(TaskInner::new(
+            name,
+            KERNEL_EXECUTOR_ID,
+            scheduler.clone(),
+            0,
+            Box::pin(f()),
+        )));
+        shared_scheduler::add_ktask(task.clone());
+        task
+    }
+    else {
+        panic!("spawn_raw: current scheduler is not a kernel executor!");
+    }
+    #[cfg(not(feature = "shared_scheduler"))]
+    {
+        let scheduler = &*KERNEL_SCHEDULER;
+        let task = Arc::new(Task::new(TaskInner::new(
+            name,
+            KERNEL_EXECUTOR_ID,
+            scheduler.clone(),
+            0,
+            Box::pin(f()),
+        )));
+        scheduler.lock().add_task(task.clone());
+        task
+    }
 }
 
 // 这里直接将进程从 PID2PC 中删除会导致问题

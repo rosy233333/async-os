@@ -1,5 +1,6 @@
 use alloc::{boxed::Box, format, sync::Arc};
 use axhal::time::{current_time, TimeValue};
+use spinlock::SpinRaw;
 use core::{future::poll_fn, task::Poll, time::Duration};
 pub use executor::*;
 use riscv::register::scause::{Exception, Trap};
@@ -64,8 +65,9 @@ pub async fn wait(task: &TaskRef) -> Option<i32> {
     JoinFuture::new(task.clone(), None).await
 }
 
-pub async fn user_task_top() -> isize {
-    loop {
+pub async fn uprocess_ktask_kcontrolflow() -> isize {
+    let uscheduler = Arc::new(SpinRaw::new(shared_scheduler::UScheduler::new()));
+    let ret_code = loop {
         let curr = current_task();
         let mut tf = curr.utrap_frame().unwrap();
         if tf.trap_status == TrapStatus::Blocked {
@@ -133,7 +135,7 @@ pub async fn user_task_top() -> isize {
                         });
                         let ktask = current_executor()
                             .await
-                            .new_ktask(format!("syscall {}", tf.regs.a7), fut)
+                            .new_ktask_in_kprocess(format!("syscall {}", tf.regs.a7), fut)
                             .await;
                         debug!("new ktask about syscall {}", ktask.id_name());
                         unsafe {
@@ -148,6 +150,9 @@ pub async fn user_task_top() -> isize {
                             res
                         } else {
                             ktask.set_state(TaskState::Runable);
+                            #[cfg(feature = "shared_scheduler")]
+                            shared_scheduler::add_ktask(ktask.clone());
+                            #[cfg(not(feature = "shared_scheduler"))]
                             ktask.get_scheduler().lock().add_task(ktask.clone());
                             CurrentTask::clean_current_without_drop();
                             let utask_ptr = tf.regs.t2;
@@ -165,7 +170,7 @@ pub async fn user_task_top() -> isize {
                     if curr.is_exited() {
                         // 任务结束，需要切换至其他任务，关中断
                         axhal::arch::disable_irqs();
-                        return curr.get_exit_code() as isize;
+                        break curr.get_exit_code() as isize;
                     }
                     if -result == syscall::SyscallError::ERESTART as isize {
                         // Restart the syscall
@@ -206,18 +211,21 @@ pub async fn user_task_top() -> isize {
             if curr.is_exited() {
                 // 任务结束，需要切换至其他任务，关中断
                 axhal::arch::disable_irqs();
-                return curr.get_exit_code() as isize;
+                break curr.get_exit_code() as isize;
             }
         }
         poll_fn(|_cx| {
             if tf.trap_status == TrapStatus::Done {
+                shared_scheduler::set_uscheduler(uscheduler.clone(), curr.clone());
                 Poll::Pending
             } else {
                 Poll::Ready(())
             }
         })
         .await
-    }
+    };
+    shared_scheduler::delete_uscheduler(uscheduler);
+    ret_code
 }
 
 struct TaskApiImpl;
@@ -317,6 +325,9 @@ pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
         // await 主动让权，将任务的状态修改为就绪后，放入就绪队列中
         TaskState::Running => {
             **state = TaskState::Runable;
+            #[cfg(feature = "shared_scheduler")]
+            shared_scheduler::put_prev_ktask(curr.clone(), false);
+            #[cfg(not(feature = "shared_scheduler"))]
             curr.get_scheduler()
                 .lock()
                 .put_prev_task(curr.clone(), false);

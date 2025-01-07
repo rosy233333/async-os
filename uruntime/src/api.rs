@@ -4,9 +4,11 @@ use std::sync::Mutex;
 use std::task::Waker;
 
 use syscalls::raw::*;
+use utaskctx::CurrentTask;
+use utaskctx::TaskState;
+use utaskctx::task::TaskInner;
 
-use crate::current::*;
-use crate::task::TaskInner;
+use crate::current_scheduler::*;
 use crate::Scheduler;
 use crate::Task;
 use crate::TaskRef;
@@ -15,10 +17,13 @@ use taic_driver::TaskId;
 // Initializes the executor (for the primary CPU).
 pub fn init() {
     println!("init uruntime");
-    let mut scheduler = Scheduler::new();
-    scheduler.init();
-    SCHEDULER.with(|s| s.replace(Arc::new(Mutex::new(scheduler))));
-    println!("  use {} scheduler.", Scheduler::scheduler_name());
+    #[cfg(not(feature = "shared_scheduler"))]
+    {
+        let mut scheduler = Scheduler::new();
+        scheduler.init();
+        SCHEDULER.with(|s| s.replace(Arc::new(Mutex::new(scheduler))));
+        println!("  use {} scheduler.", Scheduler::scheduler_name());
+    }
 }
 
 // #[cfg(feature = "smp")]
@@ -46,13 +51,24 @@ where
     F: FnOnce() -> T,
     T: Future<Output = isize> + 'static,
 {
-    let scheduler = SCHEDULER.with(|s| s.borrow().clone());
+    #[cfg(feature = "shared_scheduler")]
+    let uscheduler = if let shared_scheduler::CurrentScheduler::User(scheduler) = shared_scheduler::get_current_scheduler() {
+        scheduler
+    }
+    else {
+        panic!("uruntime::spawn_raw: current scheduler is not a user executor!");
+    };
+    #[cfg(not(feature = "shared_scheduler"))]
+    let uscheduler = SCHEDULER.with(|s| s.borrow().clone());
     let task = Arc::new(Task::new(TaskInner::new(
         name,
-        scheduler.clone(),
+        uscheduler.clone(),
         Box::pin(f()),
     )));
-    scheduler.lock().unwrap().add_task(task.clone());
+    #[cfg(feature = "shared_scheduler")]
+    shared_scheduler::add_utask(task.clone());
+    #[cfg(not(feature = "shared_scheduler"))]
+    uscheduler.lock().unwrap().add_task(task.clone());
     task
 }
 
@@ -62,7 +78,7 @@ pub async fn yield_now() {
         if !flag {
             flag = true;
             let task = cx.waker().data() as *const Task;
-            unsafe { &*task }.set_state(crate::task::TaskState::Blocked);
+            unsafe { &*task }.set_state(TaskState::Blocked);
             cx.waker().wake_by_ref();
             std::task::Poll::Pending
         } else {
@@ -79,7 +95,7 @@ pub async fn block_current() {
         if !flag {
             flag = true;
             let task = cx.waker().data() as *const Task;
-            unsafe { &*task }.set_state(crate::task::TaskState::Blocked);
+            unsafe { &*task }.set_state(TaskState::Blocked);
             std::task::Poll::Pending
         } else {
             flag = false;
@@ -90,10 +106,17 @@ pub async fn block_current() {
 }
 
 pub fn pick_next_task() -> Option<TaskRef> {
-    SCHEDULER.with(|s| s.borrow().lock().unwrap().pick_next_task())
+    #[cfg(feature = "shared_scheduler")]
+    let task = shared_scheduler::pick_next_utask();
+    #[cfg(not(feature = "shared_scheduler"))]
+    let task = SCHEDULER.with(|s| s.borrow().lock().unwrap().pick_next_task());
+    task
 }
 
 pub fn put_prev_task(task: TaskRef) {
+    #[cfg(feature = "shared_scheduler")]
+    shared_scheduler::put_prev_utask(task, false);
+    #[cfg(not(feature = "shared_scheduler"))]
     SCHEDULER.with(|s| s.borrow().lock().unwrap().put_prev_task(task, false))
 }
 
@@ -112,7 +135,9 @@ pub fn init_batch_async_syscall() -> AsyncBatchSyscallCfg {
     res
 }
 
+/// TODO: 通过共享调度器发起批量系统调用还未实现
 pub fn start(cfg: &AsyncBatchSyscallCfg) {
+    #[cfg(not(feature = "shared_scheduler"))]
     SCHEDULER.with(|s| unsafe {
         s.borrow().lock().unwrap().send(
             TaskId::virt(cfg.recv_os_id),
@@ -156,7 +181,7 @@ pub struct SyscallItem {
 
 impl SyscallItem {
     pub fn waker(&self) -> Waker {
-        crate::waker::waker_from_task(self.waker as *const Task)
+        utaskctx::waker::waker_from_task(self.waker as *const Task)
     }
 }
 

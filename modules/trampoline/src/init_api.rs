@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 
 /// Initializes the trampoline (for the primary CPU).
 pub fn init_trampoline() {
-    executor::init(|| Box::pin(crate::user_task_top()));
+    executor::init(|| Box::pin(crate::uprocess_ktask_kcontrolflow()));
 }
 
 #[cfg(feature = "smp")]

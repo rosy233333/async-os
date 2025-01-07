@@ -43,8 +43,10 @@ members = [
     "user-lib",
     "vdso",
     "vdso/cops",
+    "vdso/shared_scheduler",
     "user_apps/vdso_test",
     "uruntime",
+    "uruntime/utaskctx",
     "user_apps/syscall_test",
     "user_apps/batch_syscall",
 ]
