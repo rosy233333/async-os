@@ -119,7 +119,7 @@ pub async fn syscall_init_async_batch(_waker: usize, res_ptr: usize) -> SyscallR
     use executor::KERNEL_SCHEDULER;
     let handler = Arc::into_raw(ktask) as *const _ as usize;
     let pid = current_executor.pid() as usize;
-    KERNEL_SCHEDULER.lock().register_receiver(1, pid, handler);
+    // KERNEL_SCHEDULER.lock().register_receiver(1, pid, handler);
 
     // 注册用户态任务为发送方
     let lqs = LQS.lock().await;

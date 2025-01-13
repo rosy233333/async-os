@@ -45,7 +45,7 @@ STRUCT ?= Unikernel
 
 # QEMU options
 BLK ?= y
-NET ?= n
+NET ?= y
 GRAPHIC ?= n
 BUS ?= pci
 
