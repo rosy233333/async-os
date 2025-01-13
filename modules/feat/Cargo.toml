@@ -48,15 +48,8 @@ fatfs = ["async_fs/fatfs"]
 # ext4_rs = ["axfs/ext4_rs"]
 
 # # Networking
-net = [
-    "alloc",
-    "paging",
-    "axdriver/virtio-net",
-    "dep:async_net",
-    "runtime/net",
-    "syscall/net",
-]
-
+net = ["alloc", "paging", "axdriver/virtio-net", "dep:async_net", "runtime/net"]
+net_monolithic = ["net", "syscall/net"]
 # Display
 # display = ["alloc", "paging", "axdriver/virtio-gpu", "dep:axdisplay"]
 
