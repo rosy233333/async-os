@@ -47,5 +47,6 @@ members = [
     "uruntime",
     "user_apps/syscall_test",
     "user_apps/batch_syscall",
+    "apps/echoserver",
 ]
 resolver = "2"
