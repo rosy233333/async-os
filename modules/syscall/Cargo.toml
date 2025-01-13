@@ -24,6 +24,7 @@ paging = []
 
 ip = ["async_net/ip"]
 net = ["ip", "async_net/monolithic"]
+sched_taic = []
 
 [dependencies]
 cfg-if = "1.0"

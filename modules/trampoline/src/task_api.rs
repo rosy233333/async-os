@@ -4,10 +4,9 @@ use core::{future::poll_fn, task::Poll, time::Duration};
 pub use executor::*;
 use riscv::register::scause::{Exception, Trap};
 use spin::Mutex;
-use syscall::{
-    trap::{handle_page_fault, MappingFlags},
-    LQS,
-};
+use syscall::trap::{handle_page_fault, MappingFlags};
+#[cfg(feature = "sched_taic")]
+use syscall::LQS;
 
 #[cfg(feature = "thread")]
 use kernel_guard::BaseGuard;
@@ -113,7 +112,7 @@ pub async fn user_task_top() -> isize {
                         let ktask_callback: Arc<spin::mutex::Mutex<Option<usize>>> =
                             Arc::new(Mutex::new(None));
                         let ktask_callback_clone = ktask_callback.clone();
-                        let pid = current_executor().await.pid() as usize;
+                        let _pid = current_executor().await.pid() as usize;
                         let fut = Box::pin(async move {
                             let res = syscall::trap::handle_syscall(syscall_id, args).await;
                             // 将结果写回到用户态 SyscallFuture 的 res 中
@@ -121,12 +120,13 @@ pub async fn user_task_top() -> isize {
                                 let ret = ret_ptr as *mut Option<Result<usize, syscalls::Errno>>;
                                 (*ret).replace(syscalls::Errno::from_ret(res as _));
                             }
+                            #[cfg(feature = "sched_taic")]
                             // 唤醒 waker，获取 waker
                             if let Some(utask_ptr) = *ktask_callback_clone.lock() {
                                 debug!("using taic wakeup mechanism {:#X}", utask_ptr);
                                 // taic 控制器唤醒用户态任务
                                 let lqs = LQS.lock().await;
-                                let lq = lqs.get(&(1, pid)).unwrap();
+                                let lq = lqs.get(&(1, _pid)).unwrap();
                                 lq.task_enqueue(utask_ptr);
                             }
                             drop(ktask_callback_clone);
