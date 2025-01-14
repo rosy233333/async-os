@@ -130,23 +130,23 @@ pub async fn syscall_write(args: [usize; 6]) -> SyscallResult {
         debug!("fd is a dir");
         return Err(SyscallError::EBADF);
     }
-    // if !file.writable() {
-    //     // 1. socket
-    //     //
-    //     // Normal socket will block while trying to write, so we don't return here.
+    if !file.writable().await {
+        // 1. socket
+        //
+        // Normal socket will block while trying to write, so we don't return here.
 
-    //     if let Some(socket) = file.as_any().downcast_ref::<Socket>() {
-    //         if socket.is_nonblocking() && socket.is_connected() {
-    //             return Err(SyscallError::EAGAIN);
-    //         }
-    //     } else {
-    //         // 2. nonblock file
-    //         // return ErrorNo::EAGAIN as isize;
+        if let Some(socket) = file.as_any().downcast_ref::<crate::syscall_net::Socket>() {
+            if socket.is_nonblocking() && socket.is_connected().await {
+                return Err(SyscallError::EAGAIN);
+            }
+        } else {
+            // 2. nonblock file
+            // return ErrorNo::EAGAIN as isize;
 
-    //         // 3. regular file
-    //         return Err(SyscallError::EBADF);
-    //     }
-    // }
+            // 3. regular file
+            return Err(SyscallError::EBADF);
+        }
+    }
 
     // for sockets:
     // Sockets are "writable" when:
