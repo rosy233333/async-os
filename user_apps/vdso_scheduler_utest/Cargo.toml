@@ -1,0 +1,8 @@
+[package]
+name = "vdso_scheduler_utest"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+vdso_lib ={ path = "../../vdso/vdso_lib" }
+env_logger = "0.9"

@@ -74,6 +74,22 @@ SECTIONS
     . = ALIGN(4K);
     _edata = .;
 
+    . = ALIGN(4K);
+    .vvar : ALIGN(4K) {
+        _svvar = .;
+        *(.vvar)
+        . = ALIGN(4K);
+        _evvar = .;
+    }
+
+    . = ALIGN(4K);
+    .vdso : ALIGN(4K) {
+        _svdso = .;
+        *(.vdso)
+        . = ALIGN(4K);
+        _evdso = .;
+    }
+
     .bss : ALIGN(4K) {
         boot_stack = .;
         *(.bss.stack)

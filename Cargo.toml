@@ -43,9 +43,12 @@ members = [
     "user-lib",
     "vdso",
     "vdso/cops",
+    "vdso/vdso_lib",
     "user_apps/vdso_test",
     "uruntime",
     "user_apps/syscall_test",
     "user_apps/batch_syscall",
+    "user_apps/vdso_scheduler_utest",
+    "apps/vdso_scheduler_ktest",
 ]
 resolver = "2"

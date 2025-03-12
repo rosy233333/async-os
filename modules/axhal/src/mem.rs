@@ -96,6 +96,18 @@ fn kernel_image_regions() -> impl Iterator<Item = MemRegion> {
             flags: MemRegionFlags::RESERVED | MemRegionFlags::READ | MemRegionFlags::WRITE,
             name: ".data .tdata .tbss .percpu",
         },
+        // MemRegion {
+        //     paddr: virt_to_phys((_svvar as usize).into()),
+        //     size: _evvar as usize - _svvar as usize,
+        //     flags: MemRegionFlags::RESERVED | MemRegionFlags::READ | MemRegionFlags::WRITE,
+        //     name: ".vvar",
+        // },
+        // MemRegion {
+        //     paddr: virt_to_phys((_svdso as usize).into()),
+        //     size: _evdso as usize - _svdso as usize,
+        //     flags: MemRegionFlags::RESERVED | MemRegionFlags::READ | MemRegionFlags::EXECUTE,
+        //     name: ".vdso",
+        // },
         MemRegion {
             paddr: virt_to_phys((boot_stack as usize).into()),
             size: boot_stack_top as usize - boot_stack as usize,
@@ -174,4 +186,8 @@ extern "C" {
     fn _ekernel();
     fn boot_stack();
     fn boot_stack_top();
+    // fn _svvar();
+    // fn _evvar();
+    // fn _svdso();
+    // fn _evdso();
 }

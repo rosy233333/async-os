@@ -101,5 +101,6 @@ const TESTCASES: &[&str] = &[
     // "vdso_test",
     // "hello_world",
     // "pipetest",
-    "std_thread_test",
+    // "std_thread_test",
+    "vdso_scheduler_utest",
 ];

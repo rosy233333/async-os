@@ -1,0 +1,10 @@
+[package]
+name = "vdso_scheduler_ktest"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async_std = { path = "../../modules/async_std", features = ["monolithic"] }
+# vdso = { path = "../../vdso" }
+# xmas-elf = "0.9.0"
+vdso_lib = { path = "../../vdso/vdso_lib", features = ["kernel"] }

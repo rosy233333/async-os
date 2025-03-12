@@ -1,3 +1,4 @@
+# .section .vdso
 .globl vdso_start, vdso_end
 .balign 0x1000
 vdso_start:
