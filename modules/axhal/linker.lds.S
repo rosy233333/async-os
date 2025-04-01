@@ -58,6 +58,22 @@ SECTIONS
     }
 
     . = ALIGN(4K);
+    vvar : ALIGN(4K) {
+        _svvar = .;
+        *(vvar)
+        . = ALIGN(4K);
+        _evvar = .;
+    }
+
+    . = ALIGN(4K);
+    vdso : ALIGN(4K) {
+        _svdso = .;
+        *(vdso)
+        . = ALIGN(4K);
+        _evdso = .;
+    }
+
+    . = ALIGN(4K);
     _percpu_start = .;
     .percpu 0x0 : AT(_percpu_start) {
         _percpu_load_start = .;
@@ -73,22 +89,6 @@ SECTIONS
 
     . = ALIGN(4K);
     _edata = .;
-
-    . = ALIGN(4K);
-    .vvar : ALIGN(4K) {
-        _svvar = .;
-        *(.vvar)
-        . = ALIGN(4K);
-        _evvar = .;
-    }
-
-    . = ALIGN(4K);
-    .vdso : ALIGN(4K) {
-        _svdso = .;
-        *(.vdso)
-        . = ALIGN(4K);
-        _evdso = .;
-    }
 
     .bss : ALIGN(4K) {
         boot_stack = .;
