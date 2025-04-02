@@ -5,7 +5,9 @@ use core::task::{Context, Poll, Waker};
 use spinlock::SpinNoIrq;
 #[cfg(feature = "thread")]
 use task_api::{block_current, current_task};
-use task_api::{cancel_alarm, set_alarm_wakeup, WaitTaskList, WaitWakerNode};
+#[cfg(feature = "irq")]
+use task_api::{cancel_alarm, set_alarm_wakeup};
+use task_api::{WaitTaskList, WaitWakerNode};
 
 #[cfg(feature = "irq")]
 use axhal::time::{current_time, TimeValue};
