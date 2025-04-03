@@ -178,7 +178,7 @@ endif
 
 ifeq ($(wildcard $(LIB_COPS)),)
 	@printf "    $(GREEN_C)Building$(END_C) VDSO: $(VDSO_DIR), Arch: $(ARCH), Platform: $(PLATFORM_NAME)\n"
-	@$(shell sed -i '/vdso_data/c\\tPROVIDE(vdso_data = . - ${AX_SMP} * 4 * PAGE_SIZE);' vdso/cops/cops.lds)
+	@$(shell sed '/vdso_data/c\\tPROVIDE(vdso_data = . - ${AX_SMP} * 4 * PAGE_SIZE);' vdso/cops/cops.lds > vdso/cops/link.lds)
 	@$(shell cd vdso && make build)
 endif
 
