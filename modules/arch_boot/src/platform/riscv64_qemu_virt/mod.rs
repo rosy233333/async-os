@@ -10,7 +10,8 @@ unsafe extern "C" fn rust_entry(cpu_id: usize, dtb: usize) {
     trampoline::init_interrupt();
     axlog::init();
     axlog::set_max_level(option_env!("AX_LOG").unwrap_or("")); // no effect if set `log-level-*` features
-
+    crate::vdso::relocate_vdso();
+    log::error!("vdso relocate done");
     runtime::rust_main(cpu_id, dtb);
 
     #[cfg(feature = "smp")]

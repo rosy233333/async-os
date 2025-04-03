@@ -1,7 +1,16 @@
 TARGET = riscv64gc-unknown-linux-musl
 MODE = release
-OBJCOPY = riscv64-linux-musl-objcopy
+OBJCOPY = riscv64-linux-musl-objcopy -g -R .comment -X
+OBJDUMP = riscv64-linux-musl-objdump -t -T -r -R -D
+
+PWD := $(shell pwd)
+COPS_DIR := $(PWD)/cops
+COPS := $(PWD)/target/$(TARGET)/$(MODE)/libcops.so
 
 build:
-	cd cops && cargo build --release
-	@$(OBJCOPY) -S target/$(TARGET)/$(MODE)/libcops.so target/$(TARGET)/$(MODE)/libcops.so
+	@cd $(COPS_DIR) && cargo build --features=no_std --target riscv64gc-unknown-linux-musl --release
+	@$(OBJCOPY) $(COPS) $(COPS)
+	@$(OBJDUMP) $(COPS) > $(COPS).dump
+
+clean:
+	@rm -rf $(COPS)

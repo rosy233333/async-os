@@ -20,6 +20,9 @@ axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 runtime = { path = "../runtime" }
 trampoline = { path = "../trampoline" }
 axhal = { path = "../axhal" }
+vdso = { path = "../../vdso" }
+xmas-elf = "0.10.0"
+heapless = "0.8"
 
 [build-dependencies]
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }

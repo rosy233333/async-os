@@ -5,13 +5,10 @@ edition = "2021"
 
 [dependencies]
 log = "0.4"
-axalloc = { git = "https://github.com/Starry-OS/axalloc.git" }
-lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
-elf_parser = { git = "https://github.com/Starry-OS/elf_parser.git" }
-memory_addr = { git = "https://github.com/Starry-OS/memory_addr.git" }
-axconfig = { git = "https://github.com/Starry-OS/axconfig.git"}
-xmas-elf = "0.9.0"
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 
-async_mem = { path = "../modules/async_mem" }
-axhal = { path = "../modules/axhal" }
+[build-dependencies]
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 
+[dev-dependencies]
+xmas-elf = "0.10.0"

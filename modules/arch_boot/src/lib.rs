@@ -8,6 +8,8 @@ use axconfig::TASK_STACK_SIZE;
 use core::arch::asm;
 
 mod platform;
+#[allow(unused)]
+mod vdso;
 
 #[cfg(feature = "smp")]
 mod mp;

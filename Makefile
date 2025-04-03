@@ -62,53 +62,53 @@ GW ?= 10.0.2.2
 
 # App type
 ifeq ($(wildcard $(APP)),)
-  $(error Application path "$(APP)" is not valid)
+	$(error Application path "$(APP)" is not valid)
 endif
 
 ifneq ($(wildcard $(APP)/Cargo.toml),)
-  APP_TYPE := rust
+	APP_TYPE := rust
 else
-  APP_TYPE := c
+	APP_TYPE := c
 endif
 
 # Architecture and platform
 ifneq ($(filter $(MAKECMDGOALS),unittest unittest_no_fail_fast),)
-  PLATFORM_NAME :=
+	PLATFORM_NAME :=
 else ifneq ($(PLATFORM),)
-  # `PLATFORM` is specified, override the `ARCH` variables
-  builtin_platforms := $(patsubst platforms/%.toml,%,$(wildcard platforms/*))
-  ifneq ($(filter $(PLATFORM),$(builtin_platforms)),)
-    # builtin platform
-    PLATFORM_NAME := $(PLATFORM)
-    _arch := $(word 1,$(subst -, ,$(PLATFORM)))
-  else ifneq ($(wildcard $(PLATFORM)),)
-    # custom platform, read the "platform" field from the toml file
-    PLATFORM_NAME := $(shell cat $(PLATFORM) | sed -n 's/^platform = "\([a-z0-9A-Z_\-]*\)"/\1/p')
-    _arch := $(shell cat $(PLATFORM) | sed -n 's/^arch = "\([a-z0-9A-Z_\-]*\)"/\1/p')
-  else
-    $(error "PLATFORM" must be one of "$(builtin_platforms)" or a valid path to a toml file)
-  endif
-  ifeq ($(origin ARCH),command line)
-    ifneq ($(ARCH),$(_arch))
-      $(error "ARCH=$(ARCH)" is not compatible with "PLATFORM=$(PLATFORM)")
-    endif
-  endif
-  ARCH := $(_arch)
+	# `PLATFORM` is specified, override the `ARCH` variables
+	builtin_platforms := $(patsubst platforms/%.toml,%,$(wildcard platforms/*))
+	ifneq ($(filter $(PLATFORM),$(builtin_platforms)),)
+		# builtin platform
+		PLATFORM_NAME := $(PLATFORM)
+		_arch := $(word 1,$(subst -, ,$(PLATFORM)))
+	else ifneq ($(wildcard $(PLATFORM)),)
+		# custom platform, read the "platform" field from the toml file
+		PLATFORM_NAME := $(shell cat $(PLATFORM) | sed -n 's/^platform = "\([a-z0-9A-Z_\-]*\)"/\1/p')
+		_arch := $(shell cat $(PLATFORM) | sed -n 's/^arch = "\([a-z0-9A-Z_\-]*\)"/\1/p')
+	else
+		$(error "PLATFORM" must be one of "$(builtin_platforms)" or a valid path to a toml file)
+	endif
+	ifeq ($(origin ARCH),command line)
+		ifneq ($(ARCH),$(_arch))
+			$(error "ARCH=$(ARCH)" is not compatible with "PLATFORM=$(PLATFORM)")
+		endif
+	endif
+	ARCH := $(_arch)
 endif
 
 ifeq ($(ARCH), x86_64)
-  # Don't enable kvm for WSL/WSL2.
-  ACCEL ?= $(if $(findstring -microsoft, $(shell uname -r | tr '[:upper:]' '[:lower:]')),n,y)
-  PLATFORM_NAME ?= x86_64-qemu-q35
-  BUS := pci
+	# Don't enable kvm for WSL/WSL2.
+	ACCEL ?= $(if $(findstring -microsoft, $(shell uname -r | tr '[:upper:]' '[:lower:]')),n,y)
+	PLATFORM_NAME ?= x86_64-qemu-q35
+	BUS := pci
 else ifeq ($(ARCH), riscv64)
-  ACCEL ?= n
-  PLATFORM_NAME ?= riscv64-qemu-virt
+	ACCEL ?= n
+	PLATFORM_NAME ?= riscv64-qemu-virt
 else ifeq ($(ARCH), aarch64)
-  ACCEL ?= n
-  PLATFORM_NAME ?= aarch64-qemu-virt
+	ACCEL ?= n
+	PLATFORM_NAME ?= aarch64-qemu-virt
 else
-  $(error "ARCH" must be one of "x86_64", "riscv64", or "aarch64")
+	$(error "ARCH" must be one of "x86_64", "riscv64", or "aarch64")
 endif
 
 # Feature parsing
@@ -116,11 +116,11 @@ include scripts/make/features.mk
 
 # Target
 ifeq ($(ARCH), x86_64)
-  TARGET := x86_64-unknown-none
+	TARGET := x86_64-unknown-none
 else ifeq ($(ARCH), riscv64)
-  TARGET := riscv64gc-unknown-none-elf
+	TARGET := riscv64gc-unknown-none-elf
 else ifeq ($(ARCH), aarch64)
-   TARGET := aarch64-unknown-none-softfloat
+	 TARGET := aarch64-unknown-none-softfloat
 endif
 
 export AX_ARCH=$(ARCH)
@@ -139,7 +139,7 @@ AR := $(CROSS_COMPILE)ar
 RANLIB := $(CROSS_COMPILE)ranlib
 LD := rust-lld -flavor gnu
 
-OBJDUMP ?= rust-objdump -d --print-imm-hex --x86-asm-syntax=intel
+OBJDUMP ?= rust-objdump -t -T -D --print-imm-hex --x86-asm-syntax=intel
 OBJCOPY ?= rust-objcopy --binary-architecture=$(ARCH)
 GDB ?= gdb-multiarch
 
@@ -174,6 +174,12 @@ user_apps:
 ifeq ($(A), apps/user_boot)
 	$(shell cd user_apps && make build_uapps)
 	sh ./build_img.sh -a $(ARCH)
+endif
+
+ifeq ($(wildcard $(LIB_COPS)),)
+	@printf "    $(GREEN_C)Building$(END_C) VDSO: $(VDSO_DIR), Arch: $(ARCH), Platform: $(PLATFORM_NAME)\n"
+	@$(shell sed -i '/vdso_data/c\\tPROVIDE(vdso_data = . - ${AX_SMP} * 4 * PAGE_SIZE);' vdso/cops/cops.lds)
+	@$(shell cd vdso && make build)
 endif
 
 build: user_apps $(OUT_DIR) $(OUT_BIN)
