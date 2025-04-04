@@ -1,0 +1,26 @@
+// 这里需要配合 make file 中的脚本来进行调试，vscode 需要安装 LLDB 插件
+// 最后使用 makefile 中的 debug_run 指令，其余的编译的变量按照原本的方式即可，可以使用 vscode 的 UI 以及寄存器等功能来帮助调试
+// 编译时需要使用 debug 版本才可以与源文件对应
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(lldb) AsyncOs",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/kernel.elf",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "processCreateCommands": [
+                "gdb-remote 1234",
+                "b *0x80200000",
+            ],
+            "sourceLanguages": [
+                "rust"
+            ],
+            "sourceMap": {
+                "/build/path": "${workspaceFolder}/kernel.elf"
+            }
+        }
+    ]
+}

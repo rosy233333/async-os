@@ -5,3 +5,5 @@ qemu.log
 *.asm
 modules/async-std
 *.img
+kernel.elf
+*.tmp

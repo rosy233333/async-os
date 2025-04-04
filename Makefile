@@ -195,6 +195,11 @@ run_split_log: build
 justrun:
 	$(call run_qemu)
 
+debug_run: build
+	cp $(OUT_ELF) $(CURDIR)/kernel.elf
+	$(call run_qemu_debug) &
+	sleep 1
+
 debug: build
 	$(call run_qemu_debug) &
 	sleep 1
