@@ -13,4 +13,4 @@ build:
 	@$(OBJDUMP) $(COPS) > $(COPS).dump
 
 clean:
-	@rm -rf $(COPS)
+	@rm -rf target

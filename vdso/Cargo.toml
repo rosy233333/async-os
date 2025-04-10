@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 log = "0.4"
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
+xmas-elf = "0.10.0"
 
 [build-dependencies]
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }

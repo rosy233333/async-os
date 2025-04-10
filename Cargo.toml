@@ -43,6 +43,8 @@ members = [
     "user-lib",
     "vdso",
     "vdso/cops",
+    "vdso/heap",
+    "vdso/queue",
     "user_apps/vdso_test",
     "uruntime",
     "user_apps/syscall_test",

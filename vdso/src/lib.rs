@@ -6,7 +6,12 @@ extern crate alloc;
 
 #[cfg(test)]
 mod test;
+
+mod api;
+mod id;
+pub use api::*;
 use axconfig::SMP;
+pub use id::TaskId;
 
 core::arch::global_asm!(
     r#"
@@ -24,19 +29,3 @@ vdso_end:
     "#,
     SMP = const SMP,
 );
-
-extern "C" {
-    fn vdso_sdata();
-    fn vdso_edata();
-    fn vdso_start();
-    fn vdso_end();
-}
-
-pub fn get_vdso_base_end() -> (u64, u64, u64, u64) {
-    (
-        vdso_sdata as _,
-        vdso_edata as _,
-        vdso_start as _,
-        vdso_end as _,
-    )
-}
