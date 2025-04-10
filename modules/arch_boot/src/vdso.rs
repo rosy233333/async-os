@@ -9,8 +9,8 @@ use vdso::{get_vdso_base_end, TaskId};
 use xmas_elf::program::SegmentData;
 use xmas_elf::symbol_table::Entry;
 
+use axconfig::KERNEL_VDSO_BASE;
 use axhal::mem::PAGE_SIZE_4K;
-const KERNEL_VDSO_BASE: usize = 0xffff_ffff_c000_0000;
 
 #[link_section = ".data.boot_page_table"]
 static mut SECOND_PT_SV39: [u64; 512] = [0; 512];

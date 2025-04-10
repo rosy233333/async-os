@@ -45,3 +45,4 @@ axhal = { path = "../axhal" }
 async_utils = { path = "../async_utils" }
 async_fs = { path = "../async_fs", optional = true }
 trampoline = { path = "../trampoline" }
+vdso = { path = "../../vdso" }
