@@ -59,7 +59,6 @@ impl<const ORDER: usize> Heap<ORDER> {
     }
 
     /// Add a range of memory [start, end) to the heap
-    /// 看起来这个函数不支持动态增长空间？
     pub unsafe fn add_to_heap(&mut self, mut start: usize, mut end: usize) {
         // avoid unaligned access on some platforms
         start = (start + size_of::<usize>() - 1) & (!size_of::<usize>() + 1);
@@ -106,25 +105,40 @@ impl<const ORDER: usize> Heap<ORDER> {
             // Find the first non-empty size class
             if !self.free_list[i].is_empty() {  // 读free_list[i]
                 // Split buffers
+                let mut current_block: Option<*mut usize> = None;
                 for j in (class + 1..i + 1).rev() {
-                    if let Some(block) = self.free_list[j].pop() {  // 写free_list[j]
+                    if let Some(block) = current_block.or_else(|| {
+                        self.free_list[j].pop() // 写free_list[i]，只会在循环第一次执行
+                    }) {
                         // 这里得到的 block 是偏移量，freelist push 的参数也是偏移量，因此不用进行修改
                         unsafe {
                             self.free_list[j - 1]
-                                .push((block as usize + (1 << (j - 1))) as *mut usize);
-                            self.free_list[j - 1].push(block); // 写free_list[j-1]
+                                .push((block as usize + (1 << (j - 1))) as *mut usize); // 写free_list[j-1]
                         }
+                        current_block = Some(block);
                     } else {
                         return Err(());
                     }
+
+                    // if let Some(block) = self.free_list[j].pop() {  // 写free_list[j]
+                    //     // 这里得到的 block 是偏移量，freelist push 的参数也是偏移量，因此不用进行修改
+                    //     unsafe {
+                    //         self.free_list[j - 1]
+                    //             .push((block as usize + (1 << (j - 1))) as *mut usize);
+                    //         self.free_list[j - 1].push(block); // 写free_list[j-1]
+                    //     }
+                    // } else {
+                    //     return Err(());
+                    // }
                 }
 
-                let result = NonNull::new(
-                    self.free_list[class]
-                        .pop()
-                        .expect("current block should have free space now")
-                        as *mut u8,
-                ); // 写free_list[class]
+                let result = NonNull::new(current_block.unwrap() as *mut u8);
+                // let result = NonNull::new(
+                //     self.free_list[class]
+                //         .pop()
+                //         .expect("current block should have free space now")
+                //         as *mut u8,
+                // ); // 写free_list[class]
                 if let Some(result) = result {
                     self.user += layout.size(); // 写user
                     self.allocated += size; // 写allocater
@@ -148,8 +162,8 @@ impl<const ORDER: usize> Heap<ORDER> {
         let class = size.trailing_zeros() as usize;
 
         unsafe {
-            // Put back into free list
-            self.free_list[class].push(ptr.as_ptr() as *mut usize); // 写free_list[class]
+            // // Put back into free list
+            // self.free_list[class].push(ptr.as_ptr() as *mut usize); // 写free_list[class]
 
             // Merge free buddy lists
             let mut current_ptr = ptr.as_ptr() as usize;
@@ -168,13 +182,19 @@ impl<const ORDER: usize> Heap<ORDER> {
 
                 // Free buddy found
                 if flag {
-                    self.free_list[current_class].pop(); // 写free_list[current_class]
+                    // self.free_list[current_class].pop(); // 写free_list[current_class]
                     current_ptr = min(current_ptr, buddy);
                     current_class += 1;
-                    self.free_list[current_class].push(current_ptr as *mut usize); // 写free_list[current_class]
+                    // self.free_list[current_class].push(current_ptr as *mut usize); // 写free_list[current_class]
                 } else {
+                    self.free_list[current_class].push(current_ptr as *mut usize); // 写free_list[current_class]
                     break;
                 }
+            }
+
+            if current_class == self.free_list.len() - 1 {
+                // 此时合并的块无法在循环中push回链表，因此在此处push。
+                self.free_list[current_class].push(current_ptr as *mut usize); // 写free_list[current_class]
             }
         }
 
