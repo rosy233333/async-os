@@ -104,32 +104,39 @@ impl<const ORDER: usize> Heap<ORDER> {
         for i in class..self.free_list.len() { // 这句的len是常数，不涉及同步问题
             // Find the first non-empty size class
             if !self.free_list[i].is_empty() {  // 读free_list[i]
-                // Split buffers
                 let mut current_block: Option<*mut usize> = None;
-                for j in (class + 1..i + 1).rev() {
-                    if let Some(block) = current_block.or_else(|| {
-                        self.free_list[j].pop() // 写free_list[i]，只会在循环第一次执行
-                    }) {
-                        // 这里得到的 block 是偏移量，freelist push 的参数也是偏移量，因此不用进行修改
-                        unsafe {
-                            self.free_list[j - 1]
-                                .push((block as usize + (1 << (j - 1))) as *mut usize); // 写free_list[j-1]
+                // 判断块是否需要切分
+                if i == class {
+                    current_block = self.free_list[i].pop();
+                    assert!(current_block.is_some());
+                }
+                else {
+                    // Split buffers
+                    for j in (class + 1..i + 1).rev() {
+                        if let Some(block) = current_block.or_else(|| {
+                            self.free_list[j].pop() // 写free_list[i]，只会在循环第一次执行
+                        }) {
+                            // 这里得到的 block 是偏移量，freelist push 的参数也是偏移量，因此不用进行修改
+                            unsafe {
+                                self.free_list[j - 1]
+                                    .push((block as usize + (1 << (j - 1))) as *mut usize); // 写free_list[j-1]
+                            }
+                            current_block = Some(block);
+                        } else {
+                            return Err(());
                         }
-                        current_block = Some(block);
-                    } else {
-                        return Err(());
-                    }
 
-                    // if let Some(block) = self.free_list[j].pop() {  // 写free_list[j]
-                    //     // 这里得到的 block 是偏移量，freelist push 的参数也是偏移量，因此不用进行修改
-                    //     unsafe {
-                    //         self.free_list[j - 1]
-                    //             .push((block as usize + (1 << (j - 1))) as *mut usize);
-                    //         self.free_list[j - 1].push(block); // 写free_list[j-1]
-                    //     }
-                    // } else {
-                    //     return Err(());
-                    // }
+                        // if let Some(block) = self.free_list[j].pop() {  // 写free_list[j]
+                        //     // 这里得到的 block 是偏移量，freelist push 的参数也是偏移量，因此不用进行修改
+                        //     unsafe {
+                        //         self.free_list[j - 1]
+                        //             .push((block as usize + (1 << (j - 1))) as *mut usize);
+                        //         self.free_list[j - 1].push(block); // 写free_list[j-1]
+                        //     }
+                        // } else {
+                        //     return Err(());
+                        // }
+                    }
                 }
 
                 let result = NonNull::new(current_block.unwrap() as *mut u8);
