@@ -35,20 +35,20 @@ impl LinkedList {
     /// Push `item` to the front of the list
     /// item 是相较于数据段的偏移，需要获取到实际的地址才可以进行操作
     pub unsafe fn push(&mut self, item: *mut usize) {
-        *((item as usize + get_data_base()) as *mut usize) = self.head as usize;
+        *((item as usize + get_data_base()) as *mut usize) = self.head as usize; // 读
         // *item = self.head as usize;
-        self.head = item;
+        self.head = item; // 写（没有验证这次写和上次读的一致性，应该改成CAS操作？）
     }
 
     /// Try to remove the first item in the list
     pub fn pop(&mut self) -> Option<*mut usize> {
-        match self.is_empty() {
+        match self.is_empty() { // 读
             true => None,
             false => {
                 // Advance head pointer
-                let item = self.head;
+                let item = self.head; // 读
                 self.head =
-                    unsafe { *((item as usize + get_data_base()) as *mut usize) as *mut usize };
+                    unsafe { *((item as usize + get_data_base()) as *mut usize) as *mut usize }; // 写（没有验证这次写和上次读的一致性，应该改成CAS操作？）
                 // self.head = unsafe { *item as *mut usize };
                 Some(item)
             }
@@ -68,11 +68,11 @@ impl LinkedList {
     pub fn iter_mut(&mut self) -> IterMut {
         IterMut {
             prev: unsafe { (&mut self.head as *mut *mut usize) as usize - get_data_base() }
-                as *mut usize,
+                as *mut usize, // 我觉得这个设置没问题啊
             // prev: &mut self.head as *mut *mut usize as *mut usize,
             curr: self.head,
             list: PhantomData,
-        }
+        } // 该函数中虽然进行了两次对`self`的读取，但其中的`&mut self.head`在函数执行过程中是不变的，因此不涉及同步问题？
     }
 }
 
@@ -83,6 +83,7 @@ impl fmt::Debug for LinkedList {
 }
 
 /// An iterator over the linked list
+/// Iter自身没有同步问题（不能共享），因此看其访问的节点是否一致即可
 pub struct Iter<'a> {
     curr: *mut usize,
     list: PhantomData<&'a LinkedList>,
@@ -95,8 +96,8 @@ impl<'a> Iterator for Iter<'a> {
         if self.curr == EMPTY_FLAG {
             None
         } else {
-            let item = self.curr;
-            let next = unsafe { *((item as usize + get_data_base()) as *mut usize) as *mut usize };
+            let item = self.curr; // 获得某节点指针
+            let next = unsafe { *((item as usize + get_data_base()) as *mut usize) as *mut usize }; // 访问某节点内容，因为只有一次读操作，因此没有同步问题
             // let next = unsafe { *item as *mut usize };
             self.curr = next;
             Some(item)
@@ -110,11 +111,14 @@ pub struct ListNode {
     curr: *mut usize,
 }
 
+/// 虽然对IterMut有所有权约束保证唯一，但可以从IterMut中取出几个ListNode再同时操作，因此ListNode没有唯一性，需要考虑同步问题。
+/// 甚至，在使用ListNode操作前，还需要检查prev是否依然指向curr。
 impl ListNode {
     /// Remove the node from the list
     /// 不用给出实际的地址，只给出偏移量
     pub fn pop(self) -> *mut usize {
         // Skip the current one
+        // 这句先读了本节点，再写了上一节点。需要考虑同步问题。
         unsafe {
             *((self.prev as usize + get_data_base()) as *mut usize) =
                 *((self.curr as usize + get_data_base()) as *mut usize);
@@ -136,6 +140,7 @@ pub struct IterMut<'a> {
     curr: *mut usize,
 }
 
+// 同样，对IterMut也不需考虑自身字段的同步问题。
 impl<'a> Iterator for IterMut<'a> {
     type Item = ListNode;
 
@@ -149,7 +154,7 @@ impl<'a> Iterator for IterMut<'a> {
             };
             self.prev = self.curr;
             self.curr =
-                unsafe { *((self.curr as usize + get_data_base()) as *mut usize) as *mut usize };
+                unsafe { *((self.curr as usize + get_data_base()) as *mut usize) as *mut usize }; // 只有一次读操作，因此没有同步问题
             Some(res)
         }
     }

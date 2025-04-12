@@ -32,6 +32,8 @@ use spin::Mutex;
 /// ```
 pub struct Heap<const ORDER: usize> {
     // buddy system with max order of `ORDER`
+    // 假设LinkedList已经实现了无锁同步，因此本文件中涉及LinkedList的单个操作同步问题可以不需理会。
+    // 但是，多个操作间的数据一致性仍需考虑。
     free_list: [LinkedList; ORDER],
 
     // statistics
@@ -57,6 +59,7 @@ impl<const ORDER: usize> Heap<ORDER> {
     }
 
     /// Add a range of memory [start, end) to the heap
+    /// 看起来这个函数不支持动态增长空间？
     pub unsafe fn add_to_heap(&mut self, mut start: usize, mut end: usize) {
         // avoid unaligned access on some platforms
         start = (start + size_of::<usize>() - 1) & (!size_of::<usize>() + 1);
@@ -79,11 +82,11 @@ impl<const ORDER: usize> Heap<ORDER> {
             }
             total += size;
 
-            self.free_list[order].push(current_start as *mut usize);
+            self.free_list[order].push(current_start as *mut usize); // 写
             current_start += size;
         }
 
-        self.total += total;
+        self.total += total; // 写
     }
 
     /// Add a range of memory [start, start+size) to the heap
@@ -99,17 +102,17 @@ impl<const ORDER: usize> Heap<ORDER> {
             max(layout.align(), size_of::<usize>()),
         );
         let class = size.trailing_zeros() as usize;
-        for i in class..self.free_list.len() {
+        for i in class..self.free_list.len() { // 这句的len是常数，不涉及同步问题
             // Find the first non-empty size class
-            if !self.free_list[i].is_empty() {
+            if !self.free_list[i].is_empty() {  // 读free_list[i]
                 // Split buffers
                 for j in (class + 1..i + 1).rev() {
-                    if let Some(block) = self.free_list[j].pop() {
+                    if let Some(block) = self.free_list[j].pop() {  // 写free_list[j]
                         // 这里得到的 block 是偏移量，freelist push 的参数也是偏移量，因此不用进行修改
                         unsafe {
                             self.free_list[j - 1]
                                 .push((block as usize + (1 << (j - 1))) as *mut usize);
-                            self.free_list[j - 1].push(block);
+                            self.free_list[j - 1].push(block); // 写free_list[j-1]
                         }
                     } else {
                         return Err(());
@@ -121,10 +124,10 @@ impl<const ORDER: usize> Heap<ORDER> {
                         .pop()
                         .expect("current block should have free space now")
                         as *mut u8,
-                );
+                ); // 写free_list[class]
                 if let Some(result) = result {
-                    self.user += layout.size();
-                    self.allocated += size;
+                    self.user += layout.size(); // 写user
+                    self.allocated += size; // 写allocater
                     return Ok(result);
                 } else {
                     return Err(());
@@ -136,6 +139,7 @@ impl<const ORDER: usize> Heap<ORDER> {
 
     /// Dealloc a range of memory from the heap
     /// ptr 参数为偏移量
+    /// 这个函数的写操作太多了，不好同步。看看能否减少，比如先插入再合并改为先合并再插入。
     pub fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
         let size = max(
             layout.size().next_power_of_two(),
@@ -145,18 +149,18 @@ impl<const ORDER: usize> Heap<ORDER> {
 
         unsafe {
             // Put back into free list
-            self.free_list[class].push(ptr.as_ptr() as *mut usize);
+            self.free_list[class].push(ptr.as_ptr() as *mut usize); // 写free_list[class]
 
             // Merge free buddy lists
             let mut current_ptr = ptr.as_ptr() as usize;
             let mut current_class = class;
 
-            while current_class < self.free_list.len() - 1 {
+            while current_class < self.free_list.len() - 1 { // 不涉及同步
                 let buddy = current_ptr ^ (1 << current_class);
                 let mut flag = false;
                 for block in self.free_list[current_class].iter_mut() {
-                    if block.value() as usize == buddy {
-                        block.pop();
+                    if block.value() as usize == buddy { // 读ListNode
+                        block.pop(); // 写ListNode
                         flag = true;
                         break;
                     }
@@ -164,18 +168,18 @@ impl<const ORDER: usize> Heap<ORDER> {
 
                 // Free buddy found
                 if flag {
-                    self.free_list[current_class].pop();
+                    self.free_list[current_class].pop(); // 写free_list[current_class]
                     current_ptr = min(current_ptr, buddy);
                     current_class += 1;
-                    self.free_list[current_class].push(current_ptr as *mut usize);
+                    self.free_list[current_class].push(current_ptr as *mut usize); // 写free_list[current_class]
                 } else {
                     break;
                 }
             }
         }
 
-        self.user -= layout.size();
-        self.allocated -= size;
+        self.user -= layout.size(); // 写user
+        self.allocated -= size; // 写allocater
     }
 
     /// Return the number of bytes that user requests
