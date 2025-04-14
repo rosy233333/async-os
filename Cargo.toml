@@ -43,7 +43,7 @@ members = [
     "user-lib",
     "vdso",
     "vdso/cops",
-    "vdso/heap",
+    "vdso/pilf_buddy_alloc",
     "vdso/queue",
     "user_apps/vdso_test",
     "uruntime",
