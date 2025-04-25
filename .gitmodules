@@ -8,6 +8,3 @@
 [submodule "vdso/pilf_buddy_alloc"]
 	path = vdso/pilf_buddy_alloc
 	url = https://github.com/AsyncModules/pilf_buddy_alloc
-[submodule "vdso/pi_pointer"]
-	path = vdso/pi_pointer
-	url = https://github.com/rosy233333/pi_pointer.git
