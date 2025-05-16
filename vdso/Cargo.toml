@@ -10,6 +10,7 @@ xmas-elf = "0.10.0"
 
 [build-dependencies]
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
+regex = "1.8.5"
 
 [dev-dependencies]
 xmas-elf = "0.10.0"
