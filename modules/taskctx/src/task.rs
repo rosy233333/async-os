@@ -1,5 +1,5 @@
-#[cfg(feature = "thread")]
-use crate::TaskStack;
+// #[cfg(feature = "thread")]
+// use crate::TaskStack;
 use crate::{stat::TimeStat, Scheduler, TrapFrame};
 use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, sync::Arc};
 #[cfg(feature = "preempt")]
@@ -140,12 +140,12 @@ pub struct TaskInner {
     ///
     /// Only when the count is zero, the task can be preempted.
     preempt_disable_count: AtomicUsize,
-    /// 在内核中发生抢占或者使用线程接口时的上下文
-    #[cfg(feature = "thread")]
-    stack_ctx: UnsafeCell<Option<StackCtx>>,
-
+    // /// 在内核中发生抢占或者使用线程接口时的上下文
+    // #[cfg(feature = "thread")]
+    // stack_ctx: UnsafeCell<Option<StackCtx>>,
     /// 是否是所属进程下的主线程
     is_leader: AtomicBool,
+    os_id: AtomicU64,
     process_id: AtomicU64,
     pub page_table_token: UnsafeCell<usize>,
 
@@ -184,10 +184,11 @@ impl TaskInner {
             #[cfg(feature = "preempt")]
             preempt_disable_count: AtomicUsize::new(0),
             is_leader: AtomicBool::new(false),
+            os_id: AtomicU64::new(0),
             process_id: AtomicU64::new(process_id),
             page_table_token: UnsafeCell::new(page_table_token),
-            #[cfg(feature = "thread")]
-            stack_ctx: UnsafeCell::new(None),
+            // #[cfg(feature = "thread")]
+            // stack_ctx: UnsafeCell::new(None),
             sched_status: UnsafeCell::new(SchedStatus {
                 policy: SchedPolicy::SCHED_FIFO,
                 priority: 1,
@@ -225,10 +226,11 @@ impl TaskInner {
             #[cfg(feature = "preempt")]
             preempt_disable_count: AtomicUsize::new(0),
             is_leader: AtomicBool::new(false),
+            os_id: AtomicU64::new(0),
             process_id: AtomicU64::new(process_id),
             page_table_token: UnsafeCell::new(page_table_token),
-            #[cfg(feature = "thread")]
-            stack_ctx: UnsafeCell::new(None),
+            // #[cfg(feature = "thread")]
+            // stack_ctx: UnsafeCell::new(None),
             sched_status: UnsafeCell::new(SchedStatus {
                 policy: SchedPolicy::SCHED_FIFO,
                 priority: 1,
@@ -393,6 +395,12 @@ impl TaskInner {
     /// get the process ID of the task
     pub fn get_process_id(&self) -> u64 {
         self.process_id.load(Ordering::Acquire)
+    }
+
+    #[inline]
+    /// get the os ID of the task
+    pub fn get_os_id(&self) -> u64 {
+        self.os_id.load(Ordering::Acquire)
     }
 
     #[inline]
@@ -593,33 +601,33 @@ pub enum CtxType {
     Interrupt,
 }
 
-#[cfg(feature = "thread")]
-pub struct StackCtx {
-    pub kstack: TaskStack,
-    pub trap_frame: *const TrapFrame,
-    pub ctx_type: CtxType,
-}
+// #[cfg(feature = "thread")]
+// pub struct StackCtx {
+//     pub kstack: TaskStack,
+//     pub trap_frame: *const TrapFrame,
+//     pub ctx_type: CtxType,
+// }
 
-#[cfg(feature = "thread")]
-/// 线程的接口需要根据任务的状态来进行不同的操作
-impl TaskInner {
-    pub fn set_stack_ctx(&self, trap_frame: *const TrapFrame, ctx_type: CtxType) {
-        let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
-        assert!(
-            stack_ctx.is_none(),
-            "{} cannot use thread api to do task switch",
-            self.id_name()
-        );
-        let kstack = crate::pick_current_stack();
-        stack_ctx.replace(StackCtx {
-            kstack,
-            trap_frame,
-            ctx_type,
-        });
-    }
+// #[cfg(feature = "thread")]
+// /// 线程的接口需要根据任务的状态来进行不同的操作
+// impl TaskInner {
+//     pub fn set_stack_ctx(&self, trap_frame: *const TrapFrame, ctx_type: CtxType) {
+//         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
+//         assert!(
+//             stack_ctx.is_none(),
+//             "{} cannot use thread api to do task switch",
+//             self.id_name()
+//         );
+//         let kstack = crate::pick_current_stack();
+//         stack_ctx.replace(StackCtx {
+//             kstack,
+//             trap_frame,
+//             ctx_type,
+//         });
+//     }
 
-    pub fn get_stack_ctx(&self) -> Option<StackCtx> {
-        let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
-        stack_ctx.take()
-    }
-}
+//     pub fn get_stack_ctx(&self) -> Option<StackCtx> {
+//         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
+//         stack_ctx.take()
+//     }
+// }

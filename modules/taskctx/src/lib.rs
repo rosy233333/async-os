@@ -6,7 +6,6 @@ extern crate log;
 
 mod arch;
 mod current;
-mod kstack;
 mod stat;
 mod task;
 mod waker;
@@ -15,16 +14,13 @@ use alloc::sync::Arc;
 pub use arch::TrapFrame;
 pub use arch::TrapStatus;
 pub use current::CurrentTask;
-pub use kstack::init;
-pub use kstack::TaskStack;
 
 pub type TaskRef = Arc<Task>;
-pub use kstack::*;
 pub use scheduler::BaseScheduler;
 pub use task::{SchedPolicy, SchedStatus, TaskId, TaskInner, TaskState};
 
-#[cfg(feature = "thread")]
-pub use task::{CtxType, StackCtx};
+// #[cfg(feature = "thread")]
+// pub use task::{CtxType, StackCtx};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "sched_rr")] {

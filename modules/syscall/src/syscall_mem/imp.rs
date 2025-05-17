@@ -7,7 +7,7 @@ use axhal::{arch::flush_tlb, mem::VirtAddr, paging::MappingFlags};
 use axlog::info;
 
 use bitflags::bitflags;
-use executor::current_executor;
+use process::current_executor;
 
 const MAX_HEAP_SIZE: usize = 0x20000;
 /// 修改用户堆大小，

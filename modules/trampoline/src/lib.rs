@@ -115,7 +115,7 @@ pub fn run_task(curr: CurrentTask) {
                 TaskState::Running => {
                     if let Some(tf) = curr.utrap_frame() {
                         if tf.trap_status == TrapStatus::Done {
-                            tf.kernel_sp = taskctx::current_stack_top();
+                            // tf.kernel_sp = taskctx::current_stack_top();
                             tf.scause = 0;
                             // 这里不能打开中断
                             axhal::arch::disable_irqs();

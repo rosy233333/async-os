@@ -4,7 +4,7 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use async_fs::api::{path_exists, AsyncFileIO, Kstat, OpenFlags};
 use axlog::{debug, info};
-use executor::link::FilePath;
+use process::link::FilePath;
 use sync::Mutex;
 
 use super::{dir::new_dir, file::new_fd};

@@ -3,8 +3,8 @@ use alloc::format;
 use alloc::{boxed::Box, collections::BTreeMap, sync::Arc};
 use axhal::mem::virt_to_phys;
 use axhal::{mem::PAGE_SIZE_4K, paging::MappingFlags};
-use executor::{current_executor, yield_now};
 use heapless::mpmc::MpMcQueue;
+use process::{current_executor, yield_now};
 use taic_driver::{LocalQueue, Taic};
 type SyscallItemQueue = MpMcQueue<SyscallItem, 8>;
 
@@ -114,9 +114,9 @@ pub async fn syscall_init_async_batch(_waker: usize, res_ptr: usize) -> SyscallR
         )
         .await;
     // 这个内核任务直接进入阻塞状态，需要通过 taic 来唤醒
-    ktask.set_state(executor::TaskState::Blocked);
+    ktask.set_state(process::TaskState::Blocked);
     // 将这个任务注册为系统调用处理流程，注册为接收方，获取内核的调度器
-    use executor::KERNEL_SCHEDULER;
+    use process::KERNEL_SCHEDULER;
     let handler = Arc::into_raw(ktask) as *const _ as usize;
     let pid = current_executor.pid() as usize;
     KERNEL_SCHEDULER.lock().register_receiver(1, pid, handler);

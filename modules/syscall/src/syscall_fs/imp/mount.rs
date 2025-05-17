@@ -1,5 +1,5 @@
 use crate::{syscall_fs::solve_path, SyscallError, SyscallResult};
-use executor::{
+use process::{
     current_executor,
     link::{raw_ptr_to_ref_str, AT_FDCWD},
 };

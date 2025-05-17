@@ -16,7 +16,7 @@ use core::{
 use async_fs::api::{AsyncFileIO, FileIO, FileIOType, OpenFlags, SeekFrom};
 
 use crate::SyscallError;
-use executor::{current_executor, yield_now};
+use process::{current_executor, yield_now};
 use sync::Mutex;
 
 bitflags! {

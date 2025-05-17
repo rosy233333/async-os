@@ -16,7 +16,7 @@ use crate::{
     DirEnt, DirEntType, Fcntl64Cmd, RenameFlags, SyscallError, SyscallResult, TimeSecs,
 };
 use axhal::mem::VirtAddr;
-use executor::{
+use process::{
     current_executor,
     link::{FilePath, AT_FDCWD},
 };

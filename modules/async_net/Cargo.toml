@@ -40,7 +40,7 @@ axdriver = { git = "https://github.com/Starry-OS/axdriver.git", features = [
 # axprocess = { git = "https://github.com/Starry-OS/axprocess.git", optional = true }
 async_io = { path = "../async_io" }
 async_utils = { path = "../async_utils" }
-executor = { path = "../executor" }
+process = { path = "../process" }
 sync = { path = "../sync" }
 taskctx = { path = "../taskctx" }
 

@@ -301,19 +301,20 @@ fn init_interrupt() {
     static NEXT_DEADLINE: u64 = 0;
 
     fn update_timer() {
-        let now_ns = axhal::time::current_time_nanos();
-        // Safety: we have disabled preemption in IRQ handler.
-        let mut deadline = unsafe { NEXT_DEADLINE.read_current_raw() };
-        if now_ns >= deadline {
-            deadline = now_ns + PERIODIC_INTERVAL_NANOS;
-        }
-        unsafe { NEXT_DEADLINE.write_current_raw(deadline + PERIODIC_INTERVAL_NANOS) };
-        axhal::time::set_oneshot_timer(deadline);
+        // let now_ns = axhal::time::current_time_nanos();
+        // // Safety: we have disabled preemption in IRQ handler.
+        // let mut deadline = unsafe { NEXT_DEADLINE.read_current_raw() };
+        // if now_ns >= deadline {
+        //     deadline = now_ns + PERIODIC_INTERVAL_NANOS;
+        // }
+        // unsafe { NEXT_DEADLINE.write_current_raw(deadline + PERIODIC_INTERVAL_NANOS) };
+        // axhal::time::set_oneshot_timer(deadline);
+        axhal::time::set_oneshot_timer(usize::MAX as _);
     }
 
     axhal::irq::register_handler(TIMER_IRQ_NUM, || {
         update_timer();
-        trampoline::on_timer_tick();
+        // trampoline::on_timer_tick();
     });
 
     // Enable IRQs before starting app

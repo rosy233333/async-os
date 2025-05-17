@@ -13,11 +13,11 @@ use axerrno::AxError;
 pub use ctl::*;
 pub use epoll::*;
 pub use eventfd::*;
-use executor::link::{deal_with_path, FilePath};
 pub use io::*;
 pub use link::*;
 pub use mount::*;
 pub use poll::*;
+use process::link::{deal_with_path, FilePath};
 pub use stat::*;
 
 use crate::SyscallError;

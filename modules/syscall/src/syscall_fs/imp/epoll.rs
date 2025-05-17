@@ -5,7 +5,7 @@ extern crate alloc;
 use crate::{SigMaskFlag, SyscallError, SyscallResult};
 use alloc::sync::Arc;
 use axhal::{mem::VirtAddr, time::current_ticks};
-use executor::current_executor;
+use process::current_executor;
 
 use crate::syscall_fs::ctype::epoll::{EpollCtl, EpollEvent, EpollFile};
 

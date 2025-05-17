@@ -43,7 +43,7 @@ num_enum = { version = "0.5.11", default-features = false }
 
 async_fs = { path = "../async_fs" }
 axhal = { path = "../axhal" }
-executor = { path = "../executor" }
+process = { path = "../process" }
 sync = { path = "../sync", package = "sync" }
 async_mem = { path = "../async_mem" }
 async_io = { path = "../async_io" }

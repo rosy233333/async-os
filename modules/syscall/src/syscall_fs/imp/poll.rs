@@ -2,7 +2,7 @@ use async_fs::api::{AsyncFileIO, FileIO};
 use axhal::{mem::VirtAddr, time::current_ticks};
 use axsignal::signal_no::SignalNo;
 use bitflags::bitflags;
-use executor::{current_executor, yield_now};
+use process::{current_executor, yield_now};
 extern crate alloc;
 use crate::{SyscallError, SyscallResult, TimeSecs, TimeVal};
 use alloc::{sync::Arc, vec::Vec};

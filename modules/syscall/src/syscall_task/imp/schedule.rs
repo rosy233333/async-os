@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::sync::Arc;
 use axconfig::SMP;
 use axhal::mem::VirtAddr;
-use executor::{current_executor, current_task, SchedPolicy, SchedStatus, PID2PC, TID2TASK};
+use process::{current_executor, current_task, SchedPolicy, SchedStatus, PID2PC, TID2TASK};
 
 use crate::{SchedParam, SyscallError, SyscallResult};
 /// 获取对应任务的CPU适配集

@@ -9,7 +9,7 @@ use core::{
     pin::Pin,
     task::{ready, Context, Poll},
 };
-use executor::{current_executor, Executor, PID2PC};
+use process::{current_executor, Executor, PID2PC};
 use sync::Mutex;
 
 pub struct PidFd {

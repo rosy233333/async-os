@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, format, sync::Arc};
 use axhal::time::{current_time, TimeValue};
 use core::{future::poll_fn, task::Poll, time::Duration};
-pub use executor::*;
+pub use process::*;
 use riscv::register::scause::{Exception, Trap};
 use spin::Mutex;
 use syscall::trap::{handle_page_fault, MappingFlags};

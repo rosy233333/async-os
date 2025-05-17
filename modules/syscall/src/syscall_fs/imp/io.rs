@@ -8,8 +8,8 @@ use async_fs::api::{AsyncFileIO, FileIOType, OpenFlags};
 use async_io::SeekFrom;
 use axerrno::AxError;
 use axlog::{debug, info};
-use executor::current_executor;
-use executor::link::{create_link, real_path};
+use process::current_executor;
+use process::link::{create_link, real_path};
 
 use crate::syscall_fs::ctype::{
     dir::new_dir,

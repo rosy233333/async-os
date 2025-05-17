@@ -5,12 +5,12 @@ extern crate alloc;
 use core::time::Duration;
 
 use axlog::{debug, error};
-use executor::{current_executor, current_task, futex::FutexRobustList};
+use process::{current_executor, current_task, futex::FutexRobustList};
 
 use crate::{RobustList, SyscallError, SyscallResult, TimeSecs};
 
 use axfutex::flags::*;
-use executor::futex::{futex_requeue, futex_wait, futex_wake, futex_wake_bitset};
+use process::futex::{futex_requeue, futex_wait, futex_wake, futex_wake_bitset};
 
 pub async fn syscall_futex(args: [usize; 6]) -> SyscallResult {
     let uaddr = args[0];

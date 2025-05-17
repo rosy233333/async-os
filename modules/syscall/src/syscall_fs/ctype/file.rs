@@ -18,7 +18,7 @@ use core::{
 use axlog::debug;
 
 use crate::{new_file, normal_file_mode, StMode, TimeSecs};
-use executor::link::get_link_count;
+use process::link::get_link_count;
 use sync::Mutex;
 
 pub static INODE_NAME_MAP: Mutex<BTreeMap<String, u64>> = Mutex::new(BTreeMap::new());

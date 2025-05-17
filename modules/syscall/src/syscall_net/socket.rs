@@ -11,7 +11,7 @@ use core::{
     ptr::copy_nonoverlapping,
     sync::atomic::{AtomicBool, AtomicU64},
 };
-use executor::current_task;
+use process::current_task;
 
 use async_net::{
     add_membership, from_core_sockaddr, into_core_sockaddr, poll_interfaces, IpAddr, SocketAddr,

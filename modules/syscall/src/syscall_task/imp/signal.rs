@@ -5,7 +5,7 @@ use axhal::cpu::this_cpu_id;
 // use axlog::{debug, info};
 use axsignal::signal_no::SignalNo;
 use axsignal::{action::SigAction, ucontext::SignalStack};
-use executor::{current_executor, current_task, yield_now};
+use process::{current_executor, current_task, yield_now};
 
 use crate::{SigMaskFlag, SyscallError, SyscallResult, SIGSET_SIZE_IN_BYTE};
 
@@ -117,7 +117,7 @@ pub async fn syscall_sigsuspend(args: [usize; 6]) -> SyscallResult {
 
 /// Note: It can only be called by the signal processing function during signal processing.
 pub async fn syscall_sigreturn() -> SyscallResult {
-    Ok(executor::signal::signal_return().await)
+    Ok(process::signal::signal_return().await)
 }
 
 /// # Arguments
@@ -191,7 +191,7 @@ pub async fn syscall_kill(args: [usize; 6]) -> SyscallResult {
     let signum = args[1] as isize;
     if pid > 0 && signum > 0 {
         // 不关心是否成功
-        let _ = executor::signal::send_signal_to_process(pid, signum, None).await;
+        let _ = process::signal::send_signal_to_process(pid, signum, None).await;
         Ok(0)
     } else if pid == 0 {
         Err(SyscallError::ESRCH)
@@ -214,7 +214,7 @@ pub async fn syscall_tkill(args: [usize; 6]) -> SyscallResult {
         tid
     );
     if tid > 0 && signum > 0 {
-        let _ = executor::signal::send_signal_to_thread(tid, signum).await;
+        let _ = process::signal::send_signal_to_thread(tid, signum).await;
         Ok(0)
     } else {
         Err(SyscallError::EINVAL)
@@ -233,7 +233,7 @@ pub async fn syscall_tgkill(args: [usize; 6]) -> SyscallResult {
         tid
     );
     if tgid > 0 && tid > 0 && signum > 0 {
-        let _ = executor::signal::send_signal_to_thread(tid, signum).await;
+        let _ = process::signal::send_signal_to_thread(tid, signum).await;
         Ok(0)
     } else {
         Err(SyscallError::EINVAL)

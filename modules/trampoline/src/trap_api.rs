@@ -1,4 +1,4 @@
-use executor::current_task_may_uninit;
+use process::current_task_may_uninit;
 use taskctx::{TrapFrame, TrapStatus};
 
 #[cfg(feature = "irq")]

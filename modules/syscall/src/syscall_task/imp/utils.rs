@@ -4,7 +4,7 @@ use axhal::time::{
     current_time, current_time_nanos, nanos_to_ticks, NANOS_PER_MICROS, NANOS_PER_SEC,
 };
 
-use executor::{current_executor, current_task};
+use process::{current_executor, current_task};
 use rand::{rngs::SmallRng, Fill, SeedableRng};
 
 use crate::{
@@ -306,7 +306,7 @@ pub async fn syscall_clock_nanosleep(args: [usize; 6]) -> SyscallResult {
         request_time
     };
 
-    executor::sleep_until(deadline).await;
+    process::sleep_until(deadline).await;
 
     let current_time = current_time();
     if current_time < deadline && !remain.is_null() {

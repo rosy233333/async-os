@@ -9,7 +9,7 @@ use axerrno::{ax_err, ax_err_type, AxError, AxResult};
 use axhal::time::current_ticks;
 use sync::Mutex;
 
-use executor::yield_now;
+use process::yield_now;
 use smoltcp::iface::SocketHandle;
 use smoltcp::socket::tcp::{self, ConnectError, State};
 use smoltcp::wire::{IpEndpoint, IpListenEndpoint};
@@ -735,14 +735,14 @@ impl TcpSocket {
         } else {
             loop {
                 #[cfg(feature = "monolithic")]
-                if executor::signal::current_have_signals().await {
+                if process::signal::current_have_signals().await {
                     return Err(AxError::Interrupted);
                 }
 
                 SOCKET_SET.poll_interfaces().await;
                 match f().await {
                     Ok(t) => return Ok(t),
-                    Err(AxError::WouldBlock) => executor::yield_now().await,
+                    Err(AxError::WouldBlock) => process::yield_now().await,
                     Err(e) => return Err(e),
                 }
             }

@@ -10,8 +10,8 @@ use axhal::time::current_time;
 use axsignal::{info::SigInfo, signal_no::SignalNo};
 // use async_fs::api::OpenFlags;
 // use axhal::time::current_time;
-use executor::TaskId;
-use executor::{
+use process::TaskId;
+use process::{
     current_executor,
     current_task,
     flags::{CloneFlags, WaitStatus},
@@ -64,7 +64,7 @@ pub async fn syscall_exit(args: [usize; 6]) -> SyscallResult {
         let pid = current_executor().await.pid();
         crate::LQS.lock().await.remove(&(1, pid as usize));
     }
-    executor::exit(exit_code).await;
+    process::exit(exit_code).await;
     Ok(exit_code as isize)
     // let cases = ["fcanf", "fgetwc_buffering", "lat_pipe"];
     // let mut test_filter = TEST_FILTER.lock();
@@ -160,7 +160,7 @@ pub async fn syscall_exec(args: [usize; 6]) -> SyscallResult {
     let argc = args_vec.len();
     if curr_process.exec(path, args_vec, &envs_vec).await.is_err() {
         // exit_current_task(0);
-        executor::exit(0).await;
+        process::exit(0).await;
     }
     Ok(argc as isize)
 }

@@ -1,7 +1,7 @@
 //! Define the trap handler for the whole kernel
 pub use axhal::{mem::VirtAddr, paging::MappingFlags, time::current_time_nanos};
 use axsignal::signal_no::SignalNo;
-use executor::{current_executor, current_task, send_signal_to_thread};
+use process::{current_executor, current_task, send_signal_to_thread};
 
 use super::syscall::syscall;
 
@@ -79,6 +79,6 @@ pub async fn handle_page_fault(addr: VirtAddr, flags: MappingFlags) {
 /// To handle the pending signals for current process
 pub async fn handle_signals() {
     time_stat_from_user_to_kernel();
-    executor::signal::handle_signals().await;
+    process::signal::handle_signals().await;
     time_stat_from_kernel_to_user();
 }

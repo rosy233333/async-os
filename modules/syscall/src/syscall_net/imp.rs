@@ -9,8 +9,8 @@ use async_fs::api::{AsyncFileIO, OpenFlags};
 use axerrno::AxError;
 use axlog::{debug, error, info, warn};
 
-use executor::current_executor;
 use num_enum::TryFromPrimitive;
+use process::current_executor;
 
 pub const SOCKET_TYPE_MASK: usize = 0xFF;
 

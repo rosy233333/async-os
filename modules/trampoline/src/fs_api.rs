@@ -1,4 +1,4 @@
-use executor::link::{create_link, FilePath};
+use process::link::{create_link, FilePath};
 
 pub async fn fs_init() {
     use alloc::format;

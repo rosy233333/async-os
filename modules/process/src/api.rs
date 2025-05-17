@@ -9,10 +9,9 @@ use core::{future::Future, ops::Deref, pin::Pin};
 use spinlock::SpinNoIrq;
 pub use task_api::*;
 
-// Initializes the executor (for the primary CPU).
+// Initializes the process (for the primary CPU).
 pub fn init(utrap_handler: fn() -> Pin<Box<dyn Future<Output = isize> + 'static>>) {
-    info!("Initialize executor...");
-    taskctx::init();
+    info!("Initialize process...");
     UTRAP_HANDLER.init_by(utrap_handler);
     let mut scheduler = Scheduler::new();
     scheduler.init();

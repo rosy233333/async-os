@@ -20,6 +20,7 @@ pub fn get_vdso_base_end() -> (u64, u64, u64, u64) {
 }
 struct VdsoVTable {
     pub current_task: Option<fn() -> TaskId>,
+    pub set_current_task: Option<fn(task: TaskId)>,
     pub init_primary: Option<fn(cpu_id: usize)>,
     pub init_secondary: Option<fn(cpu_id: usize)>,
     pub pick_next_task: Option<fn() -> TaskId>,
@@ -29,6 +30,7 @@ struct VdsoVTable {
 
 static mut VDSO_VTABLE: VdsoVTable = VdsoVTable {
     current_task: None,
+    set_current_task: None,
     init_primary: None,
     init_secondary: None,
     pick_next_task: None,
@@ -49,6 +51,12 @@ pub unsafe fn init_vdso_vtable(base: u64, vdso_elf: &ElfFile) {
                 log::debug!("{}: {:x}", name, fn_ptr);
                 let f: fn() -> TaskId = unsafe { core::mem::transmute(fn_ptr) };
                 VDSO_VTABLE.current_task = Some(f);
+            }
+            if name == "set_current_task" {
+                let fn_ptr = base + dynsym.value();
+                log::debug!("{}: {:x}", name, fn_ptr);
+                let f: fn(task: TaskId) = unsafe { core::mem::transmute(fn_ptr) };
+                VDSO_VTABLE.set_current_task = Some(f);
             }
             if name == "init_primary" {
                 let fn_ptr = base + dynsym.value();
@@ -89,6 +97,14 @@ pub fn current_task() -> TaskId {
         f()
     } else {
         panic!("current_task is not initialized")
+    }
+}
+
+pub fn set_current_task(task: TaskId) {
+    if let Some(f) = unsafe { VDSO_VTABLE.set_current_task } {
+        f(task)
+    } else {
+        panic!("set_current_task is not initialized")
     }
 }
 

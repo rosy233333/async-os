@@ -343,14 +343,14 @@ impl UdpSocket {
         } else {
             loop {
                 #[cfg(feature = "monolithic")]
-                if executor::signal::current_have_signals().await {
+                if process::signal::current_have_signals().await {
                     return Err(AxError::Interrupted);
                 }
 
                 SOCKET_SET.poll_interfaces().await;
                 match f().await {
                     Ok(t) => return Ok(t),
-                    Err(AxError::WouldBlock) => executor::yield_now().await,
+                    Err(AxError::WouldBlock) => process::yield_now().await,
                     Err(e) => return Err(e),
                 }
             }

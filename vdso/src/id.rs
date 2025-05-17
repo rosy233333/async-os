@@ -15,6 +15,10 @@ impl TaskId {
         task_id: 0,
     };
 
+    pub const fn is_null(&self) -> bool {
+        self.os_id == 0 && self.process_id == 0 && self.task_id == 0
+    }
+
     pub const fn new(os_id: usize, process_id: usize, task_id: usize) -> Self {
         Self {
             os_id,
@@ -37,5 +41,9 @@ impl TaskId {
 
     pub const fn get_priority(&self) -> isize {
         self.task_id as isize & 0x1f
+    }
+
+    pub const fn task_ptr_value(&self) -> usize {
+        self.task_id & (!0x1f)
     }
 }

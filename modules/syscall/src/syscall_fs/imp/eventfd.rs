@@ -1,5 +1,5 @@
 use alloc::sync::Arc;
-use executor::current_executor;
+use process::current_executor;
 
 use crate::syscall_fs::ctype::eventfd::EventFd;
 use crate::{SyscallError, SyscallResult};

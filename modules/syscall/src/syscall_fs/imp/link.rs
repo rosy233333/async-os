@@ -5,7 +5,7 @@ extern crate alloc;
 
 use crate::{SyscallError, SyscallResult};
 use axlog::debug;
-use executor::link::{create_link, remove_link, FilePath};
+use process::link::{create_link, remove_link, FilePath};
 
 use super::solve_path;
 
