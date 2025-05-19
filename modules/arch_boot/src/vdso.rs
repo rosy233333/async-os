@@ -74,5 +74,5 @@ fn vdso_test() {
     assert_eq!(TaskId::new(1, 3, 5), vdso::pick_next_task());
     assert_eq!(TaskId::new(1, 4, 5), vdso::pick_next_task());
     assert_eq!(TaskId::new(0, 0, 0), vdso::pick_next_task());
-    log::info!("vdso init_primary ok!");
+    log::info!("vdso test passed!");
 }

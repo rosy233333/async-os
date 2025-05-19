@@ -293,6 +293,7 @@ cfg_if::cfg_if! {
 fn init_interrupt() {
     use axhal::time::TIMER_IRQ_NUM;
 
+    trampoline::init_interrupt();
     // Setup timer interrupt handler
     const PERIODIC_INTERVAL_NANOS: u64 =
         axhal::time::NANOS_PER_SEC / axconfig::TICKS_PER_SEC as u64;
