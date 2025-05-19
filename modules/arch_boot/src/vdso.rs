@@ -20,6 +20,10 @@ static mut THIRD_PT_SV39: [u64; 512] = [0; 512];
 
 /// setup the page table for vDSO
 /// the virtual address of vDSO is 0xffff_ffff_c000_0000
+/// Safety:
+///     这里在初始化启动页表时，需要注意 vDSO 使用的代码段和数据段的大小总和
+///     不能超过 512 * 4K = 2M
+///     因为这个用的是三级页表，即 4K 来表示的
 pub(crate) unsafe fn init_vdso_page_table(boot_page_table: *mut [u64; 512]) {
     let (sdata, edata, base, end) = get_vdso_base_end();
     let mut pte_idx = 0;

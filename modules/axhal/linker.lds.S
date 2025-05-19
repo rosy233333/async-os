@@ -34,8 +34,6 @@ SECTIONS
         _sdata = .;
         *(.data.boot_page_table)
         . = ALIGN(4K);
-        *(.data.vdso)
-        . = ALIGN(4K);
         _img_start = .;
         . = ALIGN(4K);
         _img_end = .;
@@ -91,8 +89,11 @@ SECTIONS
         . = ALIGN(4K);
         _ebss = .;
     }
+    . = ALIGN(4K);
+    vdso_sdata = .;
+    vdso_edata = vdso_sdata + 0x10000 * %SMP%;
 
-    _ekernel = .;
+    _ekernel = vdso_edata;
 
 	/DISCARD/ : {
         *(.comment) *(.gnu*) *(.note*) *(.eh_frame*)
