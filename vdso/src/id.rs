@@ -1,5 +1,5 @@
 /// 任务 ID
-
+use alloc::sync::Arc;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
 pub struct TaskId {
@@ -46,4 +46,11 @@ impl TaskId {
     pub const fn task_ptr_value(&self) -> usize {
         self.task_id & (!0x1f)
     }
+}
+
+pub trait TaskIdTrait {
+    fn get_os_id(self: &Arc<Self>) -> usize;
+    fn get_process_id(self: &Arc<Self>) -> usize;
+    fn get_task_id(self: &Arc<Self>) -> usize;
+    fn build_task_id(self: &Arc<Self>) -> TaskId;
 }

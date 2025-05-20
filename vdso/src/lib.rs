@@ -9,8 +9,10 @@ mod test;
 
 mod api;
 mod id;
+mod scheduler;
 pub use api::*;
-pub use id::TaskId;
+pub use id::{TaskId, TaskIdTrait};
+pub use scheduler::VdsoScheduler;
 
 core::arch::global_asm!(
     r#"
