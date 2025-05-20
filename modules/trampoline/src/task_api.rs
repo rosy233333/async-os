@@ -103,64 +103,67 @@ pub async fn user_task_top() -> isize {
                             1. 当这个内核协程返回 Pending 时，会将 EAGAIN 当作返回值传给用户态，用户态继续执行其他的协程
                             2. 当这个内核协程返回 Ready 时，会将内核协程的返回值传给用户态，用户态继续当前的协程
 
-                        */
-                        let syscall_id = tf.regs.a7;
-                        let args = [
-                            tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
-                        ];
-                        let ret_ptr = tf.regs.t1;
-                        let ktask_callback: Arc<spin::mutex::Mutex<Option<usize>>> =
-                            Arc::new(Mutex::new(None));
-                        let ktask_callback_clone = ktask_callback.clone();
-                        let _pid = current_executor().await.pid() as usize;
-                        let fut = Box::pin(async move {
-                            let res = syscall::trap::handle_syscall(syscall_id, args).await;
-                            // 将结果写回到用户态 SyscallFuture 的 res 中
-                            unsafe {
-                                let ret = ret_ptr as *mut Option<Result<usize, syscalls::Errno>>;
-                                (*ret).replace(syscalls::Errno::from_ret(res as _));
-                            }
-                            #[cfg(feature = "sched_taic")]
-                            // 唤醒 waker，获取 waker
-                            if let Some(utask_ptr) = *ktask_callback_clone.lock() {
-                                debug!("using taic wakeup mechanism {:#X}", utask_ptr);
-                                // taic 控制器唤醒用户态任务
-                                let lqs = LQS.lock().await;
-                                let lq = lqs.get(&(1, _pid)).unwrap();
-                                lq.task_enqueue(utask_ptr);
-                            }
-                            drop(ktask_callback_clone);
-                            res
-                        });
-                        let ktask = current_executor()
-                            .await
-                            .new_ktask(format!("syscall {}", tf.regs.a7), fut)
-                            .await;
-                        debug!("new ktask about syscall {}", ktask.id_name());
-                        unsafe {
-                            CurrentTask::clean_current();
-                            CurrentTask::init_current(ktask.clone());
-                        }
-                        let waker = current_task().waker();
-                        let mut cx = core::task::Context::from_waker(&waker);
-                        /************************************************************/
-                        let res = if let Poll::Ready(res) = ktask.get_fut().as_mut().poll(&mut cx) {
-                            CurrentTask::clean_current();
-                            res
-                        } else {
-                            ktask.set_state(TaskState::Runable);
-                            ktask.get_scheduler().lock().add_task(ktask.clone());
-                            CurrentTask::clean_current_without_drop();
-                            let utask_ptr = tf.regs.t2;
-                            ktask_callback.lock().replace(utask_ptr);
-                            drop(ktask_callback);
-                            axerrno::LinuxError::EAGAIN as isize
-                        };
-                        /************************************************************/
-                        unsafe {
-                            CurrentTask::init_current(curr.clone());
-                        }
-                        res
+                        // */
+                        // let syscall_id = tf.regs.a7;
+                        // let args = [
+                        //     tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
+                        // ];
+                        // let ret_ptr = tf.regs.t1;
+                        // use spin::Mutex;
+                        // let ktask_callback: Arc<spin::mutex::Mutex<Option<usize>>> =
+                        //     Arc::new(Mutex::new(None));
+                        // let ktask_callback_clone = ktask_callback.clone();
+                        // let _pid = current_executor().await.pid() as usize;
+                        // let fut = Box::pin(async move {
+                        //     let res = syscall::trap::handle_syscall(syscall_id, args).await;
+                        //     // 将结果写回到用户态 SyscallFuture 的 res 中
+                        //     unsafe {
+                        //         let ret = ret_ptr as *mut Option<Result<usize, syscalls::Errno>>;
+                        //         (*ret).replace(syscalls::Errno::from_ret(res as _));
+                        //     }
+                        //     #[cfg(feature = "sched_taic")]
+                        //     // 唤醒 waker，获取 waker
+                        //     if let Some(utask_ptr) = *ktask_callback_clone.lock() {
+                        //         debug!("using taic wakeup mechanism {:#X}", utask_ptr);
+                        //         // taic 控制器唤醒用户态任务
+                        //         let lqs = LQS.lock().await;
+                        //         let lq = lqs.get(&(1, _pid)).unwrap();
+                        //         lq.task_enqueue(utask_ptr);
+                        //     }
+                        //     drop(ktask_callback_clone);
+                        //     res
+                        // });
+                        // let ktask = current_executor()
+                        //     .await
+                        //     .new_ktask(alloc::format!("syscall {}", tf.regs.a7), fut)
+                        //     .await;
+                        // debug!("new ktask about syscall {}", ktask.id_name());
+                        // unsafe {
+                        //     CurrentTask::clean_current();
+                        //     CurrentTask::init_current(ktask.clone());
+                        // }
+                        // let waker = current_task().waker();
+                        // let mut cx = core::task::Context::from_waker(&waker);
+                        // /************************************************************/
+                        // let res = if let Poll::Ready(res) = ktask.get_fut().as_mut().poll(&mut cx) {
+                        //     CurrentTask::clean_current();
+                        //     res
+                        // } else {
+                        //     ktask.set_state(TaskState::Runable);
+                        //     ktask.get_scheduler().lock().add_task(ktask.clone());
+                        //     CurrentTask::clean_current_without_drop();
+                        //     let utask_ptr = tf.regs.t2;
+                        //     ktask_callback.lock().replace(utask_ptr);
+                        //     drop(ktask_callback);
+                        //     axerrno::LinuxError::EAGAIN as isize
+                        // };
+                        // /************************************************************/
+                        // unsafe {
+                        //     CurrentTask::init_current(curr.clone());
+                        // }
+                        // res
+                        // TODO: 需要修改
+                        0
                     };
                     // 判断任务是否退出
                     if curr.is_exited() {

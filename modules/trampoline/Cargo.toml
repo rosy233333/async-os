@@ -27,7 +27,6 @@ preempt = [
 sched_fifo = ["multitask", "process/sched_fifo"]
 sched_rr = ["multitask", "process/sched_rr", "preempt"]
 sched_cfs = ["multitask", "process/sched_cfs", "preempt"]
-sched_taic = ["multitask", "process/sched_taic", "syscall/sched_taic"]
 
 [dependencies]
 log = "0.4"

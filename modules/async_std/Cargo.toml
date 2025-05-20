@@ -30,7 +30,6 @@ multitask = ["aos_api/multitask", "feat/multitask"]
 sched_fifo = ["feat/sched_fifo"]
 sched_rr = ["feat/sched_rr"]
 sched_cfs = ["feat/sched_cfs"]
-sched_taic = ["feat/sched_taic"]
 
 # File system
 fs = ["aos_api/fs", "feat/fs"]

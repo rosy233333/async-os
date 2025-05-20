@@ -13,7 +13,6 @@ preempt = ["irq", "percpu/preempt", "kernel_guard/preempt", "taskctx/preempt"]
 sched_fifo = ["taskctx/sched_fifo"]
 sched_rr = ["taskctx/sched_rr"]
 sched_cfs = ["taskctx/sched_cfs"]
-sched_taic = ["taskctx/sched_taic"]
 
 [dependencies]
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
@@ -31,7 +30,7 @@ log = "0.4"
 task_api = { path = "../task_api" }
 
 sync = { path = "../sync" }
-taskctx = { path = "../taskctx" }
+taskctx = { path = "../taskctx", features = ["monolithic"] }
 async_mem = { path = "../async_mem" }
 async_io = { path = "../async_io" }
 async_fs = { path = "../async_fs" }

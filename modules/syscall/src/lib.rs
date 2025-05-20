@@ -16,14 +16,10 @@ mod syscall_fs;
 mod syscall_mem;
 mod syscall_net;
 mod syscall_task;
-#[cfg(feature = "sched_taic")]
-mod syscll_taic;
 
 pub use async_fs::api::{File, OpenFlags};
 pub use process::link::{create_link, FilePath};
 pub use syscall_fs::new_file;
-#[cfg(feature = "sched_taic")]
-pub use syscll_taic::LQS;
 
 pub use syscall_task::TaskSyscallId;
 

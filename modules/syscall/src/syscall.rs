@@ -49,19 +49,6 @@ pub async fn syscall(syscall_id: usize, args: [usize; 6]) -> isize {
         ans) = Some(super::syscall_task::task_syscall(task_syscall_id, args).await);
     }
 
-    #[cfg(feature = "sched_taic")]
-    if let Ok(taic_syscall_id) = super::syscll_taic::TaicSyscallId::try_from(syscall_id) {
-        if syscall_id != 228 {
-            info!(
-                "[syscall] id = {:#?}, args = {:?}, entry",
-                taic_syscall_id, args
-            );
-        }
-
-        (#[allow(unused_assignments)]
-        ans) = Some(super::syscll_taic::taic_syscall(taic_syscall_id, args).await);
-    }
-
     if ans.is_none() {
         panic!("unknown syscall id: {}", syscall_id);
     }

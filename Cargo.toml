@@ -16,6 +16,7 @@ members = [
     "apps/user_boot",
     "apps/fs/shell",
     "apps/thread_test",
+    "apps/echoserver",
     "evaluation",
     "modules/async_utils",
     "modules/async_io",
