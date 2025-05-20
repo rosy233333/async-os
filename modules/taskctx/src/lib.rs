@@ -13,7 +13,7 @@ mod waker;
 use alloc::sync::Arc;
 pub use arch::TrapFrame;
 pub use arch::TrapStatus;
-pub use current::CurrentTask;
+pub use current::{CurrentScheduler, CurrentTask};
 
 pub type TaskRef = Arc<Task>;
 pub use scheduler::BaseScheduler;
@@ -31,10 +31,61 @@ cfg_if::cfg_if! {
         pub type Task = scheduler::CFSTask<TaskInner>;
         pub type Scheduler = scheduler::CFScheduler<TaskInner>;
     } else {
+        // // If no scheduler features are set, use FIFO as the default.
+        // pub type Task = scheduler::FifoTask<TaskInner>;
+        // pub type Scheduler = scheduler::FifoScheduler<TaskInner>;
+
         // If no scheduler features are set, use FIFO as the default.
-        pub type Task = scheduler::FifoTask<TaskInner>;
-        pub type Scheduler = scheduler::FifoScheduler<TaskInner>;
+        use core::ops::Deref;
+
+        pub struct TaskWrapper<T> {
+            inner: T,
+        }
+
+        impl<T> TaskWrapper<T> {
+            pub const fn new(inner: T) -> Self {
+                Self { inner }
+            }
+
+            /// Returns a reference to the inner task struct.
+            pub const fn inner(&self) -> &T {
+                &self.inner
+            }
+        }
+
+        impl<T> Deref for TaskWrapper<T> {
+            type Target = T;
+            #[inline]
+            fn deref(&self) -> &Self::Target {
+                &self.inner
+            }
+        }
+        pub type Task = TaskWrapper<TaskInner>;
+        impl vdso::TaskIdTrait for Task {
+            fn get_os_id(self: &Arc<Self>) -> usize {
+                self.inner.get_os_id() as _
+            }
+            fn get_process_id(self: &Arc<Self>) -> usize {
+                self.inner.get_process_id() as _
+            }
+            fn get_task_id(self: &Arc<Self>) -> usize {
+                Arc::into_raw(self.clone()) as usize
+            }
+            fn build_task_id(self: &Arc<Self>) -> vdso::TaskId {
+                vdso::TaskId::new(
+                    self.get_os_id(),
+                    self.get_process_id(),
+                    self.get_task_id(),
+                )
+            }
+        }
+
+        pub type Scheduler = vdso::VdsoScheduler<Task>;
     }
+}
+
+pub fn current_scheduler() -> CurrentScheduler {
+    CurrentScheduler::get()
 }
 
 /// 这里不对任务的状态进行修改，在调用 waker.wake() 之前对任务状态进行修改

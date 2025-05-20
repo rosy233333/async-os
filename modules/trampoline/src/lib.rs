@@ -55,7 +55,8 @@ pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
         } else {
             // 用户态发生了 Trap 或者需要调度
             if let Some(curr) = CurrentTask::try_get().or_else(|| {
-                if let Some(task) = CurrentExecutor::get().pick_next_task() {
+                // 这里需要获取到调度器，并从调度器中取出任务
+                if let Some(task) = current_scheduler().lock().pick_next_task() {
                     unsafe {
                         CurrentTask::init_current(task);
                     }

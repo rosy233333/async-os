@@ -1,12 +1,31 @@
-use alloc::{boxed::Box, format, sync::Arc};
+use alloc::string::String;
+use alloc::{boxed::Box, sync::Arc};
 use axhal::time::{current_time, TimeValue};
-use core::{future::poll_fn, task::Poll, time::Duration};
+use core::{
+    future::{poll_fn, Future},
+    task::Poll,
+    time::Duration,
+};
 pub use process::*;
 use riscv::register::scause::{Exception, Trap};
-use spin::Mutex;
 use syscall::trap::{handle_page_fault, MappingFlags};
-#[cfg(feature = "sched_taic")]
-use syscall::LQS;
+
+pub fn spawn_raw<F, T>(f: F, name: String) -> TaskRef
+where
+    F: FnOnce() -> T,
+    T: Future<Output = isize> + 'static,
+{
+    let scheduler = CurrentScheduler::get();
+    let task = Arc::new(Task::new(TaskInner::new(
+        name,
+        KERNEL_EXECUTOR_ID,
+        scheduler.clone(),
+        0,
+        Box::pin(f()),
+    )));
+    scheduler.lock().add_task(task.clone());
+    task
+}
 
 #[cfg(feature = "thread")]
 use kernel_guard::BaseGuard;
@@ -92,16 +111,16 @@ pub async fn user_task_top() -> isize {
                         )
                         .await
                     } else {
-                        /*  按照非阻塞的方式处理系统调用，新建一个属于当前进程的内核协程来执行，
-                            在执行之前需要临时修改 CurrentTask 为新建的内核协程，
-                            相当于这个内核协程临时抢占了原本的系统调用处理协程，
-                            过程中如果产生了中断不会对原本的逻辑产生影响，
+                        // /*  按照非阻塞的方式处理系统调用，新建一个属于当前进程的内核协程来执行，
+                        //     在执行之前需要临时修改 CurrentTask 为新建的内核协程，
+                        //     相当于这个内核协程临时抢占了原本的系统调用处理协程，
+                        //     过程中如果产生了中断不会对原本的逻辑产生影响，
 
-                            需要注意的是，在临时修改了 CurrentTask 之间（代码中使用/***/包括的部分）不允许使用 await 关键字，
-                            因为 await 携带的信息是 curr 的信息，而不是新建的内核协程的信息，需要使用临时构建的 cx 来执行 poll 函数，
+                        //     需要注意的是，在临时修改了 CurrentTask 之间（代码中使用/***/包括的部分）不允许使用 await 关键字，
+                        //     因为 await 携带的信息是 curr 的信息，而不是新建的内核协程的信息，需要使用临时构建的 cx 来执行 poll 函数，
 
-                            1. 当这个内核协程返回 Pending 时，会将 EAGAIN 当作返回值传给用户态，用户态继续执行其他的协程
-                            2. 当这个内核协程返回 Ready 时，会将内核协程的返回值传给用户态，用户态继续当前的协程
+                        //     1. 当这个内核协程返回 Pending 时，会将 EAGAIN 当作返回值传给用户态，用户态继续执行其他的协程
+                        //     2. 当这个内核协程返回 Ready 时，会将内核协程的返回值传给用户态，用户态继续当前的协程
 
                         // */
                         // let syscall_id = tf.regs.a7;

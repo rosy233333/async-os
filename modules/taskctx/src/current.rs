@@ -1,8 +1,9 @@
 use core::{mem::ManuallyDrop, ops::Deref, task::Waker};
 
 use alloc::sync::Arc;
+use spinlock::SpinNoIrq;
 
-use crate::{Task, TaskRef};
+use crate::{Scheduler, Task, TaskRef};
 
 fn current_task_ptr() -> *const super::Task {
     vdso::current_task().task_ptr_value() as _
@@ -75,6 +76,52 @@ impl CurrentTask {
 
 impl Deref for CurrentTask {
     type Target = Task;
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+/// A wrapper of [`Arc<SpinNoIrq<Scheduler>>`] as the PerCPU scheduler.
+/// 无论是使用什么方式，都需要获取到当前 CPU 对应的调度器，在用户态同样存在这个接口
+// 但由于需要与原来的方式进行对比，因此，不能直接在 vdso 模块中直接定义，需要在 vdso 中定义好基础的接口
+// 在内核和用户态中进行封装
+pub struct CurrentScheduler(ManuallyDrop<Arc<SpinNoIrq<Scheduler>>>);
+
+impl CurrentScheduler {
+    pub fn try_get() -> Option<Self> {
+        let ptr: *const SpinNoIrq<Scheduler> = vdso::get_scheduler_ptr() as _;
+        if !ptr.is_null() {
+            Some(Self(unsafe { ManuallyDrop::new(Arc::from_raw(ptr)) }))
+        } else {
+            None
+        }
+    }
+
+    pub fn get() -> Self {
+        Self::try_get().expect("current scheduler is uninitialized")
+    }
+
+    /// Converts [`CurrentTask`] to [`TaskRef`].
+    pub fn as_ref(&self) -> &Arc<SpinNoIrq<Scheduler>> {
+        &self.0
+    }
+
+    pub fn clone(&self) -> Arc<SpinNoIrq<Scheduler>> {
+        self.0.deref().clone()
+    }
+
+    pub fn ptr_eq(&self, other: &Arc<SpinNoIrq<Scheduler>>) -> bool {
+        Arc::ptr_eq(&self.0, other)
+    }
+
+    pub unsafe fn init_scheduler(scheduler: Arc<SpinNoIrq<Scheduler>>) {
+        let ptr = Arc::into_raw(scheduler);
+        vdso::set_scheduler_ptr(ptr as _);
+    }
+}
+
+impl Deref for CurrentScheduler {
+    type Target = SpinNoIrq<Scheduler>;
     fn deref(&self) -> &Self::Target {
         self.0.deref()
     }

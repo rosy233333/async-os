@@ -1,6 +1,8 @@
 // #[cfg(feature = "thread")]
 // use crate::TaskStack;
-use crate::{stat::TimeStat, Scheduler, TrapFrame};
+#[cfg(feature = "monolithic")]
+use crate::arch::TrapFrame;
+use crate::{stat::TimeStat, Scheduler};
 use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, sync::Arc};
 #[cfg(feature = "preempt")]
 use core::sync::atomic::AtomicUsize;
@@ -108,9 +110,9 @@ pub struct SchedStatus {
 
 pub struct TaskInner {
     fut: UnsafeCell<Pin<Box<dyn Future<Output = isize> + 'static>>>,
+    #[cfg(feature = "monolithic")]
     utrap_frame: UnsafeCell<Option<Box<TrapFrame>>>,
 
-    // executor: SpinNoIrq<Arc<Executor>>,
     pub(crate) wait_wakers: UnsafeCell<VecDeque<Waker>>,
     pub(crate) scheduler: SpinNoIrq<Arc<SpinNoIrq<Scheduler>>>,
 
@@ -172,6 +174,7 @@ impl TaskInner {
             is_init,
             exit_code: AtomicIsize::new(0),
             fut: UnsafeCell::new(fut),
+            #[cfg(feature = "monolithic")]
             utrap_frame: UnsafeCell::new(None),
             wait_wakers: UnsafeCell::new(VecDeque::new()),
             scheduler: SpinNoIrq::new(scheduler),
@@ -205,7 +208,7 @@ impl TaskInner {
         scheduler: Arc<SpinNoIrq<Scheduler>>,
         page_table_token: usize,
         fut: Pin<Box<dyn Future<Output = isize> + 'static>>,
-        utrap_frame: Box<TrapFrame>,
+        #[cfg(feature = "monolithic")] utrap_frame: Box<TrapFrame>,
     ) -> Self {
         let is_init = &name == "main";
         let t = Self {
@@ -214,6 +217,7 @@ impl TaskInner {
             is_init,
             exit_code: AtomicIsize::new(0),
             fut: UnsafeCell::new(fut),
+            #[cfg(feature = "monolithic")]
             utrap_frame: UnsafeCell::new(Some(utrap_frame)),
             wait_wakers: UnsafeCell::new(VecDeque::new()),
             scheduler: SpinNoIrq::new(scheduler),
@@ -440,6 +444,7 @@ impl TaskInner {
         wait_wakers.push_back(waker);
     }
 
+    #[cfg(feature = "monolithic")]
     pub fn utrap_frame(&self) -> Option<&mut TrapFrame> {
         unsafe { &mut *self.utrap_frame.get() }
             .as_mut()
