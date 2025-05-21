@@ -107,6 +107,3 @@ max-user-heap-size = "0x40_0000"
 max-user-stack-size = "0x20_0000"
 # The base address of the signal trampoline.
 signal-trampoline = "0x4000_0000"
-
-# The base address of vDSO in kernel space
-kernel-vdso-base = "0xffff_ffff_c000_0000"

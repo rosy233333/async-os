@@ -9,7 +9,7 @@ unsafe extern "C" fn rust_entry(cpu_id: usize, dtb: usize) {
     axhal::platform::time::init_board_info(dtb);
     axlog::init();
     axlog::set_max_level(option_env!("AX_LOG").unwrap_or("")); // no effect if set `log-level-*` features
-    crate::vdso::init_vdso(cpu_id);
+    vdso::init_vdso();
     runtime::rust_main(cpu_id, dtb);
 
     #[cfg(feature = "smp")]

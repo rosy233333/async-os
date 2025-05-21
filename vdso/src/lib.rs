@@ -11,10 +11,12 @@ mod api;
 mod id;
 mod percpu;
 mod scheduler;
+mod setup;
 mod stack_pool;
 pub use api::*;
 pub use id::{TaskId, TaskIdTrait};
 pub use scheduler::VdsoScheduler;
+pub use setup::*;
 pub use stack_pool::*;
 
 core::arch::global_asm!(
