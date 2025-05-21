@@ -5,6 +5,7 @@ pub mod mp;
 
 unsafe extern "C" fn rust_entry(cpu_id: usize, dtb: usize) {
     axhal::mem::clear_bss();
+    axhal::cpu::init_primary(cpu_id);
     axhal::platform::time::init_board_info(dtb);
     axlog::init();
     axlog::set_max_level(option_env!("AX_LOG").unwrap_or("")); // no effect if set `log-level-*` features
@@ -29,6 +30,7 @@ unsafe extern "C" fn rust_entry(cpu_id: usize, dtb: usize) {
 
 #[cfg(feature = "smp")]
 unsafe extern "C" fn rust_entry_secondary(cpu_id: usize) {
+    axhal::cpu::init_secondary(cpu_id);
     trampoline::init_interrupt();
     runtime::rust_main_secondary(cpu_id);
 }

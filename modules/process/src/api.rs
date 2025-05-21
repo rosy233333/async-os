@@ -19,8 +19,6 @@ pub fn init(utrap_handler: fn() -> Pin<Box<dyn Future<Output = isize> + 'static>
     let kexecutor = Arc::new(Executor::new_init());
     KERNEL_EXECUTOR.init_by(kexecutor.clone());
     unsafe { CurrentExecutor::init_current(kexecutor) };
-    #[cfg(feature = "irq")]
-    task_api::init();
     info!("  use {} scheduler.", Scheduler::scheduler_name());
 }
 

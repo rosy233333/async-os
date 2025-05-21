@@ -25,7 +25,7 @@ lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 numeric-enum-macro = { git = "https://github.com/mexus/numeric-enum-macro" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
-percpu = { git = "https://github.com/Starry-OS/percpu.git" }
+percpu = "0.2"
 vdso = { path = "../../vdso" }
 
 axhal = { path = "../axhal" }

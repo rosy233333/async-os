@@ -25,8 +25,8 @@ pub fn this_cpu_is_bsp() -> bool {
 #[allow(dead_code)]
 /// Initializes the primary CPU for its pointer.
 pub fn init_primary(cpu_id: usize) {
-    percpu::init(axconfig::SMP);
-    percpu::set_local_thread_pointer(cpu_id);
+    percpu::init();
+    percpu::init_percpu_reg(cpu_id);
     unsafe {
         CPU_ID.write_current_raw(cpu_id);
         IS_BSP.write_current_raw(true);
@@ -36,7 +36,7 @@ pub fn init_primary(cpu_id: usize) {
 #[allow(dead_code)]
 /// Initializes the secondary CPU for its pointer.
 pub fn init_secondary(cpu_id: usize) {
-    percpu::set_local_thread_pointer(cpu_id);
+    percpu::init_percpu_reg(cpu_id);
     unsafe {
         CPU_ID.write_current_raw(cpu_id);
         IS_BSP.write_current_raw(false);

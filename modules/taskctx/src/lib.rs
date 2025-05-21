@@ -13,10 +13,11 @@ mod waker;
 use alloc::sync::Arc;
 pub use arch::TrapFrame;
 pub use arch::TrapStatus;
-pub use current::{CurrentScheduler, CurrentTask};
+pub use current::CurrentTask;
 
 pub type TaskRef = Arc<Task>;
 pub use scheduler::BaseScheduler;
+use spinlock::SpinNoIrq;
 pub use task::{SchedPolicy, SchedStatus, TaskId, TaskInner, TaskState};
 
 // #[cfg(feature = "thread")]
@@ -84,8 +85,18 @@ cfg_if::cfg_if! {
     }
 }
 
-pub fn current_scheduler() -> CurrentScheduler {
-    CurrentScheduler::get()
+#[percpu::def_percpu]
+static SCHEDULER: lazy_init::LazyInit<Arc<SpinNoIrq<Scheduler>>> = lazy_init::LazyInit::new();
+
+pub fn init_scheduler() {
+    let s = unsafe { SCHEDULER.current_ref_mut_raw() };
+    let scheduler = Arc::new(SpinNoIrq::new(Scheduler::new()));
+    scheduler.lock().init();
+    s.init_by(scheduler);
+}
+
+pub fn current_scheduler() -> Arc<SpinNoIrq<Scheduler>> {
+    SCHEDULER.with_current(|s| s.clone())
 }
 
 /// 这里不对任务的状态进行修改，在调用 waker.wake() 之前对任务状态进行修改

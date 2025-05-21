@@ -20,7 +20,7 @@ axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 elf_parser = { git = "https://github.com/Starry-OS/elf_parser.git" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
-percpu = { git = "https://github.com/Starry-OS/percpu.git", optional = true }
+percpu = { version = "0.2", optional = true }
 kernel_guard = { path = "../kernel_guard", optional = true }
 axsignal = { git = "https://github.com/Starry-OS/axsignal.git" }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }

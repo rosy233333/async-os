@@ -8,6 +8,8 @@ log = "0.4"
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 xmas-elf = "0.10.0"
 scheduler = { path = "../crates/scheduler" }
+percpu = "0.2"
+queue = { path = "./queue" }
 
 [build-dependencies]
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }

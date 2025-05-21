@@ -19,26 +19,20 @@ pub fn get_vdso_base_end() -> (u64, u64, u64, u64) {
     )
 }
 struct VdsoVTable {
-    pub set_scheduler_ptr: Option<fn(scheduler_ptr: usize)>,
-    pub get_scheduler_ptr: Option<fn() -> usize>,
     pub current_task: Option<fn() -> TaskId>,
     pub put_prev_task: Option<fn(task: TaskId, front: bool)>,
     pub set_current_task: Option<fn(task: TaskId)>,
-    pub init_primary: Option<fn(cpu_id: usize)>,
-    pub init_secondary: Option<fn(cpu_id: usize)>,
+    pub init: Option<fn(percpu_base: usize, percpu_size: usize)>,
     pub pick_next_task: Option<fn() -> TaskId>,
     pub add_task: Option<fn(task: TaskId)>,
     pub first_add_task: Option<fn(task: TaskId)>,
 }
 
 static mut VDSO_VTABLE: VdsoVTable = VdsoVTable {
-    set_scheduler_ptr: None,
-    get_scheduler_ptr: None,
     current_task: None,
     put_prev_task: None,
     set_current_task: None,
-    init_primary: None,
-    init_secondary: None,
+    init: None,
     pick_next_task: None,
     add_task: None,
     first_add_task: None,
@@ -52,18 +46,6 @@ pub unsafe fn init_vdso_vtable(base: u64, vdso_elf: &ElfFile) {
         };
         for dynsym in dyn_sym_table {
             let name = dynsym.get_name(&vdso_elf).unwrap();
-            if name == "set_scheduler_ptr" {
-                let fn_ptr = base + dynsym.value();
-                log::debug!("{}: {:x}", name, fn_ptr);
-                let f: fn(scheduler_ptr: usize) = unsafe { core::mem::transmute(fn_ptr) };
-                VDSO_VTABLE.set_scheduler_ptr = Some(f);
-            }
-            if name == "get_scheduler_ptr" {
-                let fn_ptr = base + dynsym.value();
-                log::debug!("{}: {:x}", name, fn_ptr);
-                let f: fn() -> usize = unsafe { core::mem::transmute(fn_ptr) };
-                VDSO_VTABLE.get_scheduler_ptr = Some(f);
-            }
             if name == "current_task" {
                 let fn_ptr = base + dynsym.value();
                 log::debug!("{}: {:x}", name, fn_ptr);
@@ -82,17 +64,11 @@ pub unsafe fn init_vdso_vtable(base: u64, vdso_elf: &ElfFile) {
                 let f: fn(task: TaskId) = unsafe { core::mem::transmute(fn_ptr) };
                 VDSO_VTABLE.set_current_task = Some(f);
             }
-            if name == "init_primary" {
+            if name == "init" {
                 let fn_ptr = base + dynsym.value();
                 log::debug!("{}: {:x}", name, fn_ptr);
-                let f: fn(cpu_id: usize) = unsafe { core::mem::transmute(fn_ptr) };
-                VDSO_VTABLE.init_primary = Some(f);
-            }
-            if name == "init_secondary" {
-                let fn_ptr = base + dynsym.value();
-                log::debug!("{}: {:x}", name, fn_ptr);
-                let f: fn(cpu_id: usize) = unsafe { core::mem::transmute(fn_ptr) };
-                VDSO_VTABLE.init_secondary = Some(f);
+                let f: fn(percpu_base: usize, percpu_size: usize) = unsafe { core::mem::transmute(fn_ptr) };
+                VDSO_VTABLE.init = Some(f);
             }
             if name == "pick_next_task" {
                 let fn_ptr = base + dynsym.value();
@@ -116,22 +92,6 @@ pub unsafe fn init_vdso_vtable(base: u64, vdso_elf: &ElfFile) {
     }
 }
     
-pub fn set_scheduler_ptr(scheduler_ptr: usize) {
-    if let Some(f) = unsafe { VDSO_VTABLE.set_scheduler_ptr } {
-        f(scheduler_ptr)
-    } else {
-        panic!("set_scheduler_ptr is not initialized")
-    }
-}
-
-pub fn get_scheduler_ptr() -> usize {
-    if let Some(f) = unsafe { VDSO_VTABLE.get_scheduler_ptr } {
-        f()
-    } else {
-        panic!("get_scheduler_ptr is not initialized")
-    }
-}
-
 pub fn current_task() -> TaskId {
     if let Some(f) = unsafe { VDSO_VTABLE.current_task } {
         f()
@@ -156,19 +116,11 @@ pub fn set_current_task(task: TaskId) {
     }
 }
 
-pub fn init_primary(cpu_id: usize) {
-    if let Some(f) = unsafe { VDSO_VTABLE.init_primary } {
-        f(cpu_id)
+pub fn init(percpu_base: usize, percpu_size: usize) {
+    if let Some(f) = unsafe { VDSO_VTABLE.init } {
+        f(percpu_base, percpu_size)
     } else {
-        panic!("init_primary is not initialized")
-    }
-}
-
-pub fn init_secondary(cpu_id: usize) {
-    if let Some(f) = unsafe { VDSO_VTABLE.init_secondary } {
-        f(cpu_id)
-    } else {
-        panic!("init_secondary is not initialized")
+        panic!("init is not initialized")
     }
 }
 

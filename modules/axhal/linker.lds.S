@@ -63,6 +63,7 @@ SECTIONS
     _percpu_start = .;
     .percpu 0x0 : AT(_percpu_start) {
         _percpu_load_start = .;
+        KEEP(*(.percpu.start))
         *(.percpu .percpu.*)
         _percpu_load_end = .;
         . = ALIGN(64);

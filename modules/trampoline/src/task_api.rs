@@ -15,7 +15,7 @@ where
     F: FnOnce() -> T,
     T: Future<Output = isize> + 'static,
 {
-    let scheduler = CurrentScheduler::get();
+    let scheduler = taskctx::current_scheduler();
     let task = Arc::new(Task::new(TaskInner::new(
         name,
         KERNEL_EXECUTOR_ID,

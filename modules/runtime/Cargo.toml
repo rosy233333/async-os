@@ -35,7 +35,7 @@ axdriver = { git = "https://github.com/Starry-OS/axdriver.git", optional = true 
 # axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
 # axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
 crate_interface = { git = "https://github.com/Starry-OS/crate_interface.git" }
-percpu = { git = "https://github.com/Starry-OS/percpu.git", optional = true }
+percpu = { version = "0.2", optional = true }
 kernel_guard = { path = "../kernel_guard", optional = true }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git", optional = true }
 async_net = { path = "../async_net", optional = true }

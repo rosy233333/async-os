@@ -67,7 +67,7 @@ pub(crate) fn init_vdso(cpu_id: usize) {
 
     let elf = xmas_elf::ElfFile::new(&elf_data).expect("Error parsing app ELF file.");
     unsafe { vdso::init_vdso_vtable(vdso_text_virt_base as _, &elf) };
-    vdso::init_primary(cpu_id);
+    vdso::init(percpu::percpu_area_base(0), percpu::percpu_area_size());
     log::info!("vdso init ok!");
     vdso_test();
 }
