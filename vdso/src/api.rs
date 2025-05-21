@@ -22,7 +22,7 @@ struct VdsoVTable {
     pub current_task: Option<fn() -> TaskId>,
     pub put_prev_task: Option<fn(task: TaskId, front: bool)>,
     pub set_current_task: Option<fn(task: TaskId)>,
-    pub init: Option<fn(percpu_base: usize, percpu_size: usize)>,
+    pub init: Option<fn(percpu_size: usize)>,
     pub pick_next_task: Option<fn() -> TaskId>,
     pub add_task: Option<fn(task: TaskId)>,
     pub first_add_task: Option<fn(task: TaskId)>,
@@ -67,7 +67,7 @@ pub unsafe fn init_vdso_vtable(base: u64, vdso_elf: &ElfFile) {
             if name == "init" {
                 let fn_ptr = base + dynsym.value();
                 log::debug!("{}: {:x}", name, fn_ptr);
-                let f: fn(percpu_base: usize, percpu_size: usize) = unsafe { core::mem::transmute(fn_ptr) };
+                let f: fn(percpu_size: usize) = unsafe { core::mem::transmute(fn_ptr) };
                 VDSO_VTABLE.init = Some(f);
             }
             if name == "pick_next_task" {
@@ -116,9 +116,9 @@ pub fn set_current_task(task: TaskId) {
     }
 }
 
-pub fn init(percpu_base: usize, percpu_size: usize) {
+pub fn init(percpu_size: usize) {
     if let Some(f) = unsafe { VDSO_VTABLE.init } {
-        f(percpu_base, percpu_size)
+        f(percpu_size)
     } else {
         panic!("init is not initialized")
     }

@@ -54,6 +54,11 @@ pub(crate) unsafe fn init_vdso_page_table_second(boot_page_table: *mut [u64; 512
     (*boot_page_table)[0x1c3] = (page_table_2m >> 2) | 0x1;
 }
 
+const fn align_up_64(val: usize) -> usize {
+    const SIZE_64BIT: usize = 0x40;
+    (val + SIZE_64BIT - 1) & !(SIZE_64BIT - 1)
+}
+
 pub(crate) fn init_vdso(cpu_id: usize) {
     let (sdata, edata, base, end) = get_vdso_base_end();
     let vdso_text_virt_base = KERNEL_VDSO_BASE + (edata - sdata) as usize;
@@ -67,7 +72,8 @@ pub(crate) fn init_vdso(cpu_id: usize) {
 
     let elf = xmas_elf::ElfFile::new(&elf_data).expect("Error parsing app ELF file.");
     unsafe { vdso::init_vdso_vtable(vdso_text_virt_base as _, &elf) };
-    vdso::init(percpu::percpu_area_base(0), percpu::percpu_area_size());
+    let percpu_size = align_up_64(percpu::percpu_area_size());
+    vdso::init(percpu_size);
     log::info!("vdso init ok!");
     vdso_test();
 }
