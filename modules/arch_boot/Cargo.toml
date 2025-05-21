@@ -22,7 +22,6 @@ trampoline = { path = "../trampoline" }
 axhal = { path = "../axhal" }
 vdso = { path = "../../vdso" }
 xmas-elf = "0.10.0"
-heapless = "0.8"
 percpu = "0.2"
 
 [build-dependencies]

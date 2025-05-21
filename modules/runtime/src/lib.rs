@@ -263,6 +263,18 @@ cfg_if::cfg_if! {
                         true,
                     ).unwrap();
                 }
+                // 重新添加 percpu 段，否则在使能 paging feature 后会出现错误
+                use axhal::mem::PAGE_SIZE_4K;
+                let percpu_base = percpu::percpu_area_base(0);
+                let percpu_total_size = (percpu::percpu_area_size() * axconfig::SMP + PAGE_SIZE_4K - 1) & !(PAGE_SIZE_4K - 1);
+                kernel_page_table.map_region(
+                    percpu_base.into(),
+                    axhal::mem::virt_to_phys(percpu_base.into()),
+                    percpu_total_size,
+                    axhal::mem::MemRegionFlags::from_bits(1 << 0 | 1 << 1 | 1 << 4).unwrap().into(),
+                    true,
+                ).unwrap();
+
                 // 添加 vDSO 相关的映射
                 let (vdso_sdata, vdso_edata, vdso_base, vdso_end) = vdso::get_vdso_base_end();
                 let vdso_sdata_phy = axhal::mem::virt_to_phys((vdso_sdata as usize).into());

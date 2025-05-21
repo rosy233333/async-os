@@ -4,7 +4,6 @@ use axconfig::PHYS_VIRT_OFFSET;
 use core::mem::size_of;
 use core::ptr::copy_nonoverlapping;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
-use heapless::Vec;
 use vdso::{get_vdso_base_end, TaskId};
 use xmas_elf::program::SegmentData;
 use xmas_elf::symbol_table::Entry;
@@ -62,12 +61,16 @@ const fn align_up_64(val: usize) -> usize {
 pub(crate) fn init_vdso(cpu_id: usize) {
     let (sdata, edata, base, end) = get_vdso_base_end();
     let vdso_text_virt_base = KERNEL_VDSO_BASE + (edata - sdata) as usize;
+    let percpu_total_size =
+        (percpu::percpu_area_size() * axconfig::SMP + PAGE_SIZE_4K - 1) & !(PAGE_SIZE_4K - 1);
     unsafe {
-        from_raw_parts_mut(KERNEL_VDSO_BASE as *mut u8, edata as usize - sdata as usize).fill(0);
+        from_raw_parts_mut(
+            (KERNEL_VDSO_BASE + percpu_total_size) as *mut u8,
+            edata as usize - sdata as usize - percpu_total_size,
+        )
+        .fill(0);
     }
     log::debug!("vdso text base: 0x{:x}", vdso_text_virt_base);
-    let vdso_data_size = (edata - sdata) as usize;
-    let vdso_text_size = (end - base) as usize;
     let elf_data = unsafe { from_raw_parts(base as *const u8, end as usize - base as usize) };
 
     let elf = xmas_elf::ElfFile::new(&elf_data).expect("Error parsing app ELF file.");
