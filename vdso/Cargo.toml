@@ -10,6 +10,7 @@ xmas-elf = "0.10.0"
 scheduler = { path = "../crates/scheduler" }
 percpu = "0.2"
 queue = { path = "./queue" }
+axhal = { path = "../modules/axhal" }
 
 [build-dependencies]
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }

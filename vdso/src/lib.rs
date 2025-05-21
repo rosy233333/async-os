@@ -9,12 +9,14 @@ mod test;
 
 mod api;
 mod id;
+mod mem_map;
 mod percpu;
 mod scheduler;
 mod setup;
 mod stack_pool;
 pub use api::*;
 pub use id::{TaskId, TaskIdTrait};
+pub use mem_map::add_kernel_vdso_mapping;
 pub use scheduler::VdsoScheduler;
 pub use setup::*;
 pub use stack_pool::*;
