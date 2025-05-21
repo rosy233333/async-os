@@ -2,12 +2,53 @@ use std::fs;
 use std::io::Write;
 
 fn main() {
-    build_vdso();
+    build_vdso_percpu();
+    build_vdso_api();
     println!("cargo:rerun-if-changed=src/*");
     println!("cargo:rerun-if-changed=./cops.lds");
 }
 
-fn build_vdso() {
+fn build_vdso_percpu() {
+    const COPS_PERCPU_FILE_PATH: &str = "cops/src/percpu.rs";
+    let cops_percpu_file_content = fs::read_to_string(COPS_PERCPU_FILE_PATH).unwrap();
+    let re = regex::Regex::new(
+        r#"(#\[repr\(C, align\(64\)\)\]\npub struct PerCPU \{[\n\sa-zA-Z0-9:<>,/_]*.?\})"#,
+    )
+    .unwrap();
+    let mut locs = re.capture_locations();
+    let m = re
+        .captures_read(&mut locs, &cops_percpu_file_content)
+        .unwrap()
+        .as_str();
+
+    const PERCPU_FILE_PATH: &str = "src/percpu.rs";
+    let mut percpu_file_content = fs::read_to_string(PERCPU_FILE_PATH).unwrap();
+    let start = percpu_file_content.find("#[repr(C, align(64))]").unwrap();
+    percpu_file_content.drain(start..);
+    percpu_file_content.extend(m.chars());
+
+    fs::remove_file(PERCPU_FILE_PATH).expect("remove file failed");
+    let mut percpu_file = fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(PERCPU_FILE_PATH)
+        .unwrap();
+    percpu_file
+        .write_all(percpu_file_content.as_bytes())
+        .unwrap();
+    const PER_CPU_SECTION: &str = r#"
+const VDSO_USED_PERCPU_SIZE: usize = core::mem::size_of::<PerCPU>();
+
+// 因为没有使用到，所以出现了问题
+#[link_section = ".percpu.start"]
+#[used]
+static mut PERCPU: [u8; VDSO_USED_PERCPU_SIZE] = [0u8; VDSO_USED_PERCPU_SIZE];
+"#;
+    percpu_file.write_all(PER_CPU_SECTION.as_bytes()).unwrap();
+    // println!("percpu_file_content: {}", percpu_file_content);
+}
+
+fn build_vdso_api() {
     const COPS_API_FILE_PATH: &str = "cops/src/api.rs";
     let cops_api_file_content = fs::read_to_string(COPS_API_FILE_PATH).unwrap();
     let re = regex::Regex::new(
@@ -106,7 +147,9 @@ pub fn {}{} {{
 
     // 生成最终的 api.rs 文件
     const API_FILE_PATH: &str = "src/api.rs";
+    fs::remove_file(API_FILE_PATH).expect("remove file failed");
     let mut api_file_content = fs::OpenOptions::new()
+        .create(true)
         .write(true)
         .open(API_FILE_PATH)
         .unwrap();

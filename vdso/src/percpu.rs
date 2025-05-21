@@ -6,12 +6,11 @@ use crate::{stack_pool::StackPool, TaskId};
 pub struct PerCPU {
     /// Processor ready_queue
     ready_queue: LockFreeQueue<TaskId>,
-    /// 记录的当前任务标识
+    /// Running TaskId
     current_task: AtomicCell<Option<TaskId>>,
-    /// 运行栈池
+    /// RunningStack Pool
     stack_pool: StackPool,
 }
-
 const VDSO_USED_PERCPU_SIZE: usize = core::mem::size_of::<PerCPU>();
 
 // 因为没有使用到，所以出现了问题
