@@ -32,7 +32,7 @@ impl<T: TaskIdTrait> BaseScheduler for VdsoScheduler<T> {
 
     fn add_task(&mut self, task: Self::SchedItem) {
         let taskid = task.build_task_id();
-        crate::api::add_task(taskid);
+        crate::api::first_add_task(taskid);
     }
 
     fn remove_task(&mut self, _task: &Self::SchedItem) -> Option<Self::SchedItem> {
