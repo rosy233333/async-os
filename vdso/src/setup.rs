@@ -76,8 +76,8 @@ pub fn init_vdso() {
 }
 
 fn vdso_test() {
-    crate::first_add_task(TaskId::new(1, 3, 5));
-    crate::first_add_task(TaskId::new(1, 4, 5));
+    crate::add_task(TaskId::new(1, 3, 5));
+    crate::add_task(TaskId::new(1, 4, 5));
     assert_eq!(TaskId::new(1, 3, 5), crate::pick_next_task());
     assert_eq!(TaskId::new(1, 4, 5), crate::pick_next_task());
     assert_eq!(TaskId::new(0, 0, 0), crate::pick_next_task());

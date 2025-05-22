@@ -11,5 +11,6 @@ pub fn init_trampoline() {
 /// Initializes the trampoline for secondary CPUs.
 pub fn init_trampoline_secondary() {
     taskctx::init_scheduler();
+    #[cfg(feature = "monolithic")]
     process::init_secondary();
 }
