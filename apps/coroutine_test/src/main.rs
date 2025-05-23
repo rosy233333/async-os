@@ -2,6 +2,7 @@
 #![no_main]
 
 extern crate async_std;
+use alloc::vec;
 use async_std::sync::Mutex;
 static A: Mutex<i32> = Mutex::new(23);
 
@@ -27,5 +28,15 @@ async fn main() -> isize {
     for i in 0..100 {
         async_std::println!("for test preempt {}", i);
     }
+    let mut tasks = vec![];
+    for i in 0..100 {
+        tasks.push(async_std::task::spawn(async move {
+            async_std::println!("spawn new task: {:?}", i);
+        }));
+    }
+    for task in tasks {
+        let _ = task.join().await;
+    }
+    async_std::println!("all tasks done");
     0
 }
