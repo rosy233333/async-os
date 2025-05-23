@@ -179,8 +179,7 @@ endif
 ifeq ($(wildcard $(LIB_COPS)),)
 	@printf "    $(GREEN_C)Building$(END_C) VDSO: $(VDSO_DIR), Arch: $(ARCH), Platform: $(PLATFORM_NAME)\n"
 	@$(shell cp vdso/cops/cops.lds vdso/cops/link.lds)
-	@$(shell sed -i '/SMP ?=/c\SMP ?= ${AX_SMP}' vdso/Makefile)
-	@$(shell cd vdso && make build)
+	@$(shell export AX_SMP=$(SMP) && cd vdso && make build)
 endif
 
 build: user_apps $(OUT_DIR) $(OUT_BIN)
