@@ -93,8 +93,4 @@ impl<T> TAICScheduler<T> {
     pub(crate) fn set_priority(&mut self, _task: &Arc<TAICTask<T>>, _prio: isize) -> bool {
         false
     }
-
-    pub fn send(&mut self, recv_os: usize, recv_proc: usize) {
-        self.inner.as_ref().unwrap().send_intr(recv_os, recv_proc);
-    }
 }

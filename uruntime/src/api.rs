@@ -111,13 +111,13 @@ pub fn init_batch_async_syscall() -> AsyncBatchSyscallCfg {
     res
 }
 
-pub fn start(cfg: &AsyncBatchSyscallCfg) {
-    SCHEDULER.with(|s| {
-        s.borrow()
-            .lock()
-            .unwrap()
-            .send(cfg.recv_os_id, cfg.recv_process_id)
-    })
+pub fn start(_cfg: &AsyncBatchSyscallCfg) {
+    // SCHEDULER.with(|s| {
+    //     s.borrow()
+    //         .lock()
+    //         .unwrap()
+    //         .send(cfg.recv_os_id, cfg.recv_process_id)
+    // })
 }
 
 #[allow(unused)]
