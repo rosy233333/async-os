@@ -1,5 +1,8 @@
 use core::{alloc::Layout, ptr::NonNull};
-use queue::{AtomicCell, LockFreeQueue};
+
+use alloc::vec::Vec;
+use lazy_init::LazyInit;
+use spinlock::SpinNoIrq;
 
 /// 任务使用的运行栈
 #[derive(Debug)]
@@ -51,28 +54,27 @@ impl Drop for RunningStack {
 /// 若由于负载均衡机制导致在处理器之间迁移，栈的局部性与任务中的 CPU 亲和掩码相关
 /// 这里能够保证是正确的
 pub struct StackPool {
-    free_stacks: LockFreeQueue<RunningStack>,
-    current: AtomicCell<Option<RunningStack>>,
+    free_stacks: Vec<RunningStack>,
+    current: Option<RunningStack>,
 }
 
 impl StackPool {
     /// Creates a new empty stack pool.
     pub fn new() -> Self {
         Self {
-            free_stacks: LockFreeQueue::new(),
-            current: AtomicCell::new(None),
+            free_stacks: Vec::new(),
+            current: None,
         }
     }
 
     /// 初始化运行栈，
     /// 因为初始化使用的栈是声明的 static 变量，因此需要将栈的指针以参数的形式传递过来
-    pub fn init(&self, curr_boot_stack: *mut u8) {
-        self.current
-            .store(Some(RunningStack::new_init(curr_boot_stack)));
+    pub fn init(&mut self, curr_boot_stack: *mut u8) {
+        self.current = Some(RunningStack::new_init(curr_boot_stack));
     }
 
     /// 从空闲运行栈池中取出一个运行栈，若没有则从堆中分配一个新的运行栈
-    fn alloc(&self) -> RunningStack {
+    fn alloc(&mut self) -> RunningStack {
         self.free_stacks.pop().unwrap_or_else(|| {
             let stack = RunningStack::alloc(axconfig::TASK_STACK_SIZE);
             stack
@@ -80,24 +82,52 @@ impl StackPool {
     }
 
     /// 从处理器中取出当前的运行栈
-    pub fn pick_current_stack(&self) -> RunningStack {
-        let curr = self.current.take();
-        assert!(curr.is_some());
+    pub fn pick_current_stack(&mut self) -> RunningStack {
+        assert!(self.current.is_some());
         let new_stack = self.alloc();
-        self.current.store(Some(new_stack));
-        curr.unwrap()
+        self.current.replace(new_stack).unwrap()
     }
 
     /// 获取当前运行栈的引用
     pub fn current_stack(&self) -> &RunningStack {
-        let curr_ptr = self.current.as_ptr();
-        unsafe { (*curr_ptr).as_ref().expect("current stack is Some") }
+        assert!(self.current.is_some());
+        self.current.as_ref().unwrap()
     }
 
     /// 设置当前运行栈
-    pub fn set_current_stack(&self, stack: RunningStack) {
-        let curr = self.current.take();
-        self.current.store(Some(stack));
-        self.free_stacks.push(curr.unwrap());
+    pub fn set_current_stack(&mut self, stack: RunningStack) {
+        assert!(self.current.is_some());
+        let curr_stack = self.current.replace(stack).unwrap();
+        self.free_stacks.push(curr_stack);
     }
+}
+
+#[percpu::def_percpu]
+static STACK_POOL: LazyInit<SpinNoIrq<StackPool>> = LazyInit::new();
+
+extern "C" {
+    fn current_boot_stack() -> *mut u8;
+}
+
+pub fn init_stack_pool() {
+    STACK_POOL.with_current(|i| {
+        let mut stack_pool = StackPool::new();
+        stack_pool.init(unsafe { current_boot_stack() });
+        i.init_by(SpinNoIrq::new(stack_pool));
+    });
+}
+
+pub fn pick_current_stack() -> RunningStack {
+    let mut stack_pool = unsafe { STACK_POOL.current_ref_mut_raw().lock() };
+    stack_pool.pick_current_stack()
+}
+
+pub fn current_stack_top() -> usize {
+    let stack_pool = unsafe { STACK_POOL.current_ref_mut_raw().lock() };
+    stack_pool.current_stack().top()
+}
+
+pub fn set_current_stack(stack: RunningStack) {
+    let mut stack_pool = unsafe { STACK_POOL.current_ref_mut_raw().lock() };
+    stack_pool.set_current_stack(stack)
 }

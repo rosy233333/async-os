@@ -6,6 +6,7 @@ extern crate log;
 
 mod arch;
 mod current;
+mod stack_pool;
 mod stat;
 mod task;
 mod waker;
@@ -20,8 +21,11 @@ pub use scheduler::BaseScheduler;
 use spinlock::SpinNoIrq;
 pub use task::{SchedPolicy, SchedStatus, TaskId, TaskInner, TaskState};
 
-// #[cfg(feature = "thread")]
-// pub use task::{CtxType, StackCtx};
+#[cfg(feature = "thread")]
+pub use task::{CtxType, StackCtx};
+
+#[cfg(feature = "thread")]
+pub use stack_pool::*;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "sched_rr")] {

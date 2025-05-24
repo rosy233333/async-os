@@ -143,8 +143,8 @@ pub struct TaskInner {
     /// Only when the count is zero, the task can be preempted.
     preempt_disable_count: AtomicUsize,
     // /// 在内核中发生抢占或者使用线程接口时的上下文
-    // #[cfg(feature = "thread")]
-    // stack_ctx: UnsafeCell<Option<StackCtx>>,
+    #[cfg(feature = "thread")]
+    stack_ctx: UnsafeCell<Option<StackCtx>>,
     /// 是否是所属进程下的主线程
     is_leader: AtomicBool,
     os_id: AtomicU64,
@@ -190,8 +190,8 @@ impl TaskInner {
             os_id: AtomicU64::new(0),
             process_id: AtomicU64::new(process_id),
             page_table_token: UnsafeCell::new(page_table_token),
-            // #[cfg(feature = "thread")]
-            // stack_ctx: UnsafeCell::new(None),
+            #[cfg(feature = "thread")]
+            stack_ctx: UnsafeCell::new(None),
             sched_status: UnsafeCell::new(SchedStatus {
                 policy: SchedPolicy::SCHED_FIFO,
                 priority: 1,
@@ -233,8 +233,8 @@ impl TaskInner {
             os_id: AtomicU64::new(0),
             process_id: AtomicU64::new(process_id),
             page_table_token: UnsafeCell::new(page_table_token),
-            // #[cfg(feature = "thread")]
-            // stack_ctx: UnsafeCell::new(None),
+            #[cfg(feature = "thread")]
+            stack_ctx: UnsafeCell::new(None),
             sched_status: UnsafeCell::new(SchedStatus {
                 policy: SchedPolicy::SCHED_FIFO,
                 priority: 1,
@@ -606,33 +606,35 @@ pub enum CtxType {
     Interrupt,
 }
 
-// #[cfg(feature = "thread")]
-// pub struct StackCtx {
-//     pub kstack: TaskStack,
-//     pub trap_frame: *const TrapFrame,
-//     pub ctx_type: CtxType,
-// }
+#[cfg(feature = "thread")]
+use crate::stack_pool::RunningStack;
+#[cfg(feature = "thread")]
+pub struct StackCtx {
+    pub kstack: RunningStack,
+    pub trap_frame: *const TrapFrame,
+    pub ctx_type: CtxType,
+}
 
-// #[cfg(feature = "thread")]
-// /// 线程的接口需要根据任务的状态来进行不同的操作
-// impl TaskInner {
-//     pub fn set_stack_ctx(&self, trap_frame: *const TrapFrame, ctx_type: CtxType) {
-//         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
-//         assert!(
-//             stack_ctx.is_none(),
-//             "{} cannot use thread api to do task switch",
-//             self.id_name()
-//         );
-//         let kstack = crate::pick_current_stack();
-//         stack_ctx.replace(StackCtx {
-//             kstack,
-//             trap_frame,
-//             ctx_type,
-//         });
-//     }
+#[cfg(feature = "thread")]
+/// 线程的接口需要根据任务的状态来进行不同的操作
+impl TaskInner {
+    pub fn set_stack_ctx(&self, trap_frame: *const TrapFrame, ctx_type: CtxType) {
+        let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
+        assert!(
+            stack_ctx.is_none(),
+            "{} cannot use thread api to do task switch",
+            self.id_name()
+        );
+        let kstack = crate::pick_current_stack();
+        stack_ctx.replace(StackCtx {
+            kstack,
+            trap_frame,
+            ctx_type,
+        });
+    }
 
-//     pub fn get_stack_ctx(&self) -> Option<StackCtx> {
-//         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
-//         stack_ctx.take()
-//     }
-// }
+    pub fn get_stack_ctx(&self) -> Option<StackCtx> {
+        let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
+        stack_ctx.take()
+    }
+}

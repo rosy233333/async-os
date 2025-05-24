@@ -387,7 +387,7 @@ pub fn restore_from_stack_ctx(task: &TaskRef) {
         ctx_type,
     }) = task.get_stack_ctx()
     {
-        taskctx::put_prev_stack(kstack);
+        taskctx::set_current_stack(kstack);
         match ctx_type {
             CtxType::Thread => unsafe { &*trap_frame }.thread_return(),
             #[cfg(feature = "preempt")]

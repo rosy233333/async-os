@@ -1,6 +1,6 @@
 use queue::{AtomicCell, LockFreeQueue};
 
-use crate::{stack_pool::StackPool, TaskId};
+use crate::TaskId;
 
 #[repr(C, align(64))]
 pub struct PerCPU {
@@ -8,8 +8,6 @@ pub struct PerCPU {
     ready_queue: LockFreeQueue<TaskId>,
     /// Running TaskId
     current_task: AtomicCell<Option<TaskId>>,
-    /// RunningStack Pool
-    stack_pool: StackPool,
 }
 const VDSO_USED_PERCPU_SIZE: usize = core::mem::size_of::<PerCPU>();
 
