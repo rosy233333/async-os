@@ -6,6 +6,7 @@ extern crate log;
 
 mod arch;
 mod current;
+#[cfg(feature = "thread")]
 mod stack_pool;
 mod stat;
 mod task;
