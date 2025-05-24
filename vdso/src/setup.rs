@@ -1,6 +1,9 @@
 extern crate xmas_elf;
 use crate::{get_vdso_base_end, TaskId};
-use core::slice::{from_raw_parts, from_raw_parts_mut};
+use core::{
+    slice::{from_raw_parts, from_raw_parts_mut},
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 pub const KERNEL_VDSO_BASE: usize = 0xffff_ffff_c000_0000;
 const PAGE_SIZE_4K: usize = 0x1000;
@@ -52,6 +55,8 @@ const fn align_up_64(val: usize) -> usize {
     (val + SIZE_64BIT - 1) & !(SIZE_64BIT - 1)
 }
 
+pub static IS_VDSO_INIT_DONE: AtomicBool = AtomicBool::new(false);
+
 pub fn init_vdso() {
     let (sdata, edata, base, end) = get_vdso_base_end();
     let vdso_text_virt_base = KERNEL_VDSO_BASE + (edata - sdata) as usize;
@@ -64,15 +69,15 @@ pub fn init_vdso() {
         )
         .fill(0);
     }
-    log::debug!("vdso text base: 0x{:x}", vdso_text_virt_base);
     let elf_data = unsafe { from_raw_parts(base as *const u8, end as usize - base as usize) };
 
     let elf = xmas_elf::ElfFile::new(&elf_data).expect("Error parsing app ELF file.");
     unsafe { crate::init_vdso_vtable(vdso_text_virt_base as _, &elf) };
     let percpu_size = align_up_64(percpu::percpu_area_size());
     crate::init(percpu_size);
-    log::info!("vdso init ok!");
+    log::info!("vdso init ok! text base: 0x{:x}", vdso_text_virt_base);
     vdso_test();
+    IS_VDSO_INIT_DONE.store(true, Ordering::Relaxed);
 }
 
 fn vdso_test() {

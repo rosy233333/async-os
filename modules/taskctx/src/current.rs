@@ -22,6 +22,9 @@ pub struct CurrentTask(ManuallyDrop<TaskRef>);
 
 impl CurrentTask {
     pub fn try_get() -> Option<Self> {
+        if !vdso::IS_VDSO_INIT_DONE.load(core::sync::atomic::Ordering::Relaxed) {
+            return None;
+        }
         let ptr: *const super::Task = current_task_ptr();
         if !ptr.is_null() {
             Some(Self(unsafe { ManuallyDrop::new(TaskRef::from_raw(ptr)) }))

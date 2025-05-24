@@ -10,7 +10,14 @@ thread = ["taskctx/thread", "sync/thread", "process/thread", "task_api/thread"]
 
 multitask = []
 
-monolithic = ["taskctx/thread", "irq", "multitask", "preempt", "process"]
+monolithic = [
+    "taskctx/thread",
+    "irq",
+    "multitask",
+    "preempt",
+    "process",
+    "taskctx/monolithic",
+]
 
 irq = ["sync/irq", "process/irq", "axhal/irq", "task_api/irq"]
 

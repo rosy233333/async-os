@@ -14,7 +14,7 @@ preempt = ["thread"]
 sched_fifo = []
 sched_rr = ["preempt"]
 sched_cfs = ["preempt"]
-monolithic = []
+monolithic = ["preempt", "kernel_guard/preempt"]
 
 [dependencies]
 log = "0.4"
