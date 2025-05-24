@@ -94,7 +94,7 @@ fn kernel_image_regions() -> impl Iterator<Item = MemRegion> {
             paddr: virt_to_phys((_sdata as usize).into()),
             size: _edata as usize - _sdata as usize,
             flags: MemRegionFlags::RESERVED | MemRegionFlags::READ | MemRegionFlags::WRITE,
-            name: ".data .tdata .tbss .percpu",
+            name: ".data .tdata .tbss",
         },
         MemRegion {
             paddr: virt_to_phys((boot_stack as usize).into()),
