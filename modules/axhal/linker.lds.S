@@ -89,6 +89,7 @@ SECTIONS
         . = _percpu_load_start + _percpu_size_aligned * %SMP%;
     }
     . = _percpu_start + SIZEOF(.percpu);
+    . = ALIGN(4K);
     _percpu_end = .;
     vdso_edata = vdso_sdata + 0x10000 * %SMP%;
 
