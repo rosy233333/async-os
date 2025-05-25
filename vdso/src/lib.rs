@@ -15,7 +15,7 @@ mod scheduler;
 mod setup;
 pub use api::*;
 pub use id::{TaskId, TaskIdTrait};
-pub use mem_map::add_kernel_vdso_mapping;
+pub use mem_map::*;
 pub use scheduler::VdsoScheduler;
 pub use setup::*;
 

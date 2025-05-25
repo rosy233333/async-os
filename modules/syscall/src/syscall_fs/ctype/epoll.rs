@@ -16,7 +16,7 @@ use core::{
 use async_fs::api::{AsyncFileIO, FileIO, FileIOType, OpenFlags, SeekFrom};
 
 use crate::SyscallError;
-use process::{current_executor, yield_now};
+use process::{current_process, yield_now};
 use sync::Mutex;
 
 bitflags! {
@@ -157,7 +157,7 @@ impl EpollFile {
     pub async fn epoll_wait(&self, expire_time: usize) -> AxResult<Vec<EpollEvent>> {
         let mut ret_events = Vec::new();
         loop {
-            let current_process = current_executor().await;
+            let current_process = current_process().await;
             for (fd, req_event) in self.inner.lock().await.monitor_list.iter() {
                 let fd_table = current_process.fd_manager.fd_table.lock().await;
                 if let Some(file) = &fd_table[*fd as usize] {
@@ -261,7 +261,7 @@ impl FileIO for EpollFile {
     fn ready_to_read(self: Pin<&Self>, _cx: &mut Context<'_>) -> Poll<bool> {
         // 如果当前epoll事件确实正在等待事件响应，那么可以认为事件准备好read，尽管无法读到实际内容
         let fut = async {
-            let process = current_executor().await;
+            let process = current_process().await;
             let fd_manager = &process.fd_manager;
             let fd_table = fd_manager.fd_table.lock().await;
             // let fd_table = fd_table.await;

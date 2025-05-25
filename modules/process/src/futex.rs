@@ -1,5 +1,5 @@
 //! 实现与futex相关的系统调用
-use crate::{current_executor, current_task, signal::current_have_signals, yield_now};
+use crate::{current_process, current_task, signal::current_have_signals, yield_now};
 use axerrno::LinuxError;
 use axfutex::{
     flags::FLAGS_SHARED,
@@ -35,7 +35,7 @@ impl FutexRobustList {
 }
 
 pub async fn futex_get_value_locked(vaddr: VirtAddr) -> AxSyscallResult {
-    let process = current_executor().await;
+    let process = current_process().await;
     if process.manual_alloc_for_lazy(vaddr).await.is_ok() {
         let real_futex_val = unsafe { (vaddr.as_usize() as *const u32).read_volatile() };
         Ok(real_futex_val as isize)
@@ -58,7 +58,7 @@ pub async fn get_futex_key(uaddr: VirtAddr, flags: i32) -> FutexKey {
         let offset = uaddr.align_offset_4k() as u32;
         return FutexKey::new(pid, aligned, offset);
     } else {
-        let pid = current_executor().await.pid();
+        let pid = current_process().await.pid();
         let aligned = uaddr.align_down_4k().as_usize();
         let offset = uaddr.align_offset_4k() as u32;
         return FutexKey::new(pid, aligned, offset);

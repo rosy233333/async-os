@@ -7,7 +7,7 @@ use axhal::{arch::flush_tlb, mem::VirtAddr, paging::MappingFlags};
 use axlog::info;
 
 use bitflags::bitflags;
-use process::current_executor;
+use process::current_process;
 
 const MAX_HEAP_SIZE: usize = 0x20000;
 /// 修改用户堆大小，
@@ -19,7 +19,7 @@ const MAX_HEAP_SIZE: usize = 0x20000;
 /// * `brk` - usize
 pub async fn syscall_brk(args: [usize; 6]) -> SyscallResult {
     let brk = args[0];
-    let curr_process = current_executor().await;
+    let curr_process = current_process().await;
     let mut return_val: isize = curr_process.get_heap_top() as isize;
     let heap_bottom = curr_process.get_heap_bottom() as usize;
     if brk != 0 && brk >= heap_bottom && brk <= heap_bottom + MAX_HEAP_SIZE {
@@ -55,7 +55,7 @@ pub async fn syscall_mmap(args: [usize; 6]) -> SyscallResult {
     if fixed && start == 0 {
         return Err(SyscallError::EINVAL);
     }
-    let process = current_executor().await;
+    let process = current_process().await;
     let shared = flags.contains(MMAPFlags::MAP_SHARED);
     let result = if flags.contains(MMAPFlags::MAP_ANONYMOUS) {
         // no file
@@ -114,7 +114,7 @@ pub async fn syscall_mmap(args: [usize; 6]) -> SyscallResult {
 pub async fn syscall_munmap(args: [usize; 6]) -> SyscallResult {
     let start = args[0];
     let len = args[1];
-    let process = current_executor().await;
+    let process = current_process().await;
     process
         .memory_set
         .lock()
@@ -131,7 +131,7 @@ pub async fn syscall_munmap(args: [usize; 6]) -> SyscallResult {
 pub async fn syscall_msync(args: [usize; 6]) -> SyscallResult {
     let start = args[0];
     let len = args[1];
-    let process = current_executor().await;
+    let process = current_process().await;
     process
         .memory_set
         .lock()
@@ -150,7 +150,7 @@ pub async fn syscall_mprotect(args: [usize; 6]) -> SyscallResult {
     let start = args[0];
     let len = args[1];
     let prot = MMAPPROT::from_bits_truncate(args[2] as u32);
-    let process = current_executor().await;
+    let process = current_process().await;
 
     process
         .memory_set
@@ -224,7 +224,7 @@ pub async fn syscall_mremap(args: [usize; 6]) -> SyscallResult {
         unimplemented!();
     }
 
-    let process = current_executor().await;
+    let process = current_process().await;
     let old_start: VirtAddr = old_addr.into();
     if old_size > new_size {
         let old_end = old_start + new_size;
@@ -272,7 +272,7 @@ pub async fn syscall_shmget(args: [usize; 6]) -> SyscallResult {
     let size = args[1];
     let flags = args[2] as i32;
 
-    let pid = current_executor().await.pid();
+    let pid = current_process().await.pid();
 
     // 9 bits for permission
     let mode: u16 = (flags as u16) & ((1 << 10) - 1);
@@ -287,7 +287,7 @@ pub async fn syscall_shmget(args: [usize; 6]) -> SyscallResult {
             return Err(SyscallError::EINVAL);
         };
 
-        current_executor()
+        current_process()
             .await
             .memory_set
             .lock()
@@ -342,7 +342,7 @@ pub async fn syscall_shmat(args: [usize; 6]) -> SyscallResult {
     let shmid = args[0] as i32;
     let addr = args[1];
     let flags = args[2] as i32;
-    let process = current_executor().await;
+    let process = current_process().await;
 
     let memory_set_wrapper = process.memory_set.lock().await;
     let mut memory = memory_set_wrapper;

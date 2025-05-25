@@ -1,6 +1,5 @@
 //! 负责处理进程中与信号相关的内容
 extern crate alloc;
-use crate::KERNEL_EXECUTOR_ID;
 use alloc::sync::Arc;
 use axerrno::{AxError, AxResult};
 use axhal::cpu::this_cpu_id;
@@ -80,7 +79,7 @@ impl SignalModule {
 
 const USER_SIGNAL_PROTECT: usize = 512;
 
-use crate::{current_executor, current_task, exit, PID2PC, TID2TASK};
+use crate::{current_process, current_task, exit, PID2PC, TID2TASK};
 
 /// 将保存的trap上下文填入内核栈中
 ///
@@ -89,7 +88,7 @@ use crate::{current_executor, current_task, exit, PID2PC, TID2TASK};
 /// 若确实存在可以被恢复的trap上下文，则返回true
 #[no_mangle]
 pub async fn load_trap_for_signal() -> bool {
-    let current_process = current_executor().await;
+    let current_process = current_process().await;
     let current_task = current_task();
 
     let mut signal_modules = current_process.signal_modules.lock().await;
@@ -143,7 +142,7 @@ async fn terminate_process(signal: SignalNo, info: Option<SigInfo>) {
 ///
 /// 若返回值为真，代表需要进入处理信号，因此需要执行trap的返回
 pub async fn handle_signals() {
-    let process = current_executor().await;
+    let process = current_process().await;
     let current_task = current_task();
     if let Some(signal_no) = current_task.check_pending_signal() {
         send_signal_to_thread(current_task.id().as_u64() as isize, signal_no as isize)
@@ -161,7 +160,7 @@ pub async fn handle_signals() {
         exit(0).await;
     }
 
-    if process.pid() == KERNEL_EXECUTOR_ID {
+    if process.pid() == crate::KERNEL_PROCESS_ID {
         // 内核进程不处理信号
         return;
     }
@@ -429,5 +428,5 @@ pub async fn send_signal_to_thread(tid: isize, signum: isize) -> AxResult<()> {
 
 /// Whether the current process has signals pending
 pub async fn current_have_signals() -> bool {
-    current_executor().await.have_signals().await.is_some()
+    current_process().await.have_signals().await.is_some()
 }

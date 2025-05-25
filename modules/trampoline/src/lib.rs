@@ -9,9 +9,9 @@ extern crate alloc;
 extern crate log;
 
 mod arch;
-mod executor_api;
 mod fs_api;
 mod init_api;
+mod process_api;
 mod task_api;
 mod trap_api;
 
@@ -22,7 +22,7 @@ pub use fs_api::fs_init;
 pub use init_api::*;
 pub use taskctx::TrapFrame;
 
-pub use executor_api::*;
+pub use process_api::*;
 use riscv::register::scause::{self, Trap};
 pub use task_api::*;
 pub use trap_api::*;
@@ -91,7 +91,11 @@ pub fn run_task(curr: CurrentTask) {
     }
     #[cfg(any(feature = "thread", feature = "preempt"))]
     restore_from_stack_ctx(curr.as_task_ref());
-    // warn!("run task {} count {}", task.id_name(), Arc::strong_count(task));
+    // warn!(
+    //     "run task {} count {}",
+    //     curr.id_name(),
+    //     Arc::strong_count(curr.as_task_ref())
+    // );
     let res = curr.get_fut().as_mut().poll(cx);
     match res {
         Poll::Ready(exit_code) => {
@@ -116,7 +120,7 @@ pub fn run_task(curr: CurrentTask) {
                 TaskState::Running => {
                     if let Some(tf) = curr.utrap_frame() {
                         if tf.trap_status == TrapStatus::Done {
-                            // tf.kernel_sp = taskctx::current_stack_top();
+                            tf.kernel_sp = taskctx::current_stack_top();
                             tf.scause = 0;
                             // 这里不能打开中断
                             axhal::arch::disable_irqs();

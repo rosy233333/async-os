@@ -11,7 +11,7 @@ use crate::Scheduler;
 use crate::Task;
 use crate::TaskRef;
 
-// Initializes the executor (for the primary CPU).
+// Initializes the process (for the primary CPU).
 pub fn init() {
     println!("init uruntime");
     let mut scheduler = Scheduler::new();
@@ -21,12 +21,12 @@ pub fn init() {
 }
 
 // #[cfg(feature = "smp")]
-// /// Initializes the executor for secondary CPUs.
+// /// Initializes the process for secondary CPUs.
 // pub fn init_secondary() {
 //     assert!(KERNEL_EXECUTOR.is_init());
 //     taskctx::init();
-//     let kexecutor = KERNEL_EXECUTOR.clone();
-//     unsafe { CurrentExecutor::init_current(kexecutor) };
+//     let kprocess = KERNEL_EXECUTOR.clone();
+//     unsafe { CurrentProcess::init_current(kprocess) };
 // }
 
 pub fn current_task_may_uninit() -> Option<CurrentTask> {

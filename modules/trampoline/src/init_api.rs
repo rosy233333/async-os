@@ -3,7 +3,7 @@ pub fn init_trampoline() {
     #[cfg(feature = "irq")]
     task_api::init();
     taskctx::init_scheduler();
-    #[cfg(feature = "thread")]
+    #[cfg(any(feature = "thread", feature = "monolithic"))]
     taskctx::init_stack_pool();
     #[cfg(feature = "monolithic")]
     process::init(|| alloc::boxed::Box::pin(crate::user_task_top()));
@@ -13,7 +13,7 @@ pub fn init_trampoline() {
 /// Initializes the trampoline for secondary CPUs.
 pub fn init_trampoline_secondary() {
     taskctx::init_scheduler();
-    #[cfg(feature = "thread")]
+    #[cfg(any(feature = "thread", feature = "monolithic"))]
     taskctx::init_stack_pool();
     #[cfg(feature = "monolithic")]
     process::init_secondary();

@@ -1,7 +1,7 @@
 //! Define the trap handler for the whole kernel
 pub use axhal::{mem::VirtAddr, paging::MappingFlags, time::current_time_nanos};
 use axsignal::signal_no::SignalNo;
-use process::{current_executor, current_task, send_signal_to_thread};
+use process::{current_process, current_task, send_signal_to_thread};
 
 use super::syscall::syscall;
 
@@ -56,8 +56,8 @@ pub async fn handle_syscall(syscall_id: usize, args: [usize; 6]) -> isize {
 /// * `flags` - The permission which the page fault needs
 pub async fn handle_page_fault(addr: VirtAddr, flags: MappingFlags) {
     time_stat_from_user_to_kernel();
-    let current_executor = current_executor().await;
-    if current_executor
+    let current_process = current_process().await;
+    if current_process
         .memory_set
         .lock()
         .await

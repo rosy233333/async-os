@@ -7,10 +7,10 @@ extern crate axlog;
 
 mod api;
 mod current;
-mod executor;
 mod fd_manager;
 pub mod link;
 mod loader;
+mod process;
 pub mod signal;
 mod stdio;
 
@@ -18,11 +18,11 @@ pub mod flags;
 pub use loader::load_app;
 
 pub use api::*;
-pub use current::CurrentExecutor;
-pub use executor::Executor;
-pub type ExecutorRef = alloc::sync::Arc<Executor>;
-pub use executor::*;
+pub use current::CurrentProcess;
+pub use process::Process;
+pub type ProcessRef = alloc::sync::Arc<Process>;
 pub use fd_manager::*;
+pub use process::*;
 pub use signal::*;
 pub use stdio::{Stderr, Stdin, Stdout};
 pub use taskctx::{BaseScheduler, TaskId, TaskRef};

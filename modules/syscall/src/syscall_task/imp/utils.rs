@@ -4,7 +4,7 @@ use axhal::time::{
     current_time, current_time_nanos, nanos_to_ticks, NANOS_PER_MICROS, NANOS_PER_SEC,
 };
 
-use process::{current_executor, current_task};
+use process::{current_process, current_task};
 use rand::{rngs::SmallRng, Fill, SeedableRng};
 
 use crate::{
@@ -86,8 +86,8 @@ pub fn syscall_uname(args: [usize; 6]) -> SyscallResult {
 /// * `info` - *mut SysInfo
 pub async fn syscall_sysinfo(args: [usize; 6]) -> SyscallResult {
     let info = args[0] as *mut SysInfo;
-    let executor = current_executor().await;
-    if executor
+    let process = current_process().await;
+    if process
         .manual_alloc_type_for_lazy(info as *const SysInfo)
         .await
         .is_err()
@@ -110,23 +110,19 @@ pub async fn syscall_settimer(args: [usize; 6]) -> SyscallResult {
     let which = args[0];
     let new_value = args[1] as *const ITimerVal;
     let old_value = args[2] as *mut ITimerVal;
-    let executor = current_executor().await;
+    let process = current_process().await;
 
     if new_value.is_null() {
         return Err(SyscallError::EFAULT);
     }
 
-    let new_value = match executor.manual_alloc_type_for_lazy(new_value).await {
+    let new_value = match process.manual_alloc_type_for_lazy(new_value).await {
         Ok(_) => unsafe { &*new_value },
         Err(_) => return Err(SyscallError::EFAULT),
     };
 
     if !old_value.is_null() {
-        if executor
-            .manual_alloc_type_for_lazy(old_value)
-            .await
-            .is_err()
-        {
+        if process.manual_alloc_type_for_lazy(old_value).await.is_err() {
             return Err(SyscallError::EFAULT);
         }
 
@@ -154,7 +150,7 @@ pub async fn syscall_settimer(args: [usize; 6]) -> SyscallResult {
 pub async fn syscall_gettimer(args: [usize; 6]) -> SyscallResult {
     let _which = args[0];
     let value = args[1] as *mut ITimerVal;
-    let process = current_executor().await;
+    let process = current_process().await;
     if process
         .manual_alloc_type_for_lazy(value as *const ITimerVal)
         .await
@@ -177,7 +173,7 @@ pub async fn syscall_getrusage(args: [usize; 6]) -> SyscallResult {
     let who = args[0] as i32;
     let utime = args[1] as *mut TimeVal;
     let stime: *mut TimeVal = unsafe { utime.add(1) };
-    let process = current_executor().await;
+    let process = current_process().await;
     if process.manual_alloc_type_for_lazy(utime).await.is_err()
         || process.manual_alloc_type_for_lazy(stime).await.is_err()
     {
@@ -203,7 +199,7 @@ pub async fn syscall_getrandom(args: [usize; 6]) -> SyscallResult {
     let buf = args[0] as *mut u8;
     let len = args[1];
     let _flags = args[2];
-    let process = current_executor().await;
+    let process = current_process().await;
 
     if process
         .manual_alloc_range_for_lazy(
@@ -246,7 +242,7 @@ pub async fn syscall_clock_getres(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EINVAL);
     }
 
-    let process = current_executor().await;
+    let process = current_process().await;
     if process.manual_alloc_type_for_lazy(res).await.is_err() {
         return Err(SyscallError::EFAULT);
     }
@@ -290,7 +286,7 @@ pub async fn syscall_clock_nanosleep(args: [usize; 6]) -> SyscallResult {
         axlog::warn!("Unsupported clock id: {:?}", id);
     }
 
-    let process = current_executor().await;
+    let process = current_process().await;
 
     if process.manual_alloc_type_for_lazy(request).await.is_err() {
         return Err(SyscallError::EFAULT);

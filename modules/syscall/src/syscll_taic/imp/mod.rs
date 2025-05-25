@@ -4,7 +4,7 @@ use alloc::{boxed::Box, collections::BTreeMap, sync::Arc};
 use axhal::mem::virt_to_phys;
 use axhal::{mem::PAGE_SIZE_4K, paging::MappingFlags};
 use heapless::mpmc::MpMcQueue;
-use process::{current_executor, yield_now};
+use process::{current_process, yield_now};
 use taic_driver::{LocalQueue, Taic};
 type SyscallItemQueue = MpMcQueue<SyscallItem, 8>;
 
@@ -16,11 +16,11 @@ pub static LQS: Mutex<BTreeMap<(usize, usize), LocalQueue>> = Mutex::new(BTreeMa
 
 /// 获取控制器的资源
 pub async fn syscall_get_taic() -> SyscallResult {
-    let current_executor = current_executor().await;
-    let pid = current_executor.pid() as usize;
+    let current_process = current_process().await;
+    let pid = current_process.pid() as usize;
     if let Some(lq) = TAIC.alloc_lq(1, pid) {
         let lq_pbase = virt_to_phys((lq.regs() as *const _ as usize).into());
-        let mut memory_set = current_executor.memory_set.lock().await;
+        let mut memory_set = current_process.memory_set.lock().await;
         // 这里不能直接使用 max_va，因为 max_va 为 0x4000_0000，已经被用于映射信号页
         let lq_vbase = memory_set.find_free_area(0.into(), PAGE_SIZE_4K).unwrap();
         let _ = memory_set
@@ -42,8 +42,8 @@ pub async fn syscall_get_taic() -> SyscallResult {
 /// 1. 分配两块内存区域，用于用户态和内核态之间进行通信，将起始地址返回给用户态
 /// 2. 初始化内核态运行的系统调用处理任务 ksyscall，并将其注册为接收方，将 ksyscall 的 id 返回给用户态
 pub async fn syscall_init_async_batch(_waker: usize, res_ptr: usize) -> SyscallResult {
-    let current_executor = current_executor().await;
-    let mut memory_set = current_executor.memory_set.lock().await;
+    let current_process = current_process().await;
+    let mut memory_set = current_process.memory_set.lock().await;
     // 初始化内核与用户态通信的系统调用页面
     let syscall_recv_page_start = memory_set.find_free_area(0.into(), PAGE_SIZE_4K).unwrap();
     let _ = memory_set
@@ -107,9 +107,9 @@ pub async fn syscall_init_async_batch(_waker: usize, res_ptr: usize) -> SyscallR
     });
     drop(memory_set);
     debug!("syscall_init_async_syscall new ktask");
-    let ktask = current_executor
+    let ktask = current_process
         .new_ktask(
-            format!("async_syscall_handler {}", current_executor.pid()),
+            format!("async_syscall_handler {}", current_process.pid()),
             fut,
         )
         .await;
@@ -118,7 +118,7 @@ pub async fn syscall_init_async_batch(_waker: usize, res_ptr: usize) -> SyscallR
     // 将这个任务注册为系统调用处理流程，注册为接收方，获取内核的调度器
     use process::KERNEL_SCHEDULER;
     let handler = Arc::into_raw(ktask) as *const _ as usize;
-    let pid = current_executor.pid() as usize;
+    let pid = current_process.pid() as usize;
     KERNEL_SCHEDULER.lock().register_receiver(1, pid, handler);
 
     // 注册用户态任务为发送方

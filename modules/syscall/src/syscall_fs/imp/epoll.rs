@@ -5,7 +5,7 @@ extern crate alloc;
 use crate::{SigMaskFlag, SyscallError, SyscallResult};
 use alloc::sync::Arc;
 use axhal::{mem::VirtAddr, time::current_ticks};
-use process::current_executor;
+use process::current_process;
 
 use crate::syscall_fs::ctype::epoll::{EpollCtl, EpollEvent, EpollFile};
 
@@ -21,7 +21,7 @@ use crate::syscall_fs::ctype::epoll::{EpollCtl, EpollEvent, EpollFile};
 pub async fn syscall_epoll_create1(args: [usize; 6]) -> SyscallResult {
     let _flag = args[0];
     let file = EpollFile::new();
-    let process = current_executor().await;
+    let process = current_process().await;
     let mut fd_table = process.fd_manager.fd_table.lock().await;
     if let Ok(num) = process.alloc_fd(&mut fd_table) {
         fd_table[num] = Some(Arc::new(file));
@@ -46,7 +46,7 @@ pub async fn syscall_epoll_ctl(args: [usize; 6]) -> SyscallResult {
     let op = args[1] as i32;
     let fd = args[2] as i32;
     let event = args[3] as *const EpollEvent;
-    let process = current_executor().await;
+    let process = current_process().await;
     if process.manual_alloc_type_for_lazy(event).await.is_err() {
         return Err(SyscallError::EFAULT);
     }
@@ -89,7 +89,7 @@ pub async fn syscall_epoll_wait(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EINVAL);
     }
     let max_event = max_event as usize;
-    let process = current_executor().await;
+    let process = current_process().await;
     let start: VirtAddr = (event as usize).into();
     // FIXME: this is a temporary solution
     // the memory will out of mapped memory if the max_event is too large
@@ -144,7 +144,7 @@ pub async fn syscall_epoll_wait(args: [usize; 6]) -> SyscallResult {
 pub async fn syscall_epoll_pwait(args: [usize; 6]) -> SyscallResult {
     let sigmask = args[4] as *const usize;
 
-    let process = current_executor().await;
+    let process = current_process().await;
     if sigmask.is_null() {
         return syscall_epoll_wait(args).await;
     }

@@ -5,7 +5,7 @@ use axhal::cpu::this_cpu_id;
 // use axlog::{debug, info};
 use axsignal::signal_no::SignalNo;
 use axsignal::{action::SigAction, ucontext::SignalStack};
-use process::{current_executor, current_task, yield_now};
+use process::{current_process, current_task, yield_now};
 
 use crate::{SigMaskFlag, SyscallError, SyscallResult, SIGSET_SIZE_IN_BYTE};
 
@@ -26,7 +26,7 @@ pub async fn syscall_sigaction(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EPERM);
     }
 
-    let current_process = current_executor().await;
+    let current_process = current_process().await;
     let mut signal_modules = current_process.signal_modules.lock().await;
     let signal_module = signal_modules
         .get_mut(&current_task().id().as_u64())
@@ -73,7 +73,7 @@ pub async fn syscall_sigaction(args: [usize; 6]) -> SyscallResult {
 /// * `mask` - *const usize
 pub async fn syscall_sigsuspend(args: [usize; 6]) -> SyscallResult {
     let mask = args[0] as *const usize;
-    let process = current_executor().await;
+    let process = current_process().await;
     if process
         .manual_alloc_for_lazy((mask as usize).into())
         .await
@@ -135,7 +135,7 @@ pub async fn syscall_sigprocmask(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EINVAL);
     }
 
-    let current_process = current_executor().await;
+    let current_process = current_process().await;
     if old_mask as usize != 0
         && current_process
             .manual_alloc_for_lazy((old_mask as usize).into())
@@ -242,7 +242,7 @@ pub async fn syscall_tgkill(args: [usize; 6]) -> SyscallResult {
 
 /// Set and get the alternate signal stack
 pub async fn syscall_sigaltstack(args: [usize; 6]) -> SyscallResult {
-    let current_process = current_executor().await;
+    let current_process = current_process().await;
     let ss = args[0] as *const SignalStack;
     let old_ss = args[1] as *mut SignalStack;
     if !ss.is_null()

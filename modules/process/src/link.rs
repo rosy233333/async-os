@@ -11,7 +11,7 @@ use axerrno::{AxError, AxResult};
 use axlog::{debug, info, trace};
 use sync::Mutex;
 
-use crate::current_executor;
+use crate::current_process;
 
 // use crate::current_process;
 #[allow(unused)]
@@ -300,14 +300,14 @@ pub async fn deal_with_path(
     path_addr: Option<*const u8>,
     force_dir: bool,
 ) -> AxResult<FilePath> {
-    let executor = current_executor().await;
+    let process = current_process().await;
     let mut path = "".to_string();
     if let Some(path_addr) = path_addr {
         if path_addr.is_null() {
             axlog::warn!("path address is null");
             return Err(AxError::BadAddress);
         }
-        executor
+        process
             .manual_alloc_for_lazy((path_addr as usize).into())
             .await
             .map(|_| {
@@ -323,7 +323,7 @@ pub async fn deal_with_path(
             // return Some(FilePath::new(".").unwrap());
             path = String::from(".");
         } else {
-            let fd_table = executor.fd_manager.fd_table.lock().await;
+            let fd_table = process.fd_manager.fd_table.lock().await;
             if dir_fd >= fd_table.len() {
                 axlog::warn!("fd index out of range");
                 return Err(AxError::InvalidInput);
@@ -341,7 +341,7 @@ pub async fn deal_with_path(
         }
     } else if !path.starts_with('/') && dir_fd != AT_FDCWD && dir_fd as u32 != AT_FDCWD as u32 {
         // 如果不是绝对路径, 且dir_fd不是AT_FDCWD, 则需要将dir_fd和path拼接起来
-        let fd_table = executor.fd_manager.fd_table.lock().await;
+        let fd_table = process.fd_manager.fd_table.lock().await;
         if dir_fd >= fd_table.len() {
             axlog::warn!("fd index out of range");
             return Err(AxError::InvalidInput);
@@ -365,7 +365,7 @@ pub async fn deal_with_path(
     }
     if !path.starts_with('/') {
         // 如果path不是绝对路径, 则加上当前工作目录
-        let cwd = executor.get_cwd().await;
+        let cwd = process.get_cwd().await;
         assert!(cwd.ends_with('/'));
         path = format!("{}{}", cwd, path);
     }

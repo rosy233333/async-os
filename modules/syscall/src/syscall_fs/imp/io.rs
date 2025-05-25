@@ -8,7 +8,7 @@ use async_fs::api::{AsyncFileIO, FileIOType, OpenFlags};
 use async_io::SeekFrom;
 use axerrno::AxError;
 use axlog::{debug, info};
-use process::current_executor;
+use process::current_process;
 use process::link::{create_link, real_path};
 
 use crate::syscall_fs::ctype::{
@@ -33,7 +33,7 @@ pub async fn syscall_read(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EFAULT);
     }
 
-    let process = current_executor().await;
+    let process = current_process().await;
 
     // TODO: 左闭右开
     let buf = match process
@@ -107,7 +107,7 @@ pub async fn syscall_write(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EFAULT);
     }
 
-    let process = current_executor().await;
+    let process = current_process().await;
 
     // TODO: 左闭右开
     let buf = match process
@@ -228,7 +228,7 @@ pub async fn syscall_pipe2(args: [usize; 6]) -> SyscallResult {
     let fd = args[0] as *mut u32;
     let flags = args[1] as u32;
     axlog::info!("Into syscall_pipe2. fd: {} flags: {}", fd as usize, flags);
-    let process = current_executor().await;
+    let process = current_process().await;
     if process
         .manual_alloc_for_lazy((fd as usize).into())
         .await
@@ -276,7 +276,7 @@ pub fn syscall_pipe(mut args: [usize; 6]) -> SyscallResult {
 /// 返回值:成功执行,返回新的文件描述符。失败,返回-1。
 pub async fn syscall_dup(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
-    let process = current_executor().await;
+    let process = current_process().await;
     let mut fd_table = process.fd_manager.fd_table.lock().await;
     if fd >= fd_table.len() {
         debug!("fd {} is out of range", fd);
@@ -346,7 +346,7 @@ pub async fn syscall_dup3(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let new_fd = args[1];
     let flags = args[2];
-    let process = current_executor().await;
+    let process = current_process().await;
     let mut fd_table = process.fd_manager.fd_table.lock().await;
     if fd >= fd_table.len() {
         debug!("fd {} is out of range", fd);
@@ -398,7 +398,7 @@ pub async fn syscall_openat(args: [usize; 6]) -> SyscallResult {
     let _mode = args[3] as u8;
     let force_dir = OpenFlags::from(flags).is_dir();
     let path = solve_path(fd, Some(path), force_dir).await?;
-    let process = current_executor().await;
+    let process = current_process().await;
     let mut fd_table = process.fd_manager.fd_table.lock().await;
     let fd_num: usize = if let Ok(fd) = process.alloc_fd(&mut fd_table) {
         fd
@@ -472,7 +472,7 @@ pub async fn syscall_close(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     info!("Into syscall_close. fd: {}", fd);
 
-    let process = current_executor().await;
+    let process = current_process().await;
     let mut fd_table = process.fd_manager.fd_table.lock().await;
     if fd >= fd_table.len() {
         debug!("fd {} is out of range", fd);
@@ -524,7 +524,7 @@ pub async fn syscall_pread64(args: [usize; 6]) -> SyscallResult {
     let buf = args[1] as *mut u8;
     let count = args[2];
     let offset = args[3];
-    let process = current_executor().await;
+    let process = current_process().await;
     // todo: 把check fd整合到fd_manager中
     let file = process.fd_manager.fd_table.lock().await[fd]
         .clone()
@@ -559,7 +559,7 @@ pub async fn syscall_pwrite64(args: [usize; 6]) -> SyscallResult {
     let buf = args[1] as *const u8;
     let count = args[2];
     let offset = args[3];
-    let process = current_executor().await;
+    let process = current_process().await;
 
     let file = process.fd_manager.fd_table.lock().await[fd]
         .clone()
@@ -602,7 +602,7 @@ pub async fn syscall_sendfile64(args: [usize; 6]) -> SyscallResult {
     let offset = args[2] as *mut usize;
     let count = args[3];
     info!("send from {} to {}, count: {}", in_fd, out_fd, count);
-    let process = current_executor().await;
+    let process = current_process().await;
     let out_file = process.fd_manager.fd_table.lock().await[out_fd]
         .clone()
         .unwrap();
@@ -651,7 +651,7 @@ pub async fn syscall_readlinkat(args: [usize; 6]) -> SyscallResult {
     let path = args[1] as *const u8;
     let buf = args[2] as *mut u8;
     let bufsiz = args[3];
-    let process = current_executor().await;
+    let process = current_process().await;
     if process
         .manual_alloc_for_lazy((path as usize).into())
         .await
@@ -720,7 +720,7 @@ pub async fn syscall_lseek(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let offset = args[1] as isize;
     let whence = args[2];
-    let process = current_executor().await;
+    let process = current_process().await;
     info!("fd: {} offset: {} whence: {}", fd, offset, whence);
     if fd >= process.fd_manager.fd_table.lock().await.len() || fd < 3 {
         debug!("fd {} is out of range", fd);
@@ -762,7 +762,7 @@ pub async fn syscall_lseek(args: [usize; 6]) -> SyscallResult {
 // /// * `fd`: usize
 // pub fn syscall_fsync(args: [usize; 6]) -> SyscallResult {
 //     let fd = args[0];
-//     let process = current_executor().await;
+//     let process = current_process().await;
 //     if fd >= process.fd_manager.fd_table.lock().len() || fd < 3 {
 //         debug!("fd {} is out of range", fd);
 //         return Err(SyscallError::EBADF);
@@ -815,7 +815,7 @@ pub async fn syscall_copyfilerange(args: [usize; 6]) -> SyscallResult {
         "copyfilerange: fd_in: {}, fd_out: {}, off_in: {}, off_out: {}, len: {}, flags: {}",
         fd_in, fd_out, in_offset, out_offset, len, flags
     );
-    let process = current_executor().await;
+    let process = current_process().await;
     let fd_table = process.fd_manager.fd_table.lock().await;
     let out_file = fd_table[fd_out].clone().unwrap();
     let in_file = fd_table[fd_in].clone().unwrap();
@@ -875,7 +875,7 @@ pub async fn syscall_copyfilerange(args: [usize; 6]) -> SyscallResult {
 pub async fn syscall_ftruncate64(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let len = args[1];
-    let process = current_executor().await;
+    let process = current_process().await;
     info!("fd: {}, len: {}", fd, len);
     let fd_table = process.fd_manager.fd_table.lock().await;
     if fd >= fd_table.len() {

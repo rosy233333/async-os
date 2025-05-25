@@ -17,7 +17,7 @@ use crate::{
 };
 use axhal::mem::VirtAddr;
 use process::{
-    current_executor,
+    current_process,
     link::{FilePath, AT_FDCWD},
 };
 
@@ -36,7 +36,7 @@ pub async fn syscall_getcwd(args: [usize; 6]) -> SyscallResult {
     let buf = args[0] as *mut u8;
     let len = args[1];
     debug!("Into syscall_getcwd. buf: {}, len: {}", buf as usize, len);
-    let mut cwd = current_executor().await.get_cwd().await;
+    let mut cwd = current_process().await.get_cwd().await;
 
     cwd.push('\0');
     info!("[syscall_getcwd]current dir: {:?}", cwd);
@@ -50,7 +50,7 @@ pub async fn syscall_getcwd(args: [usize; 6]) -> SyscallResult {
     let cwd = cwd.as_bytes();
 
     if len >= cwd.len() {
-        let process = current_executor().await;
+        let process = current_process().await;
         let start: VirtAddr = (buf as usize).into();
         let end = start + len;
         if process
@@ -129,7 +129,7 @@ pub async fn syscall_chdir(args: [usize; 6]) -> SyscallResult {
     let path = solve_path(AT_FDCWD, Some(path_address), true).await?;
     debug!("Into syscall_chdir. path: {:?}", path.path());
 
-    current_executor()
+    current_process()
         .await
         .set_cwd(alloc::string::String::from(path.path()))
         .await;
@@ -150,7 +150,7 @@ pub async fn syscall_getdents64(args: [usize; 6]) -> SyscallResult {
     let buf = args[1] as *mut u8;
     let len = args[2];
     let path = solve_path(fd, None, true).await?;
-    let process = current_executor().await;
+    let process = current_process().await;
     // 注意是否分配地址
     let start: VirtAddr = (buf as usize).into();
     let end = start + len;
@@ -365,7 +365,7 @@ pub async fn syscall_fcntl64(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let cmd = args[1];
     let arg = args[2];
-    let process = current_executor().await;
+    let process = current_process().await;
     let mut fd_table = process.fd_manager.fd_table.lock().await;
 
     if fd >= fd_table.len() {
@@ -447,7 +447,7 @@ pub async fn syscall_ioctl(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let request = args[1];
     let argp = args[2];
-    let process = current_executor().await;
+    let process = current_process().await;
     let fd_table = process.fd_manager.fd_table.lock().await;
     info!("fd: {}, request: {}, argp: {}", fd, request, argp);
     if fd >= fd_table.len() {
@@ -613,7 +613,7 @@ pub async fn syscall_utimensat(args: [usize; 6]) -> SyscallResult {
     let path = args[1] as *const u8;
     let times = args[2] as *const TimeSecs;
     let _flags = args[3];
-    let process = current_executor().await;
+    let process = current_process().await;
     // info!("dir_fd: {}, path: {}", dir_fd as usize, path as usize);
     if dir_fd != AT_FDCWD && (dir_fd as isize) < 0 {
         return Err(SyscallError::EBADF); // 错误的文件描述符

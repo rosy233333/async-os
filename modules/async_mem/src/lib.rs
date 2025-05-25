@@ -84,6 +84,7 @@ impl MemorySet {
                 .map_region(phys_to_virt(r.paddr), r.paddr, r.size, r.flags.into(), true)
                 .expect("Error mapping kernel memory");
         }
+        vdso::vdso_percpu_map(&mut page_table);
 
         Self {
             page_table,
@@ -669,6 +670,7 @@ impl MemorySet {
                 .map_region(phys_to_virt(r.paddr), r.paddr, r.size, r.flags.into(), true)
                 .expect("Error mapping kernel memory");
         }
+        vdso::vdso_percpu_map(&mut page_table);
         let mut owned_mem: BTreeMap<usize, MapArea> = BTreeMap::new();
         for (vaddr, area) in self.owned_mem.iter_mut() {
             info!("vaddr: {:X?}, new_area: {:X?}", vaddr, area.vaddr);

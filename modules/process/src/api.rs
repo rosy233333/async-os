@@ -1,34 +1,21 @@
 use crate::{
-    flags::WaitStatus, futex::futex_wake, send_signal_to_process, send_signal_to_thread,
-    CurrentExecutor, Executor, KERNEL_EXECUTOR, KERNEL_EXECUTOR_ID, KERNEL_SCHEDULER, PID2PC,
-    TID2TASK, UTRAP_HANDLER,
+    flags::WaitStatus, futex::futex_wake, send_signal_to_process, send_signal_to_thread, Process,
+    KERNEL_PROCESS_ID, PID2PC, TID2TASK, UTRAP_HANDLER,
 };
 use alloc::{boxed::Box, string::String, sync::Arc};
 use axsignal::signal_no::SignalNo;
 use core::{future::Future, ops::Deref, pin::Pin};
-use spinlock::SpinNoIrq;
 pub use task_api::*;
 
 // Initializes the process (for the primary CPU).
 pub fn init(utrap_handler: fn() -> Pin<Box<dyn Future<Output = isize> + 'static>>) {
     info!("Initialize process...");
     UTRAP_HANDLER.init_by(utrap_handler);
-    let mut scheduler = Scheduler::new();
-    scheduler.init();
-    KERNEL_SCHEDULER.init_by(Arc::new(SpinNoIrq::new(scheduler)));
-    let kexecutor = Arc::new(Executor::new_init());
-    KERNEL_EXECUTOR.init_by(kexecutor.clone());
-    unsafe { CurrentExecutor::init_current(kexecutor) };
-    info!("  use {} scheduler.", Scheduler::scheduler_name());
 }
 
 #[cfg(feature = "smp")]
-/// Initializes the executor for secondary CPUs.
-pub fn init_secondary() {
-    assert!(KERNEL_EXECUTOR.is_init());
-    let kexecutor = KERNEL_EXECUTOR.clone();
-    unsafe { CurrentExecutor::init_current(kexecutor) };
-}
+/// Initializes the process for secondary CPUs.
+pub fn init_secondary() {}
 
 pub fn current_task_may_uninit() -> Option<CurrentTask> {
     CurrentTask::try_get()
@@ -38,7 +25,7 @@ pub fn current_task() -> CurrentTask {
     CurrentTask::get()
 }
 
-pub async fn current_executor() -> Arc<Executor> {
+pub async fn current_process() -> Arc<Process> {
     let current_task = current_task();
     let current_process = Arc::clone(
         PID2PC
@@ -58,10 +45,10 @@ where
     F: FnOnce() -> T,
     T: Future<Output = isize> + 'static,
 {
-    let scheduler = &*KERNEL_SCHEDULER;
+    let scheduler = current_scheduler().clone();
     let task = Arc::new(Task::new(TaskInner::new(
         name,
-        KERNEL_EXECUTOR_ID,
+        KERNEL_PROCESS_ID,
         scheduler.clone(),
         0,
         Box::pin(f()),
@@ -80,10 +67,10 @@ pub async fn exit(exit_code: isize) {
     let curr = current_task();
     let curr_id = curr.id().as_u64();
 
-    let current_executor = current_executor().await;
+    let current_process = current_process().await;
     info!("exit task id {} with code _{}_", curr_id, exit_code);
 
-    let exit_signal = current_executor
+    let exit_signal = current_process
         .signal_modules
         .lock()
         .await
@@ -92,8 +79,8 @@ pub async fn exit(exit_code: isize) {
         .get_exit_signal();
 
     if exit_signal.is_some() || curr.is_leader() {
-        let parent = current_executor.get_parent();
-        if parent != KERNEL_EXECUTOR_ID {
+        let parent = current_process.get_parent();
+        if parent != KERNEL_PROCESS_ID {
             // send exit signal
             let signal = if exit_signal.is_some() {
                 exit_signal.unwrap()
@@ -110,7 +97,7 @@ pub async fn exit(exit_code: isize) {
     let clear_child_tid = curr.get_clear_child_tid();
     if clear_child_tid != 0 {
         // 先确认是否在用户空间
-        if current_executor
+        if current_process
             .manual_alloc_for_lazy(clear_child_tid.into())
             .await
             .is_ok()
@@ -125,7 +112,7 @@ pub async fn exit(exit_code: isize) {
     if curr.is_leader() {
         loop {
             let mut all_exited = true;
-            for task in current_executor.tasks.lock().await.deref() {
+            for task in current_process.tasks.lock().await.deref() {
                 if !task.is_leader() && task.state() != TaskState::Exited {
                     all_exited = false;
                     send_signal_to_thread(task.id().as_u64() as isize, SignalNo::SIGKILL as isize)
@@ -140,42 +127,40 @@ pub async fn exit(exit_code: isize) {
             }
         }
         TID2TASK.lock().await.remove(&curr_id);
-        current_executor.exit_main_task().await;
-        current_executor.tasks.lock().await.clear();
+        current_process.exit_main_task().await;
+        current_process.tasks.lock().await.clear();
 
-        current_executor.fd_manager.fd_table.lock().await.clear();
+        current_process.fd_manager.fd_table.lock().await.clear();
 
-        current_executor.signal_modules.lock().await.clear();
+        current_process.signal_modules.lock().await.clear();
 
         let mut pid2pc = PID2PC.lock().await;
-        let kernel_executor = &*KERNEL_EXECUTOR;
+        let kernel_process = pid2pc.get(&KERNEL_PROCESS_ID).unwrap();
         // 将子进程交给idle进程
         // process.memory_set = Arc::clone(&kernel_process.memory_set);
-        for child in current_executor.children.lock().await.deref() {
-            child.set_parent(KERNEL_EXECUTOR_ID);
-            kernel_executor
-                .children
-                .lock()
-                .await
-                .push(Arc::clone(child));
+        for child in current_process.children.lock().await.deref() {
+            child.set_parent(KERNEL_PROCESS_ID);
+            kernel_process.children.lock().await.push(Arc::clone(child));
         }
-        if let Some(parent_process) = pid2pc.get(&current_executor.get_parent()) {
+        if let Some(parent_process) = pid2pc.get(&current_process.get_parent()) {
             parent_process.set_vfork_block(false).await;
         }
-        pid2pc.remove(&current_executor.pid());
+        let kernel_pt_token = kernel_process.memory_set.lock().await.page_table_token();
+
+        pid2pc.remove(&current_process.pid());
         drop(pid2pc);
         // 在这里直接更换为内核页表，并且关闭中断
         axhal::arch::disable_irqs();
         unsafe {
-            axhal::arch::write_page_table_root0((*crate::KERNEL_PAGE_TABLE_TOKEN).into());
+            axhal::arch::write_page_table_root0(kernel_pt_token.into());
         };
-        current_executor.set_exit_code(exit_code);
-        current_executor.set_zombie(true);
-        drop(current_executor);
+        current_process.set_exit_code(exit_code);
+        current_process.set_zombie(true);
+        drop(current_process);
     } else {
         TID2TASK.lock().await.remove(&curr_id);
         // 从进程中删除当前线程
-        let mut tasks = current_executor.tasks.lock().await;
+        let mut tasks = current_process.tasks.lock().await;
         let len = tasks.len();
         for index in 0..len {
             if tasks[index].id().as_u64() == curr_id {
@@ -184,11 +169,7 @@ pub async fn exit(exit_code: isize) {
             }
         }
         // 从进程中删除当前线程
-        current_executor
-            .signal_modules
-            .lock()
-            .await
-            .remove(&curr_id);
+        current_process.signal_modules.lock().await.remove(&curr_id);
     }
     curr.set_exit_code(exit_code);
     curr.set_state(TaskState::Exited);
@@ -233,7 +214,7 @@ pub fn set_priority(prio: isize) -> bool {
 /// 保证传入的 ptr 是有效的
 pub async unsafe fn wait_pid(pid: i32, exit_code_ptr: *mut i32) -> Result<u64, WaitStatus> {
     // 获取当前进程
-    let curr_process = current_executor().await;
+    let curr_process = current_process().await;
     let mut exit_task_id: usize = 0;
     let mut answer_id: u64 = 0;
     let mut answer_status = WaitStatus::NotExist;

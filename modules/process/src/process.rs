@@ -28,33 +28,28 @@ use core::{
     sync::atomic::{AtomicBool, AtomicI32, AtomicIsize, AtomicU64, Ordering},
 };
 use lazy_init::LazyInit;
-use spinlock::SpinNoIrq;
 use sync::Mutex;
 use task_api::yield_now;
+use taskctx::{current_scheduler, TaskId};
 use taskctx::{BaseScheduler, Task, TaskInner, TaskRef, TrapFrame};
-use taskctx::{Scheduler, TaskId};
 
 const FD_LIMIT_ORIGIN: usize = 1025;
-pub const KERNEL_EXECUTOR_ID: u64 = 1;
+pub const KERNEL_PROCESS_ID: u64 = 1;
 pub static TID2TASK: Mutex<BTreeMap<u64, TaskRef>> = Mutex::new(BTreeMap::new());
-pub static PID2PC: Mutex<BTreeMap<u64, Arc<Executor>>> = Mutex::new(BTreeMap::new());
+pub static PID2PC: Mutex<BTreeMap<u64, Arc<Process>>> = Mutex::new(BTreeMap::new());
 
 pub static UTRAP_HANDLER: LazyInit<fn() -> Pin<Box<dyn Future<Output = isize> + 'static>>> =
     LazyInit::new();
-
-pub static KERNEL_EXECUTOR: LazyInit<Arc<Executor>> = LazyInit::new();
-pub static KERNEL_PAGE_TABLE_TOKEN: LazyInit<usize> = LazyInit::new();
-pub static KERNEL_SCHEDULER: LazyInit<Arc<SpinNoIrq<Scheduler>>> = LazyInit::new();
 
 extern "C" {
     fn start_signal_trampoline();
 }
 
-pub struct Executor {
+pub struct Process {
     pub pid: u64,
     pub parent: AtomicU64,
     /// 子进程
-    pub children: Mutex<Vec<Arc<Executor>>>,
+    pub children: Mutex<Vec<Arc<Process>>>,
     // scheduler: Arc<SpinNoIrq<Scheduler>>,
     /// 文件描述符管理器
     pub fd_manager: FdManager,
@@ -87,11 +82,11 @@ pub struct Executor {
     pub robust_list: Mutex<BTreeMap<u64, FutexRobustList>>,
 }
 
-unsafe impl Sync for Executor {}
-unsafe impl Send for Executor {}
+unsafe impl Sync for Process {}
+unsafe impl Send for Process {}
 
-impl Executor {
-    /// 创建一个新的 Executor（进程）
+impl Process {
+    /// 创建一个新的 Process
     pub fn new(
         pid: u64,
         parent: u64,
@@ -124,7 +119,7 @@ impl Executor {
         }
     }
 
-    /// 内核 Executor
+    /// 内核 Process
     pub fn new_init() -> Self {
         let new_fd_table: FdTable = Arc::new(Mutex::new(vec![
             // 标准输入
@@ -142,10 +137,9 @@ impl Executor {
             })),
         ]));
         let memory_set = MemorySet::new_memory_set();
-        KERNEL_PAGE_TABLE_TOKEN.init_by(memory_set.page_table_token());
-        Executor::new(
-            KERNEL_EXECUTOR_ID,
-            KERNEL_EXECUTOR_ID,
+        Process::new(
+            KERNEL_PROCESS_ID,
+            KERNEL_PROCESS_ID,
             Arc::new(Mutex::new(memory_set)),
             0,
             new_fd_table,
@@ -159,57 +153,57 @@ impl Executor {
     //     self.scheduler.clone()
     // }
 
-    /// 获取 Executor（进程）id
+    /// 获取 Process（进程）id
     pub fn pid(&self) -> u64 {
         self.pid
     }
 
-    /// 获取父 Executor（进程）id
+    /// 获取父 Process（进程）id
     pub fn get_parent(&self) -> u64 {
         self.parent.load(Ordering::Acquire)
     }
 
-    /// 设置父 Executor（进程）id
+    /// 设置父 Process（进程）id
     pub fn set_parent(&self, parent: u64) {
         self.parent.store(parent, Ordering::Release)
     }
 
-    /// 获取 Executor（进程）退出码
+    /// 获取 Process（进程）退出码
     pub fn get_exit_code(&self) -> isize {
         self.exit_code.load(Ordering::Acquire)
     }
 
-    /// 设置 Executor（进程）退出码
+    /// 设置 Process（进程）退出码
     pub fn set_exit_code(&self, exit_code: isize) {
         self.exit_code.store(exit_code, Ordering::Release)
     }
 
-    /// 判断 Executor（进程）是否处于僵尸状态
+    /// 判断 Process（进程）是否处于僵尸状态
     pub fn get_zombie(&self) -> bool {
         self.is_zombie.load(Ordering::Acquire)
     }
 
-    /// 设置 Executor（进程）是否处于僵尸状态
+    /// 设置 Process（进程）是否处于僵尸状态
     pub fn set_zombie(&self, status: bool) {
         self.is_zombie.store(status, Ordering::Release)
     }
 
-    /// 获取 Executor（进程）的堆顶
+    /// 获取 Process（进程）的堆顶
     pub fn get_heap_top(&self) -> u64 {
         self.heap_top.load(Ordering::Acquire)
     }
 
-    /// 设置 Executor（进程）的堆顶
+    /// 设置 Process（进程）的堆顶
     pub fn set_heap_top(&self, top: u64) {
         self.heap_top.store(top, Ordering::Release)
     }
 
-    /// 获取 Executor（进程）的堆底
+    /// 获取 Process（进程）的堆底
     pub fn get_heap_bottom(&self) -> u64 {
         self.heap_bottom.load(Ordering::Acquire)
     }
 
-    /// 设置 Executor（进程）的堆底
+    /// 设置 Process（进程）的堆底
     pub fn set_heap_bottom(&self, bottom: u64) {
         self.heap_bottom.store(bottom, Ordering::Release)
     }
@@ -224,23 +218,23 @@ impl Executor {
         self.stack_size.load(Ordering::Acquire)
     }
 
-    /// 设置 Executor（进程）是否被 vfork 阻塞
+    /// 设置 Process（进程）是否被 vfork 阻塞
     pub async fn set_vfork_block(&self, value: bool) {
         *self.blocked_by_vfork.lock().await = value;
     }
 
-    /// 获取 Executor（进程）是否被 vfork 阻塞
+    /// 获取 Process（进程）是否被 vfork 阻塞
     pub async fn get_vfork_block(&self) -> bool {
         *self.blocked_by_vfork.lock().await
     }
 
-    /// 设置 Executor（进程）可执行文件路径
+    /// 设置 Process（进程）可执行文件路径
     pub async fn set_file_path(&self, path: String) {
         let mut file_path = self.file_path.lock().await;
         *file_path = path;
     }
 
-    /// 获取 Executor（进程）可执行文件路径
+    /// 获取 Process（进程）可执行文件路径
     pub async fn get_file_path(&self) -> String {
         (*self.file_path.lock().await).clone()
     }
@@ -255,45 +249,45 @@ impl Executor {
     }
 
     #[inline]
-    /// Pick one task from Executor
+    /// Pick one task from Process
     pub fn pick_next_task(&self) -> Option<TaskRef> {
         // self.scheduler.lock().pick_next_task()
-        KERNEL_SCHEDULER.lock().pick_next_task()
+        current_scheduler().lock().pick_next_task()
     }
 
     // #[inline]
-    // /// Add curr task to Executor, it ususally add to back
+    // /// Add curr task to Process, it ususally add to back
     // pub fn put_prev_task(&self, task: TaskRef, front: bool) {
     //     self.scheduler.lock().put_prev_task(task, front);
     // }
 
     // #[inline]
-    // /// Add task to Executor, now just put it to own Executor
-    // /// TODO: support task migrate on differ Executor
+    // /// Add task to Process, now just put it to own Process
+    // /// TODO: support task migrate on differ Process
     // pub fn add_task(task: TaskRef) {
     //     task.get_scheduler().lock().add_task(task);
     // }
 
     // #[inline]
-    // /// Executor Clean
+    // /// Process Clean
     // pub fn task_tick(&self, task: &TaskRef) -> bool {
     //     self.scheduler.lock().task_tick(task)
     // }
 
     // #[inline]
-    // /// Executor Clean
+    // /// Process Clean
     // pub fn set_priority(&self, task: &TaskRef, prio: isize) -> bool {
     //     self.scheduler.lock().set_priority(task, prio)
     // }
 }
 
-impl Drop for Executor {
+impl Drop for Process {
     fn drop(&mut self) {
-        log::debug!("drop executor {}", self.pid);
+        log::debug!("drop process {}", self.pid);
     }
 }
 
-impl Executor {
+impl Process {
     pub async fn set_main_task(&self, task: TaskRef) {
         *self.main_task.lock().await = Some(task);
     }
@@ -307,7 +301,7 @@ impl Executor {
     }
 }
 
-impl Executor {
+impl Process {
     /// 获取当前进程的工作目录
     pub async fn get_cwd(&self) -> String {
         self.fd_manager.cwd.lock().await.clone().to_string()
@@ -395,8 +389,8 @@ impl Executor {
     }
 }
 
-impl Executor {
-    /// 根据给定参数创建一个新的 Executor
+impl Process {
+    /// 根据给定参数创建一个新的 Process
     /// 在这期间如果，如果任务从一个核切换到另一个核就会导致地址空间不正确，产生内核页错误
     pub async fn init_user(args: Vec<String>, envs: &Vec<String>) -> AxResult<TaskRef> {
         let mut path = args[0].clone();
@@ -434,6 +428,7 @@ impl Executor {
                 return Err(AxError::NotFound);
             };
         axhal::arch::enable_irqs();
+
         let new_fd_table: FdTable = Arc::new(Mutex::new(vec![
             // 标准输入
             Some(Arc::new(Stdin {
@@ -449,25 +444,29 @@ impl Executor {
                 flags: Mutex::new(OpenFlags::empty()),
             })),
         ]));
-        let new_executor = Arc::new(Executor::new(
-            TaskId::new().as_u64(),
-            KERNEL_EXECUTOR_ID,
+
+        let new_process = Arc::new(Process::new(
+            KERNEL_PROCESS_ID,
+            KERNEL_PROCESS_ID,
             Arc::new(Mutex::new(memory_set)),
             heap_bottom.as_usize() as u64,
             new_fd_table,
             Arc::new(Mutex::new(String::from("/").into())),
             Arc::new(AtomicI32::new(0o022)),
         ));
+
         if !path.starts_with('/') {
             //如果path不是绝对路径, 则加上当前工作目录
-            let cwd = new_executor.get_cwd().await;
+            let cwd = new_process.get_cwd().await;
             assert!(cwd.ends_with('/'));
             path = format!("{}{}", cwd, path);
         }
-        new_executor.set_file_path(path.clone()).await;
-        let scheduler = KERNEL_SCHEDULER.clone();
+
+        new_process.set_file_path(path.clone()).await;
+        let scheduler = current_scheduler().clone();
         let fut = UTRAP_HANDLER();
-        let pid = new_executor.pid();
+
+        let pid = new_process.pid();
         let new_task = Arc::new(Task::new(TaskInner::new_user(
             path,
             pid,
@@ -479,40 +478,28 @@ impl Executor {
                 user_stack_bottom.into(),
             )),
         )));
-        new_executor.tasks.lock().await.push(new_task.clone());
-        new_task.get_scheduler().lock().add_task(new_task.clone());
+        new_process.tasks.lock().await.push(new_task.clone());
+        current_scheduler().lock().add_task(new_task.clone());
         TID2TASK
             .lock()
             .await
             .insert(new_task.id().as_u64(), Arc::clone(&new_task));
         new_task.set_leader(true);
-        new_executor.set_main_task(new_task.clone()).await;
+        new_process.set_main_task(new_task.clone()).await;
 
-        new_executor
+        new_process
             .signal_modules
             .lock()
             .await
             .insert(new_task.id().as_u64(), SignalModule::init_signal(None));
-        new_executor
+        new_process
             .robust_list
             .lock()
             .await
             .insert(new_task.id().as_u64(), FutexRobustList::default());
-        PID2PC
-            .lock()
-            .await
-            .insert(new_executor.pid(), Arc::clone(&new_executor));
-        // 记录内核 executor
-        PID2PC
-            .lock()
-            .await
-            .insert(KERNEL_EXECUTOR_ID, KERNEL_EXECUTOR.clone());
-        // 将其作为内核进程的子进程
-        KERNEL_EXECUTOR
-            .children
-            .lock()
-            .await
-            .push(new_executor.clone());
+        // 记录内核 process
+        PID2PC.lock().await.insert(pid, new_process.clone());
+
         Ok(new_task)
     }
 
@@ -573,7 +560,7 @@ impl Executor {
             self.pid
         };
         let page_table_token = new_memory_set.lock().await.page_table_token();
-        let scheduler = KERNEL_SCHEDULER.clone();
+        let scheduler = current_scheduler().clone();
         let fut = UTRAP_HANDLER();
         let utrap_frame = Box::new(*current_task().utrap_frame().unwrap());
         let new_task = Arc::new(Task::new(TaskInner::new_user(
@@ -730,7 +717,7 @@ impl Executor {
             } else {
                 Arc::new(Mutex::new(self.fd_manager.fd_table.lock().await.clone()))
             };
-            let new_process = Arc::new(Executor::new(
+            let new_process = Arc::new(Process::new(
                 process_id,
                 parent_id,
                 new_memory_set,
@@ -890,7 +877,7 @@ impl Executor {
             return Err(AxError::NotFound);
         };
         // 切换了地址空间， 需要切换token
-        let page_table_token = if self.pid == KERNEL_EXECUTOR_ID {
+        let page_table_token = if self.pid == KERNEL_PROCESS_ID {
             0
         } else {
             self.memory_set.lock().await.page_table_token()
@@ -957,13 +944,13 @@ impl Executor {
     }
 }
 
-impl Executor {
+impl Process {
     pub async fn new_ktask(
         &self,
         name: String,
         fut: Pin<Box<dyn Future<Output = isize> + 'static>>,
     ) -> TaskRef {
-        let scheduler = KERNEL_SCHEDULER.clone();
+        let scheduler = current_scheduler().clone();
         let page_table_token = self.memory_set.lock().await.page_table_token();
         let ktask = Arc::new(Task::new(TaskInner::new(
             name,

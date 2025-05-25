@@ -143,7 +143,7 @@ impl FileIO for Pipe {
                 let loop_read = ring_buffer.available_read();
                 info!("kernel: Pipe::read: loop_read = {}", loop_read);
                 if loop_read == 0 {
-                    if process::current_executor()
+                    if process::current_process()
                         .await
                         .have_signals()
                         .await

@@ -9,17 +9,17 @@ use core::{
     pin::Pin,
     task::{ready, Context, Poll},
 };
-use process::{current_executor, Executor, PID2PC};
+use process::{current_process, Process, PID2PC};
 use sync::Mutex;
 
 pub struct PidFd {
     flags: Mutex<OpenFlags>,
-    process: Arc<Executor>,
+    process: Arc<Process>,
 }
 
 impl PidFd {
     /// Create a new PidFd
-    pub fn new(process: Arc<Executor>, flags: OpenFlags) -> Self {
+    pub fn new(process: Arc<Process>, flags: OpenFlags) -> Self {
         Self {
             flags: Mutex::new(flags),
             process,
@@ -98,7 +98,7 @@ pub async fn new_pidfd(pid: u64, mut flags: OpenFlags) -> SyscallResult {
         .map(|target_process| PidFd::new(Arc::clone(target_process), flags))
         .ok_or(SyscallError::EINVAL)?;
     drop(pid2fd);
-    let process = current_executor().await;
+    let process = current_process().await;
     let mut fd_table = process.fd_manager.fd_table.lock().await;
     let fd = process
         .alloc_fd(&mut fd_table)

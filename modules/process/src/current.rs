@@ -1,4 +1,4 @@
-use crate::{Executor, ExecutorRef};
+use crate::{Process, ProcessRef};
 use alloc::sync::Arc;
 use core::{mem::ManuallyDrop, ops::Deref};
 
@@ -216,7 +216,7 @@ impl CURRENT_EXECUTOR_PTR_WRAPPER {
 /// Preemption may be enabled when calling this function. This function will
 /// guarantee the correctness even the current task is preempted.
 #[inline]
-pub fn current_executor_ptr<T>() -> *const T {
+pub fn current_process_ptr<T>() -> *const T {
     #[cfg(target_arch = "x86_64")]
     unsafe {
         // on x86, only one instruction is needed to read the per-CPU task pointer from `gs:[off]`.
@@ -246,7 +246,7 @@ pub fn current_executor_ptr<T>() -> *const T {
 ///
 /// The given `ptr` must be pointed to a valid task structure.
 #[inline]
-pub unsafe fn set_current_executor_ptr<T>(ptr: *const T) {
+pub unsafe fn set_current_process_ptr<T>(ptr: *const T) {
     #[cfg(target_arch = "x86_64")]
     {
         CURRENT_EXECUTOR_PTR.write_current_raw(ptr as usize)
@@ -265,14 +265,14 @@ pub unsafe fn set_current_executor_ptr<T>(ptr: *const T) {
 }
 
 /// A wrapper of [`TaskRef`] as the current task.
-pub struct CurrentExecutor(ManuallyDrop<ExecutorRef>);
+pub struct CurrentProcess(ManuallyDrop<ProcessRef>);
 
-impl CurrentExecutor {
+impl CurrentProcess {
     pub(crate) fn try_get() -> Option<Self> {
-        let ptr: *const Executor = current_executor_ptr();
+        let ptr: *const Process = current_process_ptr();
         if !ptr.is_null() {
             Some(Self(unsafe {
-                ManuallyDrop::new(ExecutorRef::from_raw(ptr))
+                ManuallyDrop::new(ProcessRef::from_raw(ptr))
             }))
         } else {
             None
@@ -280,44 +280,44 @@ impl CurrentExecutor {
     }
 
     pub fn get() -> Self {
-        Self::try_get().expect("current executor is uninitialized")
+        Self::try_get().expect("current process is uninitialized")
     }
 
     #[allow(unused)]
     /// Converts [`CurrentTask`] to [`TaskRef`].
-    pub fn as_executor_ref(&self) -> &ExecutorRef {
+    pub fn as_process_ref(&self) -> &ProcessRef {
         &self.0
     }
 
     #[allow(unused)]
-    pub fn clone(&self) -> ExecutorRef {
+    pub fn clone(&self) -> ProcessRef {
         self.0.deref().clone()
     }
 
     #[allow(unused)]
-    pub fn ptr_eq(&self, other: &ExecutorRef) -> bool {
+    pub fn ptr_eq(&self, other: &ProcessRef) -> bool {
         Arc::ptr_eq(&self.0, other)
     }
 
-    pub unsafe fn init_current(executor: ExecutorRef) {
-        let ptr = Arc::into_raw(executor);
-        set_current_executor_ptr(ptr);
+    pub unsafe fn init_current(process: ProcessRef) {
+        let ptr = Arc::into_raw(process);
+        set_current_process_ptr(ptr);
     }
 
     pub fn clean_current() {
         let curr = Self::get();
         let Self(arc) = curr;
         ManuallyDrop::into_inner(arc); // `call Arc::drop()` to decrease prev task reference count.
-        unsafe { set_current_executor_ptr(0 as *const Executor) };
+        unsafe { set_current_process_ptr(0 as *const Process) };
     }
 
     pub fn clean_current_without_drop() {
-        unsafe { set_current_executor_ptr(0 as *const Executor) };
+        unsafe { set_current_process_ptr(0 as *const Process) };
     }
 }
 
-impl Deref for CurrentExecutor {
-    type Target = Executor;
+impl Deref for CurrentProcess {
+    type Target = Process;
     fn deref(&self) -> &Self::Target {
         self.0.deref()
     }

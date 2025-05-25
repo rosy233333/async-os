@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::sync::Arc;
 use axconfig::SMP;
 use axhal::mem::VirtAddr;
-use process::{current_executor, current_task, SchedPolicy, SchedStatus, PID2PC, TID2TASK};
+use process::{current_process, current_task, SchedPolicy, SchedStatus, PID2PC, TID2TASK};
 
 use crate::{SchedParam, SyscallError, SyscallResult};
 /// 获取对应任务的CPU适配集
@@ -49,7 +49,7 @@ pub async fn syscall_sched_getaffinity(args: [usize; 6]) -> SyscallResult {
     drop(pid2task);
     drop(tid2task);
 
-    let process = current_executor().await;
+    let process = current_process().await;
     if process
         .manual_alloc_for_lazy(VirtAddr::from(mask as usize))
         .await
@@ -103,7 +103,7 @@ pub async fn syscall_sched_setaffinity(args: [usize; 6]) -> SyscallResult {
     drop(pid2task);
     drop(tid2task);
 
-    let process = current_executor().await;
+    let process = current_process().await;
     if process
         .manual_alloc_for_lazy(VirtAddr::from(mask as usize))
         .await
@@ -156,7 +156,7 @@ pub async fn syscall_sched_setscheduler(args: [usize; 6]) -> SyscallResult {
     drop(pid2task);
     drop(tid2task);
 
-    let process = current_executor().await;
+    let process = current_process().await;
     if process
         .manual_alloc_for_lazy(VirtAddr::from(param as usize))
         .await

@@ -18,7 +18,7 @@ where
     let scheduler = taskctx::current_scheduler();
     let task = Arc::new(Task::new(TaskInner::new(
         name,
-        KERNEL_EXECUTOR_ID,
+        KERNEL_PROCESS_ID,
         scheduler.clone(),
         0,
         Box::pin(f()),
@@ -82,7 +82,8 @@ pub async fn current_check_user_preempt_pending(_tf: &mut TrapFrame) {
 
 /// 这个接口还没有统一，后续还需要统一成两种接口都可以使用的形式
 pub async fn wait(task: &TaskRef) -> Option<i32> {
-    JoinFuture::new(task.clone(), None).await
+    let res = JoinFuture::new(task.clone(), None).await;
+    res
 }
 
 pub async fn user_task_top() -> isize {
@@ -132,7 +133,7 @@ pub async fn user_task_top() -> isize {
                         // let ktask_callback: Arc<spin::mutex::Mutex<Option<usize>>> =
                         //     Arc::new(Mutex::new(None));
                         // let ktask_callback_clone = ktask_callback.clone();
-                        // let _pid = current_executor().await.pid() as usize;
+                        // let _pid = current_process().await.pid() as usize;
                         // let fut = Box::pin(async move {
                         //     let res = syscall::trap::handle_syscall(syscall_id, args).await;
                         //     // 将结果写回到用户态 SyscallFuture 的 res 中
@@ -152,7 +153,7 @@ pub async fn user_task_top() -> isize {
                         //     drop(ktask_callback_clone);
                         //     res
                         // });
-                        // let ktask = current_executor()
+                        // let ktask = current_process()
                         //     .await
                         //     .new_ktask(alloc::format!("syscall {}", tf.regs.a7), fut)
                         //     .await;

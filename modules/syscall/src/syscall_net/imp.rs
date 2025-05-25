@@ -10,7 +10,7 @@ use axerrno::AxError;
 use axlog::{debug, error, info, warn};
 
 use num_enum::TryFromPrimitive;
-use process::current_executor;
+use process::current_process;
 
 pub const SOCKET_TYPE_MASK: usize = 0xFF;
 
@@ -34,7 +34,7 @@ pub async fn syscall_socket(args: [usize; 6]) -> SyscallResult {
     let socket = Socket::new(domain, socket_type).await;
     socket.set_nonblocking((s_type & SOCK_NONBLOCK) != 0);
     socket.set_close_on_exec((s_type & SOCK_CLOEXEC) != 0).await;
-    let curr = current_executor().await;
+    let curr = current_process().await;
     let mut fd_table = curr.fd_manager.fd_table.lock().await;
     let Ok(fd) = curr.alloc_fd(&mut fd_table) else {
         return Err(SyscallError::EMFILE);
@@ -55,7 +55,7 @@ pub async fn syscall_bind(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let addr = args[1] as *const u8;
     let _addr_len = args[2];
-    let curr = current_executor().await;
+    let curr = current_process().await;
 
     let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
@@ -80,7 +80,7 @@ pub async fn syscall_bind(args: [usize; 6]) -> SyscallResult {
 pub async fn syscall_listen(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let _backlog = args[1];
-    let curr = current_executor().await;
+    let curr = current_process().await;
 
     let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
@@ -104,7 +104,7 @@ pub async fn syscall_accept4(args: [usize; 6]) -> SyscallResult {
     let addr_buf = args[1] as *mut u8;
     let addr_len = args[2] as *mut u32;
     let flags = args[3];
-    let curr = current_executor().await;
+    let curr = current_process().await;
 
     let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
@@ -171,7 +171,7 @@ pub async fn syscall_connect(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let addr_buf = args[1] as *const u8;
     let _addr_len = args[2];
-    let curr = current_executor().await;
+    let curr = current_process().await;
 
     let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
@@ -205,7 +205,7 @@ pub async fn syscall_get_sock_name(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let addr = args[1] as *mut u8;
     let addr_len = args[2] as *mut u32;
-    let curr = current_executor().await;
+    let curr = current_process().await;
 
     let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
@@ -249,7 +249,7 @@ pub async fn syscall_getpeername(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let addr_buf = args[1] as *mut u8;
     let addr_len = args[2] as *mut u32;
-    let curr = current_executor().await;
+    let curr = current_process().await;
 
     let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
@@ -315,7 +315,7 @@ pub async fn syscall_sendto(args: [usize; 6]) -> SyscallResult {
     let _flags = args[3];
     let addr = args[4] as *const u8;
     let addr_len = args[5];
-    let curr = current_executor().await;
+    let curr = current_process().await;
 
     let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
@@ -388,7 +388,7 @@ pub async fn syscall_recvfrom(args: [usize; 6]) -> SyscallResult {
     let _flags = args[3];
     let addr_buf = args[4] as *mut u8;
     let addr_len = args[5] as *mut u32;
-    let curr = current_executor().await;
+    let curr = current_process().await;
 
     let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
@@ -461,7 +461,7 @@ pub async fn syscall_set_sock_opt(args: [usize; 6]) -> SyscallResult {
         unimplemented!();
     };
 
-    let curr = current_executor().await;
+    let curr = current_process().await;
 
     let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
@@ -531,7 +531,7 @@ pub async fn syscall_get_sock_opt(args: [usize; 6]) -> SyscallResult {
         return Err(SyscallError::EFAULT);
     }
 
-    let curr = current_executor().await;
+    let curr = current_process().await;
 
     let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
@@ -606,7 +606,7 @@ enum SocketShutdown {
 pub async fn syscall_shutdown(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let how = args[1];
-    let curr = current_executor().await;
+    let curr = current_process().await;
 
     let file = match curr.fd_manager.fd_table.lock().await.get(fd) {
         Some(Some(file)) => file.clone(),
@@ -638,7 +638,7 @@ pub async fn syscall_socketpair(args: [usize; 6]) -> SyscallResult {
     let fd: *mut u32 = args[3] as *mut u32;
     let s_type = args[1];
     let domain = args[0];
-    let process = current_executor().await;
+    let process = current_process().await;
     if process
         .manual_alloc_for_lazy((fd as usize).into())
         .await

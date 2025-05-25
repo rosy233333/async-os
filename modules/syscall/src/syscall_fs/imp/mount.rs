@@ -1,6 +1,6 @@
 use crate::{syscall_fs::solve_path, SyscallError, SyscallResult};
 use process::{
-    current_executor,
+    current_process,
     link::{raw_ptr_to_ref_str, AT_FDCWD},
 };
 
@@ -29,7 +29,7 @@ pub async fn syscall_mount(args: [usize; 6]) -> SyscallResult {
     let mount_path = solve_path(AT_FDCWD, Some(dir), true).await?;
     axlog::error!("syscall_mount mount: {:?}", args);
 
-    let process = current_executor().await;
+    let process = current_process().await;
     if process
         .manual_alloc_for_lazy((fs_type as usize).into())
         .await

@@ -8,7 +8,7 @@
 
 --call-> 
 
-`modules/runtime/src/lib.rs:rust_main`：初始化内核executor，将async_main包装后的main_fut放入内核Executor
+`modules/runtime/src/lib.rs:rust_main`：初始化内核process，将async_main包装后的main_fut放入内核Process
 
 --return->
 
@@ -24,21 +24,21 @@
 
 ## 进程从创建到执行
 
-`modules/trampoline/src/executor_api.rs:init_user`
+`modules/trampoline/src/process_api.rs:init_user`
 
 --call->
 
-`modules/executor/src/executor.rs:Executor::init_user`：创建用户进程（executor）和其中的主协程，将该executor的run协程放入内核executor
+`modules/process/src/process.rs:Process::init_user`：创建用户进程（process）和其中的主协程，将该process的run协程放入内核process
 
 --内核调度运行该run协程->
 
-`modules/executor/src/executor.rs:Executor::run`：切换地址空间和调度器
+`modules/process/src/process.rs:Process::run`：切换地址空间和调度器
 
---（当前调度器已变为用户executor）调度运行进程的主协程->
+--（当前调度器已变为用户process）调度运行进程的主协程->
 
 `modules/trampoline/src/task_api.rs:user_task_top`：（该async函数作为用户态任务的Future上下文）但在此过程中没有作用
 
---return（从协程返回到executor）->
+--return（从协程返回到process）->
 
 `modules/trampoline/src/lib.rs:run_task`：使用sret恢复到用户态执行流
 
@@ -78,7 +78,7 @@
 
 `modules/trampoline/src/task_api.rs:user_task_top`：进行Trap处理等工作
 
---return（从协程返回到executor）->
+--return（从协程返回到process）->
 
 `run_task`：使用sret恢复到用户态执行流
 

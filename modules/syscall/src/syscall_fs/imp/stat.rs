@@ -5,7 +5,7 @@ use crate::{get_fs_stat, syscall_fs::solve_path, FsStat, FsStatx, SyscallError, 
 use async_fs::api::{AsyncFileIO, Kstat};
 use axlog::{debug, info};
 use process::{
-    current_executor,
+    current_process,
     link::{raw_ptr_to_ref_str, FilePath, AT_FDCWD},
     // link::{raw_ptr_to_ref_str, FilePath, AT_FDCWD},
 };
@@ -19,7 +19,7 @@ use crate::syscall_fs::ctype::mount::get_stat_in_fs;
 pub async fn syscall_fstat(args: [usize; 6]) -> SyscallResult {
     let fd = args[0];
     let kst = args[1] as *mut Kstat;
-    let process = current_executor().await;
+    let process = current_process().await;
     let fd_table = process.fd_manager.fd_table.lock().await;
 
     if fd >= fd_table.len() {
