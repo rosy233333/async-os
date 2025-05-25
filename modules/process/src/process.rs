@@ -37,6 +37,7 @@ const FD_LIMIT_ORIGIN: usize = 1025;
 pub const KERNEL_PROCESS_ID: u64 = 1;
 pub static TID2TASK: Mutex<BTreeMap<u64, TaskRef>> = Mutex::new(BTreeMap::new());
 pub static PID2PC: Mutex<BTreeMap<u64, Arc<Process>>> = Mutex::new(BTreeMap::new());
+pub static KPROCESS: LazyInit<Arc<Process>> = LazyInit::new();
 
 pub static UTRAP_HANDLER: LazyInit<fn() -> Pin<Box<dyn Future<Output = isize> + 'static>>> =
     LazyInit::new();
@@ -446,7 +447,7 @@ impl Process {
         ]));
 
         let new_process = Arc::new(Process::new(
-            KERNEL_PROCESS_ID,
+            TaskId::new().as_u64(),
             KERNEL_PROCESS_ID,
             Arc::new(Mutex::new(memory_set)),
             heap_bottom.as_usize() as u64,

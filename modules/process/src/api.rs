@@ -1,6 +1,6 @@
 use crate::{
     flags::WaitStatus, futex::futex_wake, send_signal_to_process, send_signal_to_thread, Process,
-    KERNEL_PROCESS_ID, PID2PC, TID2TASK, UTRAP_HANDLER,
+    KERNEL_PROCESS_ID, KPROCESS, PID2PC, TID2TASK, UTRAP_HANDLER,
 };
 use alloc::{boxed::Box, string::String, sync::Arc};
 use axsignal::signal_no::SignalNo;
@@ -10,6 +10,7 @@ pub use task_api::*;
 // Initializes the process (for the primary CPU).
 pub fn init(utrap_handler: fn() -> Pin<Box<dyn Future<Output = isize> + 'static>>) {
     info!("Initialize process...");
+    KPROCESS.init_by(Arc::new(Process::new_init()));
     UTRAP_HANDLER.init_by(utrap_handler);
 }
 
@@ -135,7 +136,7 @@ pub async fn exit(exit_code: isize) {
         current_process.signal_modules.lock().await.clear();
 
         let mut pid2pc = PID2PC.lock().await;
-        let kernel_process = pid2pc.get(&KERNEL_PROCESS_ID).unwrap();
+        let kernel_process = KPROCESS.clone();
         // 将子进程交给idle进程
         // process.memory_set = Arc::clone(&kernel_process.memory_set);
         for child in current_process.children.lock().await.deref() {
