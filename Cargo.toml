@@ -44,7 +44,6 @@ members = [
     "vdso",
     "vdso/cops",
     "vdso/pilf_buddy_alloc",
-    "vdso/pi_pointer",
     "vdso/queue",
     "user_apps/vdso_test",
     "uruntime",
