@@ -1,6 +1,7 @@
 # QEMU arguments
 
-QEMU := ../taic-qemu/build/qemu-system-$(ARCH)
+# QEMU := ../taic-qemu/build/qemu-system-$(ARCH)
+QEMU := qemu-system-$(ARCH)
 ifeq ($(BUS), mmio)
   vdev-suffix := device
 else ifeq ($(BUS), pci)
