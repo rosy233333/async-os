@@ -9,9 +9,9 @@ axalloc = { git = "https://github.com/Starry-OS/axalloc.git" }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 elf_parser = { git = "https://github.com/Starry-OS/elf_parser.git" }
 memory_addr = { git = "https://github.com/Starry-OS/memory_addr.git" }
-axconfig = { git = "https://github.com/Starry-OS/axconfig.git"}
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 xmas-elf = "0.9.0"
 
 async_mem = { path = "../modules/async_mem" }
 axhal = { path = "../modules/axhal" }
-
+api = { path = "../../vdso_crate_template/api", features = ["log"] }

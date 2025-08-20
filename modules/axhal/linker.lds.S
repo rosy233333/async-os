@@ -19,6 +19,20 @@ SECTIONS
         _etext = .;
     }
 
+    .vvar : ALIGN(4K) {
+        _svvar = .;
+        *(.vvar)
+        . = ALIGN(4K);
+        _evvar = .;
+    }
+
+    .vdso : ALIGN(4K) {
+        _svdso = .;
+        *(.vdso)
+        . = ALIGN(4K);
+        _evdso = .;
+    }
+
     .rodata : ALIGN(4K) {
         _srodata = .;
         *(.rodata .rodata.*)

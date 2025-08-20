@@ -85,6 +85,21 @@ fn kernel_image_regions() -> impl Iterator<Item = MemRegion> {
             name: ".text",
         },
         MemRegion {
+            paddr: virt_to_phys((_svvar as usize).into()),
+            size: _evvar as usize - _svvar as usize,
+            flags: MemRegionFlags::RESERVED | MemRegionFlags::READ | MemRegionFlags::WRITE,
+            name: ".vvar",
+        },
+        MemRegion {
+            paddr: virt_to_phys((_svdso as usize).into()),
+            size: _evdso as usize - _svdso as usize,
+            flags: MemRegionFlags::RESERVED
+                | MemRegionFlags::READ
+                | MemRegionFlags::WRITE
+                | MemRegionFlags::EXECUTE,
+            name: ".vdso",
+        },
+        MemRegion {
             paddr: virt_to_phys((_srodata as usize).into()),
             size: _erodata as usize - _srodata as usize,
             flags: MemRegionFlags::RESERVED | MemRegionFlags::READ,
@@ -165,6 +180,10 @@ pub fn clear_bss() {
 extern "C" {
     fn _stext();
     fn _etext();
+    fn _svvar();
+    fn _evvar();
+    fn _svdso();
+    fn _evdso();
     fn _srodata();
     fn _erodata();
     fn _sdata();
