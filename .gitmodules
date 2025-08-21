@@ -2,6 +2,3 @@
 	path = testcases
 	url = https://github.com/Starry-OS/testcases.git
 	ignore = dirty
-[submodule "vdso/cops"]
-	path = vdso/cops
-	url = https://github.com/AsyncModules/cops.git
