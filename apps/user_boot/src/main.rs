@@ -98,8 +98,8 @@ const BUSYBOX_TESTCASES: &[&str] = &[
 const TESTCASES: &[&str] = &[
     // "batch_syscall",
     // "syscall_test",
-    // "vdso_test",
-    "hello_world",
+    "vdso_test",
+    // "hello_world",
     // "pipetest",
     // "std_thread_test",
 ];

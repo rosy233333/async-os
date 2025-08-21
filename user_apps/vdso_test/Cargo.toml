@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 xmas-elf = "0.9.0"
+api = { path = "../../../vdso_crate_template/api", features = ["log"] }
+# env_logger = "0.9"

@@ -8,7 +8,7 @@ use alloc::{collections::btree_set::Union, vec::Vec};
 use async_mem::MemorySet;
 use axalloc::PhysPage;
 use axhal::paging::MappingFlags;
-use core::{cell::UnsafeCell, ptr::copy_nonoverlapping};
+use core::{cell::UnsafeCell, hint::black_box, ptr::copy_nonoverlapping};
 use elf_parser::get_relocate_pairs;
 use lazy_init::LazyInit;
 use log::{info, warn};
@@ -20,7 +20,9 @@ static VDSO_SIZE: usize = ((SO_CONTENT.len() - 1) / PAGE_SIZE_4K + 1) * PAGE_SIZ
 
 pub fn init() {
     VDSO_INFO.init_by(VdsoInfo::new());
-    VDSO_INFO.test_vdso();
+    unsafe {
+        test_vdso();
+    }
 }
 
 // extern "C" {
@@ -57,16 +59,10 @@ pub struct VdsoInfo {
 impl VdsoInfo {
     pub fn new() -> Self {
         info!("Initialize vDSO...");
-        unsafe {
-            (&mut *VVAR.0.get())[0..4].copy_from_slice(&[0xde, 0xad, 0xbe, 0xef]);
-        }
+        black_box(&VVAR); // 避免VVAR区域被编译器优化掉
         unsafe {
             (&mut *VDSO.0.get())[0..SO_CONTENT.len()].copy_from_slice(SO_CONTENT);
         }
-        // unsafe {
-        //     (&mut *(&VDSO as *const [u8; VDSO_SIZE] as *mut [u8; VDSO_SIZE]))[0..SO_CONTENT.len()]
-        //         .copy_from_slice(SO_CONTENT);
-        // }
 
         let vdso_start: usize = &VDSO as *const _ as usize;
         let vdso_end: usize = vdso_start + VDSO_SIZE;
@@ -95,6 +91,7 @@ impl VdsoInfo {
     }
 
     pub async fn vdso2memoryset(&self, memory_set: &mut MemorySet) -> VirtAddr {
+        log::warn!("Mapping vDSO to memory set...");
         let vvar_base = memory_set.max_va();
         let vdso_base = vvar_base + VVAR_SIZE;
         // 映射 vdso 数据区域
@@ -115,7 +112,7 @@ impl VdsoInfo {
             let dst: usize = relocate_pair.dst.into();
             let count = relocate_pair.count;
             log::error!("src: {:#x}, dst: {:#x}, count: {:#x}", src, dst, count);
-            // unsafe { copy_nonoverlapping(src.to_ne_bytes().as_ptr(), dst as *mut u8, count) }
+            unsafe { copy_nonoverlapping(src.to_ne_bytes().as_ptr(), dst as *mut u8, count) }
         }
         // 映射 vDSO 代码区域
         let paddr = self.cm[0].start_vaddr.as_usize() - axconfig::KERNEL_BASE_VADDR
@@ -128,13 +125,17 @@ impl VdsoInfo {
                 MappingFlags::READ | MappingFlags::EXECUTE | MappingFlags::USER,
             )
             .await;
+        log::warn!("vDSO mapped at {:#x}", vdso_base.as_usize());
         vdso_base
     }
+}
 
-    pub fn test_vdso(&self) {
-        warn!("Testing vDSO in kernel...");
-        api::init();
-        assert!(api::api_example().i == 42);
-        warn!("Test passed!");
-    }
+/// SAFETY: 调用该函数前需要先调用api::init_vdso_vtable。
+pub unsafe fn test_vdso() {
+    warn!("Testing vDSO in kernel...");
+    api::init();
+    assert!(api::get_example().i == 42);
+    api::set_example(1);
+    assert!(api::get_example().i == 1);
+    warn!("Test passed!");
 }
