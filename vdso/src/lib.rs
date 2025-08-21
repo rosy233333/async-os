@@ -16,7 +16,7 @@ use memory_addr::{VirtAddr, PAGE_SIZE_4K};
 
 // core::arch::global_asm!(include_str!("vdso.S"));
 static SO_CONTENT: &[u8] = include_bytes!("../libvdsoexample.so");
-static VDSO_SIZE: usize = ((SO_CONTENT.len() - 1) / PAGE_SIZE_4K + 1) * PAGE_SIZE_4K;
+const VDSO_SIZE: usize = ((SO_CONTENT.len() - 1) / PAGE_SIZE_4K + 1) * PAGE_SIZE_4K;
 
 pub fn init() {
     VDSO_INFO.init_by(VdsoInfo::new());
@@ -25,13 +25,8 @@ pub fn init() {
     }
 }
 
-// extern "C" {
-//     fn VDSO_START();
-//     fn VDSO_END();
-// }
-
-static VVAR_PAGES: usize = 1;
-static VVAR_SIZE: usize = VVAR_PAGES * PAGE_SIZE_4K;
+const VVAR_PAGES: usize = (api::VVAR_DATA_SIZE - 1) / PAGE_SIZE_4K + 1;
+const VVAR_SIZE: usize = VVAR_PAGES * PAGE_SIZE_4K;
 
 struct SyncUnsafeCell<T>(UnsafeCell<T>);
 unsafe impl<T> Sync for SyncUnsafeCell<T> {}
