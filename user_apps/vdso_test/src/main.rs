@@ -1,3 +1,6 @@
+use std::process::Command;
+
+use libc::{wait, WIFEXITED};
 use xmas_elf::symbol_table::Entry;
 
 const AT_SYSINFO_EHDR: u64 = 33;
@@ -22,40 +25,68 @@ fn main() {
 
     unsafe {
         api::init_vdso_vtable(vdso_base, &vdso_elf);
+    }
+
+    // 单进程测试
+    unsafe {
         test_vdso();
     }
+
+    // // 多进程测试，目前仍有bug
+    // match unsafe { libc::fork() } {
+    //     0 => {
+    //         // 子进程
+    //         unsafe { test_vdso_child() }
+    //     }
+    //     _ => {
+    //         // 父进程
+
+    //         // 等待子进程结束
+    //         let mut status = 0;
+    //         unsafe {
+    //             wait(&mut status);
+    //             WIFEXITED(status)
+    //                 .then(|| println!("Child process exited successfully."))
+    //                 .unwrap_or_else(|| panic!("Child process did not exit successfully."));
+    //         }
+
+    //         unsafe { test_vdso_parent() }
+    //     }
+    // }
+}
+
+/// SAFETY: 调用该函数前需要先调用api::init_vdso_vtable。
+unsafe fn test_vdso_child() {
+    println!("Testing vDSO in child process...");
+    assert_eq!(api::get_shared().i, 1); // 共享数据已被内核修改
+    api::set_shared(2);
+    assert_eq!(api::get_shared().i, 2);
+    assert_eq!(api::get_private().i, 0); // 私有数据不应被内核的修改影响
+    api::set_private(2);
+    assert_eq!(api::get_private().i, 2);
+    println!("Test passed!");
+}
+
+/// SAFETY: 调用该函数前需要先调用api::init_vdso_vtable。
+unsafe fn test_vdso_parent() {
+    println!("Testing vDSO in parent process...");
+    assert_eq!(api::get_shared().i, 2); // 共享数据已被子进程修改
+    api::set_shared(3);
+    assert_eq!(api::get_shared().i, 3);
+    assert_eq!(api::get_private().i, 0); // 私有数据不应被内核或子进程的修改影响
+    api::set_private(3);
+    assert_eq!(api::get_private().i, 3);
+    println!("Test passed!");
 }
 
 /// SAFETY: 调用该函数前需要先调用api::init_vdso_vtable。
 unsafe fn test_vdso() {
     println!("Testing vDSO in userspace...");
-    api::init();
-    assert!(api::get_example().i == 1);
-    api::set_example(2);
-    assert!(api::get_example().i == 2);
+    assert_eq!(api::get_shared().i, 1); // 共享数据已被内核修改
+    api::set_shared(2);
+    assert_eq!(api::get_shared().i, 2);
+    assert_eq!(api::get_private().i, 0); // 私有数据不应被内核的修改影响
+    api::set_private(2);
+    assert_eq!(api::get_private().i, 2);
     println!("Test passed!");
 }
-
-// fn main() {
-//     let vdso_base = unsafe { getauxval(AT_SYSINFO_EHDR) };
-//     println!("{:#X?}", vdso_base);
-
-//     let vdso_data = unsafe { core::slice::from_raw_parts(vdso_base as *const u8, 0x1000) };
-//     let vdso_elf = xmas_elf::ElfFile::new(vdso_data).unwrap();
-//     if let Some(dyn_sym_table) = vdso_elf.find_section_by_name(".dynsym") {
-//         let dyn_sym_table = match dyn_sym_table.get_data(&vdso_elf) {
-//             Ok(xmas_elf::sections::SectionData::DynSymbolTable64(dyn_sym_table)) => dyn_sym_table,
-//             _ => panic!("Invalid data in .dynsym section"),
-//         };
-//         for dynsym in dyn_sym_table {
-//             let name = dynsym.get_name(&vdso_elf).unwrap();
-//             if name.starts_with("__vdso") {
-//                 println!("{}: {:?}", name, dynsym.value(),);
-//                 let fn_ptr = 0x40aa000 + dynsym.value();
-//                 let f: fn() -> usize = unsafe { core::mem::transmute(fn_ptr) };
-//                 let val = f();
-//                 println!("val: {:#X?}", val);
-//             }
-//         }
-//     }
-// }
