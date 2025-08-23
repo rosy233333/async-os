@@ -81,6 +81,32 @@ impl MapArea {
         })
     }
 
+    /// 在虚拟空间中分配一块不需要分配物理页的，标记为shared的区域
+    pub async fn new_without_alloc_shared(
+        start: VirtAddr,
+        paddr: PhysAddr,
+        num_pages: usize,
+        flags: MappingFlags,
+        page_table: &mut PageTable,
+    ) -> AxResult<Self> {
+        let mut pages = Vec::with_capacity(num_pages);
+        for _ in 0..num_pages {
+            pages.push(None);
+        }
+
+        page_table
+            .map_region(start, paddr, num_pages * PAGE_SIZE_4K, flags, false)
+            .unwrap();
+
+        Ok(Self {
+            pages,
+            vaddr: start,
+            shared: true,
+            flags,
+            backend: None,
+        })
+    }
+
     /// Allocated an area and map it in page table.
     pub async fn new_alloc(
         start: VirtAddr,
@@ -529,6 +555,12 @@ impl MapArea {
                 })
                 .collect();
             for vaddr in fault_pages {
+                if let Ok((pa, _, _)) = parent_page_table.query(vaddr) {
+                    if pa.as_usize() != 0 {
+                        // 用于排除pages为[None]，但page_table中已有映射关系的情况（用于vDSO实现），此时不需要handle_page_fault
+                        continue;
+                    }
+                }
                 self.handle_page_fault(vaddr, MappingFlags::empty(), parent_page_table)
                     .await;
             }
@@ -537,18 +569,28 @@ impl MapArea {
             let mut pages = Vec::new();
             for (idx, slot) in self.pages.iter().enumerate() {
                 let vaddr = self.vaddr + (idx * PAGE_SIZE_4K);
-                assert!(slot.is_some());
-                let page = slot.as_ref().unwrap().lock().await;
-                page_table
-                    .map(
-                        vaddr,
-                        virt_to_phys(page.start_vaddr),
-                        PageSize::Size4K,
-                        self.flags,
-                    )
-                    .unwrap();
-                drop(page);
-                pages.push(Some(Arc::clone(slot.as_ref().unwrap())));
+                // assert!(slot.is_some());
+                if slot.is_some() {
+                    let page = slot.as_ref().unwrap().lock().await;
+                    page_table
+                        .map(
+                            vaddr,
+                            virt_to_phys(page.start_vaddr),
+                            PageSize::Size4K,
+                            self.flags,
+                        )
+                        .unwrap();
+                    drop(page);
+                    pages.push(Some(Arc::clone(slot.as_ref().unwrap())));
+                } else {
+                    // 增加了pages为[None]，但page_table中已有映射关系的情况（用于vDSO实现）
+                    let paddr = parent_page_table.query(vaddr).unwrap().0;
+                    assert!(paddr.as_usize() != 0);
+                    page_table
+                        .map(vaddr, paddr, PageSize::Size4K, self.flags)
+                        .unwrap();
+                    pages.push(None);
+                }
             }
             return Ok(Self {
                 pages,

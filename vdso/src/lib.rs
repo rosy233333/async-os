@@ -89,7 +89,7 @@ impl VdsoInfo {
         let vvar_paddr = (&VVAR as *const _ as usize) - axconfig::KERNEL_BASE_VADDR
             + axconfig::KERNEL_BASE_PADDR;
         let _ = memory_set
-            .map_attach_page_without_alloc(
+            .map_attach_shared_page_without_alloc(
                 vvar_base,
                 vvar_paddr.into(),
                 VVAR_PAGES,

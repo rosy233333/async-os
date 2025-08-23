@@ -27,32 +27,32 @@ fn main() {
         api::init_vdso_vtable(vdso_base, &vdso_elf);
     }
 
-    // 单进程测试
-    unsafe {
-        test_vdso();
-    }
-
-    // // 多进程测试，目前仍有bug
-    // match unsafe { libc::fork() } {
-    //     0 => {
-    //         // 子进程
-    //         unsafe { test_vdso_child() }
-    //     }
-    //     _ => {
-    //         // 父进程
-
-    //         // 等待子进程结束
-    //         let mut status = 0;
-    //         unsafe {
-    //             wait(&mut status);
-    //             WIFEXITED(status)
-    //                 .then(|| println!("Child process exited successfully."))
-    //                 .unwrap_or_else(|| panic!("Child process did not exit successfully."));
-    //         }
-
-    //         unsafe { test_vdso_parent() }
-    //     }
+    // // 单进程测试
+    // unsafe {
+    //     test_vdso();
     // }
+
+    // 多进程测试，目前仍有bug
+    match unsafe { libc::fork() } {
+        0 => {
+            // 子进程
+            unsafe { test_vdso_child() }
+        }
+        _ => {
+            // 父进程
+
+            // 等待子进程结束
+            let mut status = 0;
+            unsafe {
+                wait(&mut status);
+                WIFEXITED(status)
+                    .then(|| println!("Child process exited successfully."))
+                    .unwrap_or_else(|| panic!("Child process did not exit successfully."));
+            }
+
+            unsafe { test_vdso_parent() }
+        }
+    }
 }
 
 /// SAFETY: 调用该函数前需要先调用api::init_vdso_vtable。
