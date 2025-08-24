@@ -14,9 +14,8 @@ use lazy_init::LazyInit;
 use log::{info, warn};
 use memory_addr::{VirtAddr, PAGE_SIZE_4K};
 
-// core::arch::global_asm!(include_str!("vdso.S"));
 static SO_CONTENT: &[u8] = include_bytes!("../libvdsoexample.so");
-static VDSO_SIZE: usize = ((SO_CONTENT.len() - 1) / PAGE_SIZE_4K + 1) * PAGE_SIZE_4K;
+const VDSO_SIZE: usize = ((SO_CONTENT.len() - 1) / PAGE_SIZE_4K + 1) * PAGE_SIZE_4K;
 
 pub fn init() {
     VDSO_INFO.init_by(VdsoInfo::new());
@@ -25,13 +24,8 @@ pub fn init() {
     }
 }
 
-// extern "C" {
-//     fn VDSO_START();
-//     fn VDSO_END();
-// }
-
-static VVAR_PAGES: usize = 1;
-static VVAR_SIZE: usize = VVAR_PAGES * PAGE_SIZE_4K;
+const VVAR_PAGES: usize = (api::VVAR_DATA_SIZE - 1) / PAGE_SIZE_4K + 1;
+const VVAR_SIZE: usize = VVAR_PAGES * PAGE_SIZE_4K;
 
 struct SyncUnsafeCell<T>(UnsafeCell<T>);
 unsafe impl<T> Sync for SyncUnsafeCell<T> {}
@@ -42,11 +36,6 @@ static VVAR: SyncUnsafeCell<[u8; VVAR_SIZE]> = SyncUnsafeCell(UnsafeCell::new([0
 #[link_section = ".vdso"]
 #[no_mangle]
 static VDSO: SyncUnsafeCell<[u8; VDSO_SIZE]> = SyncUnsafeCell(UnsafeCell::new([0; VDSO_SIZE]));
-
-// #[link_section = "vvar"]
-// static VVAR: [u8; VVAR_SIZE] = [0; VVAR_SIZE];
-// #[link_section = "vdso"]
-// static VDSO: [u8; VDSO_SIZE] = [0; VDSO_SIZE];
 
 pub static VDSO_INFO: LazyInit<VdsoInfo> = LazyInit::new();
 
@@ -82,6 +71,7 @@ impl VdsoInfo {
         unsafe {
             api::init_vdso_vtable(vdso_start as u64, &elf);
         }
+        api::init();
 
         Self {
             name: "vdso",
@@ -94,38 +84,39 @@ impl VdsoInfo {
         log::warn!("Mapping vDSO to memory set...");
         let vvar_base = memory_set.max_va();
         let vdso_base = vvar_base + VVAR_SIZE;
-        // 映射 vdso 数据区域
-        let _ = memory_set
-            .new_region(
-                vvar_base,
-                VVAR_SIZE,
-                false,
-                MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
-                None,
-                None,
-            )
-            .await;
-        let elf = xmas_elf::ElfFile::new(self.elf_data).expect("Error parsing vDSO.");
-        let relocate_pairs = get_relocate_pairs(&elf, Some(vdso_base.as_usize()));
-        for relocate_pair in relocate_pairs {
-            let src: usize = relocate_pair.src.into();
-            let dst: usize = relocate_pair.dst.into();
-            let count = relocate_pair.count;
-            log::error!("src: {:#x}, dst: {:#x}, count: {:#x}", src, dst, count);
-            unsafe { copy_nonoverlapping(src.to_ne_bytes().as_ptr(), dst as *mut u8, count) }
-        }
-        // 映射 vDSO 代码区域
-        let paddr = self.cm[0].start_vaddr.as_usize() - axconfig::KERNEL_BASE_VADDR
+
+        // 映射 vDSO数据区域
+        let vvar_paddr = (&VVAR as *const _ as usize) - axconfig::KERNEL_BASE_VADDR
             + axconfig::KERNEL_BASE_PADDR;
         let _ = memory_set
-            .map_attach_page_without_alloc(
+            .map_attach_shared_page_without_alloc(
+                vvar_base,
+                vvar_paddr.into(),
+                VVAR_PAGES,
+                MappingFlags::READ | MappingFlags::WRITE | MappingFlags::USER,
+            )
+            .await;
+        log::warn!("vVAR mapped at {:#x}", vvar_base.as_usize());
+
+        // 映射 vDSO 代码区域
+        // 此处使用SO_CONTENT而非VDSO，因为内核可能已经修改的VDSO。
+        // 暂时使用“直接拷贝到用户区域”代替“共享页面+写时复制”，确保各个地址空间的vDSO代码区域互不影响。
+        // 未来可以改为共享页面+写时复制以提高性能。
+        let _ = memory_set
+            .new_region(
                 vdso_base,
-                paddr.into(),
-                self.cm.len(),
-                MappingFlags::READ | MappingFlags::EXECUTE | MappingFlags::USER,
+                VDSO_SIZE,
+                false,
+                MappingFlags::READ
+                    | MappingFlags::WRITE
+                    | MappingFlags::EXECUTE
+                    | MappingFlags::USER,
+                Some(&SO_CONTENT),
+                None,
             )
             .await;
         log::warn!("vDSO mapped at {:#x}", vdso_base.as_usize());
+
         vdso_base
     }
 }
@@ -133,9 +124,11 @@ impl VdsoInfo {
 /// SAFETY: 调用该函数前需要先调用api::init_vdso_vtable。
 pub unsafe fn test_vdso() {
     warn!("Testing vDSO in kernel...");
-    api::init();
-    assert!(api::get_example().i == 42);
-    api::set_example(1);
-    assert!(api::get_example().i == 1);
+    assert_eq!(api::get_shared().i, 42);
+    api::set_shared(1);
+    assert_eq!(api::get_shared().i, 1);
+    assert_eq!(api::get_private().i, 0);
+    api::set_private(1);
+    assert_eq!(api::get_private().i, 1);
     warn!("Test passed!");
 }

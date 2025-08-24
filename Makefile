@@ -176,7 +176,11 @@ ifeq ($(A), apps/user_boot)
 	sh ./build_img.sh -a $(ARCH)
 endif
 
-build: user_apps $(OUT_DIR) $(OUT_BIN)
+vdso:
+	cd vdso && make build
+	cd -
+
+build: vdso user_apps $(OUT_DIR) $(OUT_BIN)
 
 disasm:
 	$(OBJDUMP) $(OUT_ELF) | less
@@ -239,4 +243,4 @@ clean_c::
 	rm -rf tools/axlibc/build_*
 	rm -rf $(app-objs)
 
-.PHONY: all build disasm run justrun debug clippy fmt fmt_c test test_no_fail_fast clean clean_c doc disk_image make_bin user_apps
+.PHONY: all build disasm run justrun debug clippy fmt fmt_c test test_no_fail_fast clean clean_c doc disk_image make_bin user_apps vdso
