@@ -50,8 +50,8 @@ members = [
     "uruntime",
     "user_apps/syscall_test",
     "user_apps/batch_syscall",
-    "crates/pilf_queue",
-    "crates/pilf_buddy_alloc",
-    "crates/pi_pointer",
+    # "crates/pilf_queue",
+    # "crates/pilf_buddy_alloc",
+    # "crates/pi_pointer",
 ]
 resolver = "2"
