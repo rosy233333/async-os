@@ -13,6 +13,7 @@ use elf_parser::get_relocate_pairs;
 use lazy_init::LazyInit;
 use log::{info, warn};
 use memory_addr::{VirtAddr, PAGE_SIZE_4K};
+use structs::shared::VvarData;
 
 static SO_CONTENT: &[u8] = include_bytes!("../libvdsoexample.so");
 const VDSO_SIZE: usize = ((SO_CONTENT.len() - 1) / PAGE_SIZE_4K + 1) * PAGE_SIZE_4K;
@@ -50,6 +51,9 @@ impl VdsoInfo {
         info!("Initialize vDSO...");
         black_box(&VVAR); // 避免VVAR区域被编译器优化掉
         unsafe {
+            (VVAR.0.get() as *mut () as *mut VvarData).write(VvarData::new());
+        }
+        unsafe {
             (&mut *VDSO.0.get())[0..SO_CONTENT.len()].copy_from_slice(SO_CONTENT);
         }
 
@@ -68,10 +72,26 @@ impl VdsoInfo {
             .collect::<Vec<PhysPage>>();
 
         let elf = xmas_elf::ElfFile::new(elf_data).expect("Error parsing vDSO.");
+        let relocate_pairs = elf_parser::get_relocate_pairs(&elf, Some(vdso_start));
+        for relocate_pair in relocate_pairs {
+            let src: usize = relocate_pair.src.into();
+            let dst: usize = relocate_pair.dst.into();
+            let count = relocate_pair.count;
+            log::info!(
+                "Relocate: src: 0x{:x}, dst: 0x{:x}, count: {}",
+                src,
+                dst,
+                count
+            );
+            unsafe {
+                core::ptr::copy_nonoverlapping(src.to_ne_bytes().as_ptr(), dst as *mut u8, count)
+            }
+        }
+
         unsafe {
             api::init_vdso_vtable(vdso_start as u64, &elf);
         }
-        api::init();
+        // api::init();
 
         Self {
             name: "vdso",
