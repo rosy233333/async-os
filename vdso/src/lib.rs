@@ -10,13 +10,14 @@ use axalloc::PhysPage;
 use axhal::paging::MappingFlags;
 use core::{cell::UnsafeCell, hint::black_box, ptr::copy_nonoverlapping};
 use elf_parser::get_relocate_pairs;
+use include_bytes_aligned::include_bytes_aligned;
 use lazy_init::LazyInit;
 use log::{info, warn};
 use memory_addr::{VirtAddr, PAGE_SIZE_4K};
 use structs::shared::VvarData;
 
-static SO_CONTENT: &[u8] = include_bytes!("../libvdsoexample.so");
-const VDSO_SIZE: usize = ((SO_CONTENT.len() - 1) / PAGE_SIZE_4K + 1) * PAGE_SIZE_4K;
+static SO_CONTENT: &[u8] = include_bytes_aligned!(8, "../libvdsoexample.so");
+const VDSO_SIZE: usize = ((SO_CONTENT.len() - 1) / PAGE_SIZE_4K + 1) * PAGE_SIZE_4K + PAGE_SIZE_4K; // 额外加了一页，用于bss段等未出现在文件中的段
 
 pub fn init() {
     VDSO_INFO.init_by(VdsoInfo::new());
@@ -49,50 +50,31 @@ pub struct VdsoInfo {
 impl VdsoInfo {
     pub fn new() -> Self {
         info!("Initialize vDSO...");
-        black_box(&VVAR); // 避免VVAR区域被编译器优化掉
+        // 加载vvar区域
         unsafe {
             (VVAR.0.get() as *mut () as *mut VvarData).write(VvarData::new());
         }
-        unsafe {
-            (&mut *VDSO.0.get())[0..SO_CONTENT.len()].copy_from_slice(SO_CONTENT);
-        }
-
+        // 加载vdso区域
         let vdso_start: usize = &VDSO as *const _ as usize;
         let vdso_end: usize = vdso_start + VDSO_SIZE;
+        load_vdso(vdso_start, vdso_start);
 
         let len = vdso_end as usize - vdso_start as usize;
         let start = vdso_start as usize;
         let pages = len / PAGE_SIZE_4K;
-        let elf_data = unsafe { core::slice::from_raw_parts(start as *const u8, len) };
-        assert_eq!(&elf_data[0..4], b"\x7fELF");
+        // assert_eq!(&elf_data[0..4], b"\x7fELF");
         let cm = (0..pages)
             .map(|i| PhysPage {
                 start_vaddr: (start as usize + i * PAGE_SIZE_4K).into(),
             })
             .collect::<Vec<PhysPage>>();
 
-        let elf = xmas_elf::ElfFile::new(elf_data).expect("Error parsing vDSO.");
-        let relocate_pairs = elf_parser::get_relocate_pairs(&elf, Some(vdso_start));
-        for relocate_pair in relocate_pairs {
-            let src: usize = relocate_pair.src.into();
-            let dst: usize = relocate_pair.dst.into();
-            let count = relocate_pair.count;
-            log::info!(
-                "Relocate: src: 0x{:x}, dst: 0x{:x}, count: {}",
-                src,
-                dst,
-                count
-            );
-            unsafe {
-                core::ptr::copy_nonoverlapping(src.to_ne_bytes().as_ptr(), dst as *mut u8, count)
-            }
-        }
-
         unsafe {
-            api::init_vdso_vtable(vdso_start as u64, &elf);
+            api::init_vdso_vtable(vdso_start as u64);
         }
         // api::init();
 
+        let elf_data = unsafe { core::slice::from_raw_parts(start as *const u8, len) };
         Self {
             name: "vdso",
             elf_data,
@@ -131,14 +113,58 @@ impl VdsoInfo {
                     | MappingFlags::WRITE
                     | MappingFlags::EXECUTE
                     | MappingFlags::USER,
-                Some(&SO_CONTENT),
+                Some(&[0u8; VDSO_SIZE]),
                 None,
             )
             .await;
-        log::warn!("vDSO mapped at {:#x}", vdso_base.as_usize());
+        let kernel_vaddr = memory_set.query(vdso_base).unwrap().0.as_usize()
+            - axconfig::KERNEL_BASE_PADDR
+            + axconfig::KERNEL_BASE_VADDR;
+        load_vdso(kernel_vaddr, vdso_base.as_usize());
+
+        log::warn!("vDSO mapped at {:#x} in userspace", vdso_base.as_usize());
 
         vdso_base
     }
+}
+
+pub fn load_vdso(curr_vspace_addr: usize, target_vspace_addr: usize) {
+    let elf = xmas_elf::ElfFile::new(&SO_CONTENT).expect("Error parsing vDSO.");
+    let segments = elf_parser::get_elf_segments(&elf, Some(curr_vspace_addr));
+    for segment in segments {
+        if let Some(src) = segment.data {
+            let dst = segment.vaddr.as_mut_ptr();
+            unsafe {
+                core::ptr::copy_nonoverlapping(src.as_ptr(), dst, segment.size);
+            }
+        }
+
+        log::info!(
+            "Load vDSO segment: vaddr=0x{:x}, size=0x{:x}, flags={:?}",
+            segment.vaddr,
+            segment.size,
+            segment.flags
+        );
+    }
+    let relocate_pairs = elf_parser::get_relocate_pairs(&elf, Some(target_vspace_addr));
+    for relocate_pair in relocate_pairs {
+        let src: usize = relocate_pair.src.into();
+        let dst: usize = relocate_pair.dst.into();
+        let count = relocate_pair.count;
+        log::info!(
+            "Relocate: src: 0x{:x}, dst: 0x{:x}, count: {}",
+            src,
+            dst,
+            count
+        );
+        unsafe { core::ptr::copy_nonoverlapping(src.to_ne_bytes().as_ptr(), dst as *mut u8, count) }
+    }
+
+    log::warn!(
+        "vDSO loaded at {:#x} in current vspace, {:#x} in target vspace.",
+        curr_vspace_addr,
+        target_vspace_addr
+    );
 }
 
 /// SAFETY: 调用该函数前需要先调用api::init_vdso_vtable。

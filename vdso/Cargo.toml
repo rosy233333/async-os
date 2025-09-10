@@ -16,3 +16,4 @@ async_mem = { path = "../modules/async_mem" }
 axhal = { path = "../modules/axhal" }
 api = { path = "../../vdso_crate_template/api", features = ["log"] }
 structs = { path = "../../vdso_crate_template/structs" }
+include_bytes_aligned = "0.1.4"

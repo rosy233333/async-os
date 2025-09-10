@@ -20,11 +20,8 @@ fn main() {
     let vdso_base = unsafe { getauxval(AT_SYSINFO_EHDR) };
     println!("{:#X?}", vdso_base);
 
-    let vdso_data = unsafe { core::slice::from_raw_parts(vdso_base as *const u8, VDSO_SIZE) };
-    let vdso_elf = xmas_elf::ElfFile::new(vdso_data).unwrap();
-
     unsafe {
-        api::init_vdso_vtable(vdso_base, &vdso_elf);
+        api::init_vdso_vtable(vdso_base);
     }
 
     // // 单进程测试
