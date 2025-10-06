@@ -20,10 +20,10 @@ spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 elf_parser = { git = "https://github.com/Starry-OS/elf_parser.git" }
-axconfig = { git = "https://github.com/Starry-OS/axconfig.git"}
+axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 percpu = { git = "https://github.com/Starry-OS/percpu.git", optional = true }
 kernel_guard = { path = "../kernel_guard", optional = true }
-axsignal = { git = "https://github.com/Starry-OS/axsignal.git" }
+axsignal = { git = "https://github.com/Starry-Old/axsignal-old.git" }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 xmas-elf = "0.9.0"
 bitflags = "2.6"
@@ -33,7 +33,7 @@ task_api = { path = "../task_api" }
 sync = { path = "../sync" }
 taskctx = { path = "../taskctx" }
 async_mem = { path = "../async_mem" }
-async_io = { path = "../async_io"}
+async_io = { path = "../async_io" }
 async_fs = { path = "../async_fs" }
 axhal = { path = "../axhal" }
 riscv = "0.10"

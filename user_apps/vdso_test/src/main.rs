@@ -11,7 +11,7 @@ extern "C" {
 
 const PAGE_SIZE_4K: usize = 4096;
 const VDSO_SIZE: usize =
-    ((include_bytes!("../../../vdso/libvdsoexample.so").len() - 1) / PAGE_SIZE_4K + 1)
+    ((include_bytes!("../../../vdso_output/libvdsoexample.so").len() - 1) / PAGE_SIZE_4K + 1)
         * PAGE_SIZE_4K;
 
 fn main() {
@@ -21,7 +21,7 @@ fn main() {
     println!("{:#X?}", vdso_base);
 
     unsafe {
-        api::init_vdso_vtable(vdso_base);
+        libvdsoexample::init_vdso_vtable(vdso_base);
     }
 
     // // 单进程测试
@@ -52,38 +52,38 @@ fn main() {
     }
 }
 
-/// SAFETY: 调用该函数前需要先调用api::init_vdso_vtable。
+/// SAFETY: 调用该函数前需要先调用libvdsoexample::init_vdso_vtable。
 unsafe fn test_vdso_child() {
     println!("Testing vDSO in child process...");
-    assert_eq!(api::get_shared().i, 1); // 共享数据已被内核修改
-    api::set_shared(2);
-    assert_eq!(api::get_shared().i, 2);
-    assert_eq!(api::get_private().i, 0); // 私有数据不应被内核的修改影响
-    api::set_private(2);
-    assert_eq!(api::get_private().i, 2);
+    assert_eq!(libvdsoexample::get_shared().i, 1); // 共享数据已被内核修改
+    libvdsoexample::set_shared(2);
+    assert_eq!(libvdsoexample::get_shared().i, 2);
+    assert_eq!(libvdsoexample::get_private().i, 0); // 私有数据不应被内核的修改影响
+    libvdsoexample::set_private(2);
+    assert_eq!(libvdsoexample::get_private().i, 2);
     println!("Test passed!");
 }
 
-/// SAFETY: 调用该函数前需要先调用api::init_vdso_vtable。
+/// SAFETY: 调用该函数前需要先调用libvdsoexample::init_vdso_vtable。
 unsafe fn test_vdso_parent() {
     println!("Testing vDSO in parent process...");
-    assert_eq!(api::get_shared().i, 2); // 共享数据已被子进程修改
-    api::set_shared(3);
-    assert_eq!(api::get_shared().i, 3);
-    assert_eq!(api::get_private().i, 0); // 私有数据不应被内核或子进程的修改影响
-    api::set_private(3);
-    assert_eq!(api::get_private().i, 3);
+    assert_eq!(libvdsoexample::get_shared().i, 2); // 共享数据已被子进程修改
+    libvdsoexample::set_shared(3);
+    assert_eq!(libvdsoexample::get_shared().i, 3);
+    assert_eq!(libvdsoexample::get_private().i, 0); // 私有数据不应被内核或子进程的修改影响
+    libvdsoexample::set_private(3);
+    assert_eq!(libvdsoexample::get_private().i, 3);
     println!("Test passed!");
 }
 
-/// SAFETY: 调用该函数前需要先调用api::init_vdso_vtable。
+/// SAFETY: 调用该函数前需要先调用libvdsoexample::init_vdso_vtable。
 unsafe fn test_vdso() {
     println!("Testing vDSO in userspace...");
-    assert_eq!(api::get_shared().i, 1); // 共享数据已被内核修改
-    api::set_shared(2);
-    assert_eq!(api::get_shared().i, 2);
-    assert_eq!(api::get_private().i, 0); // 私有数据不应被内核的修改影响
-    api::set_private(2);
-    assert_eq!(api::get_private().i, 2);
+    assert_eq!(libvdsoexample::get_shared().i, 1); // 共享数据已被内核修改
+    libvdsoexample::set_shared(2);
+    assert_eq!(libvdsoexample::get_shared().i, 2);
+    assert_eq!(libvdsoexample::get_private().i, 0); // 私有数据不应被内核的修改影响
+    libvdsoexample::set_private(2);
+    assert_eq!(libvdsoexample::get_private().i, 2);
     println!("Test passed!");
 }

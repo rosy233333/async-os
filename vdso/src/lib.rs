@@ -12,11 +12,11 @@ use core::{cell::UnsafeCell, hint::black_box, ptr::copy_nonoverlapping};
 use elf_parser::get_relocate_pairs;
 use include_bytes_aligned::include_bytes_aligned;
 use lazy_init::LazyInit;
+use libvdsoexample::VvarData;
 use log::{info, warn};
 use memory_addr::{VirtAddr, PAGE_SIZE_4K};
-use structs::shared::VvarData;
 
-static SO_CONTENT: &[u8] = include_bytes_aligned!(8, "../libvdsoexample.so");
+static SO_CONTENT: &[u8] = include_bytes_aligned!(8, "../../vdso_output/libvdsoexample.so");
 const VDSO_SIZE: usize = ((SO_CONTENT.len() - 1) / PAGE_SIZE_4K + 1) * PAGE_SIZE_4K + PAGE_SIZE_4K; // 额外加了一页，用于bss段等未出现在文件中的段
 
 pub fn init() {
@@ -26,7 +26,7 @@ pub fn init() {
     }
 }
 
-const VVAR_PAGES: usize = (api::VVAR_DATA_SIZE - 1) / PAGE_SIZE_4K + 1;
+const VVAR_PAGES: usize = (size_of::<VvarData>() - 1) / PAGE_SIZE_4K + 1;
 const VVAR_SIZE: usize = VVAR_PAGES * PAGE_SIZE_4K;
 
 struct SyncUnsafeCell<T>(UnsafeCell<T>);
@@ -52,7 +52,7 @@ impl VdsoInfo {
         info!("Initialize vDSO...");
         // 加载vvar区域
         unsafe {
-            (VVAR.0.get() as *mut () as *mut VvarData).write(VvarData::new());
+            (VVAR.0.get() as *mut () as *mut VvarData).write(VvarData::default());
         }
         // 加载vdso区域
         let vdso_start: usize = &VDSO as *const _ as usize;
@@ -70,9 +70,8 @@ impl VdsoInfo {
             .collect::<Vec<PhysPage>>();
 
         unsafe {
-            api::init_vdso_vtable(vdso_start as u64);
+            libvdsoexample::init_vdso_vtable(vdso_start as u64);
         }
-        // api::init();
 
         let elf_data = unsafe { core::slice::from_raw_parts(start as *const u8, len) };
         Self {
@@ -167,14 +166,14 @@ pub fn load_vdso(curr_vspace_addr: usize, target_vspace_addr: usize) {
     );
 }
 
-/// SAFETY: 调用该函数前需要先调用api::init_vdso_vtable。
+/// SAFETY: 调用该函数前需要先调用libvdsoexample::init_vdso_vtable。
 pub unsafe fn test_vdso() {
     warn!("Testing vDSO in kernel...");
-    assert_eq!(api::get_shared().i, 42);
-    api::set_shared(1);
-    assert_eq!(api::get_shared().i, 1);
-    assert_eq!(api::get_private().i, 0);
-    api::set_private(1);
-    assert_eq!(api::get_private().i, 1);
+    assert_eq!(libvdsoexample::get_shared().i, 0);
+    libvdsoexample::set_shared(1);
+    assert_eq!(libvdsoexample::get_shared().i, 1);
+    assert_eq!(libvdsoexample::get_private().i, 0);
+    libvdsoexample::set_private(1);
+    assert_eq!(libvdsoexample::get_private().i, 1);
     warn!("Test passed!");
 }

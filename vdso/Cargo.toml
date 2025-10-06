@@ -14,6 +14,8 @@ xmas-elf = "0.9.0"
 
 async_mem = { path = "../modules/async_mem" }
 axhal = { path = "../modules/axhal" }
-api = { path = "../../vdso_crate_template/api", features = ["log"] }
-structs = { path = "../../vdso_crate_template/structs" }
+libvdsoexample = { path = "../vdso_output/libvdsoexample" }
 include_bytes_aligned = "0.1.4"
+
+[build-dependencies]
+build_vdso = { path = "../../vdso_crate_template/build_vdso" }

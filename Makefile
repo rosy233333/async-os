@@ -176,11 +176,7 @@ ifeq ($(A), apps/user_boot)
 	sh ./build_img.sh -a $(ARCH)
 endif
 
-vdso:
-	cd vdso && make build
-	cd -
-
-build: vdso user_apps $(OUT_DIR) $(OUT_BIN)
+build: user_apps $(OUT_DIR) $(OUT_BIN)
 
 disasm:
 	$(OBJDUMP) $(OUT_ELF) | less

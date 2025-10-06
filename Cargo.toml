@@ -49,4 +49,5 @@ members = [
     "apps/echoserver",
     "crates/elf_parser",
 ]
+exclude = ["vdso_output/vdso_wrapper", "vdso_output/libvdso"]
 resolver = "2"

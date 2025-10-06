@@ -30,7 +30,7 @@ sched_taic = []
 cfg-if = "1.0"
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 # axnet = { git = "https://github.com/Starry-OS/axnet.git" }
-axsignal = { git = "https://github.com/Starry-OS/axsignal.git" }
+axsignal = { git = "https://github.com/Starry-Old/axsignal-old.git" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 axfutex = { path = "../axfutex" }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
