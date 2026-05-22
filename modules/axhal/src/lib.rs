@@ -26,7 +26,7 @@
 
 #![no_std]
 #![feature(naked_functions)]
-#![feature(doc_auto_cfg)]
+#![feature(doc_cfg)]
 #![feature(stmt_expr_attributes)]
 #[allow(unused_imports)]
 #[macro_use]

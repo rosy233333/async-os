@@ -31,7 +31,7 @@ cfg-if = "1.0"
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 axalloc = { git = "https://github.com/Starry-OS/axalloc.git" }
-axdriver = { git = "https://github.com/Starry-OS/axdriver.git", optional = true }
+axdriver = { path = "../../crates/axdriver", optional = true }
 # axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
 # axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
 crate_interface = { git = "https://github.com/Starry-OS/crate_interface.git" }

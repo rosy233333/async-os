@@ -33,9 +33,7 @@ axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 axhal = { git = "https://github.com/Starry-OS/axhal.git" }
 # axsync = { git = "https://github.com/Starry-OS/axsync.git" }
 # axtask = { git = "https://github.com/Starry-OS/axtask.git" }
-axdriver = { git = "https://github.com/Starry-OS/axdriver.git", features = [
-  "net",
-] }
+axdriver = { path = "../../crates/axdriver", features = ["net"] }
 # axio = { git = "https://github.com/Starry-OS/axio.git" }
 # axprocess = { git = "https://github.com/Starry-OS/axprocess.git", optional = true }
 async_io = { path = "../async_io" }

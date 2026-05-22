@@ -1,0 +1,4 @@
+{
+    // "rust-analyzer.cargo.target": "x86_64-unknown-linux-musl",
+    "rust-analyzer.cargo.target": "riscv64gc-unknown-linux-musl",
+}

@@ -19,7 +19,8 @@ sched_taic = ["taskctx/sched_taic"]
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
-elf_parser = { git = "https://github.com/Starry-OS/elf_parser.git" }
+# elf_parser = { git = "https://github.com/Starry-OS/elf_parser.git" }
+elf_parser = { git = "https://github.com/rosy233333/elf_parser.git" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 percpu = { git = "https://github.com/Starry-OS/percpu.git", optional = true }
 kernel_guard = { path = "../kernel_guard", optional = true }

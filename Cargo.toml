@@ -47,6 +47,9 @@ members = [
     "user_apps/syscall_test",
     "user_apps/batch_syscall",
     "apps/echoserver",
+    "crates/axdriver",
+    "crates/driver_block",
+    "crates/driver_virtio",
 ]
 exclude = ["vdso_output/vdso_wrapper", "vdso_output/libvdso"]
 resolver = "2"

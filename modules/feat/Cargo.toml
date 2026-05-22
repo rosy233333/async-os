@@ -72,7 +72,7 @@ log-level-trace = ["axlog/log-level-trace"]
 [dependencies]
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
-axdriver = { git = "https://github.com/Starry-OS/axdriver.git", optional = true }
+axdriver = { path = "../../crates/axdriver", optional = true }
 # axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
 # axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git", optional = true }

@@ -754,17 +754,18 @@ pub fn check_page_table_entry_validity(
     addr: VirtAddr,
     page_table: &PageTable,
 ) -> Result<(), PagingError> {
-    let entry = page_table.get_entry_mut(addr);
+    // let entry = page_table.get_entry_mut(addr);
 
-    if entry.is_err() {
-        // 地址不合法
-        return Err(PagingError::NoMemory);
-    }
+    // if entry.is_err() {
+    //     // 地址不合法
+    //     return Err(PagingError::NoMemory);
+    // }
 
-    let entry = entry.unwrap().0;
-    if !entry.is_present() {
-        return Err(PagingError::NotMapped);
-    }
+    // let entry = entry.unwrap().0;
+    // if !entry.is_present() {
+    //     return Err(PagingError::NotMapped);
+    // }
 
-    Ok(())
+    // Ok(())
+    page_table.query(addr).map(|| ())
 }
