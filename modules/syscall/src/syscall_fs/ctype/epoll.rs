@@ -201,7 +201,7 @@ impl EpollFile {
             yield_now().await;
 
             if current_process.have_signals().await.is_some() {
-                return Err(AxError::Timeout);
+                return Err(AxError::TimedOut);
             }
         }
     }

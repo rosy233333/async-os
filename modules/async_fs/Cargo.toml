@@ -24,7 +24,9 @@ cfg-if = "1.0"
 async_io = { path = "../async_io" }
 async_vfs = { path = "../async_vfs" }
 sync = { path = "../sync" }
-axdriver = { git = "https://github.com/Starry-OS/axdriver.git", features = ["block"] }
+axdriver = { git = "https://github.com/Starry-OS/axdriver.git", features = [
+    "block",
+] }
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 capability = { git = "https://github.com/Starry-OS/capability.git" }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }

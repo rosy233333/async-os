@@ -424,7 +424,7 @@ impl TcpSocket {
     }
     /// Receives data from the socket, stores it in the given buffer.
     ///
-    /// It will return [`Err(Timeout)`](AxError::Timeout) if expired.
+    /// It will return [`Err(Timeout)`](AxError::TimedOut) if expired.
     pub async fn recv_timeout(&self, buf: &mut [u8], ticks: u64) -> AxResult<usize> {
         if self.is_connecting() {
             return Err(AxError::WouldBlock);
@@ -455,7 +455,7 @@ impl TcpSocket {
                     } else {
                         // no more data
                         if current_ticks() > expire_at {
-                            Err(AxError::Timeout)
+                            Err(AxError::TimedOut)
                         } else {
                             Err(AxError::WouldBlock)
                         }

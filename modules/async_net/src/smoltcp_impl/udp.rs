@@ -163,7 +163,7 @@ impl UdpSocket {
 
     /// Receives data from the socket, stores it in the given buffer.
     ///
-    /// It will return [`Err(Timeout)`](AxError::Timeout) if expired.
+    /// It will return [`Err(Timeout)`](AxError::TimedOut) if expired.
     pub async fn recv_from_timeout(
         &self,
         buf: &mut [u8],
@@ -174,7 +174,7 @@ impl UdpSocket {
             Ok((len, meta)) => Ok((len, into_core_sockaddr(meta.endpoint))),
             Err(_) => {
                 if current_ticks() > expire_at {
-                    Err(AxError::Timeout)
+                    Err(AxError::TimedOut)
                 } else {
                     Err(AxError::WouldBlock)
                 }

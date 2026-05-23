@@ -1,8 +1,8 @@
 target/
-Cargo.lock
 *.lds
 qemu.log
 *.asm
 modules/async-std
 *.img
 vdso_output
+.vscode
