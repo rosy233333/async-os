@@ -17,6 +17,8 @@ async_mem = { path = "../modules/async_mem" }
 axhal = { path = "../modules/axhal" }
 libvdsoexample = { path = "../vdso_output/libvdsoexample" }
 include_bytes_aligned = "0.1.4"
+sync = { path = "../modules/sync" }
+crate_interface = "0.2.0"
 
 [build-dependencies]
 build_vdso = { path = "../../vdso_crate_template/build_vdso" }

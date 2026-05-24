@@ -80,7 +80,8 @@ pub async fn load_app(
             unsafe { copy_nonoverlapping(src.to_ne_bytes().as_ptr(), dst as *mut u8, count) }
         }
 
-        let vdso_base = vdso::VDSO_INFO.vdso2memoryset(memory_set).await;
+        // let vdso_base = vdso::VDSO_INFO.vdso2memoryset(memory_set).await;
+        let vdso_base = vdso::map(memory_set);
 
         // Now map the stack and the heap
         let heap_start = VirtAddr::from(USER_HEAP_BASE);

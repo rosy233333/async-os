@@ -12,7 +12,6 @@ pub use task_api::*;
 // Initializes the executor (for the primary CPU).
 pub fn init(utrap_handler: fn() -> Pin<Box<dyn Future<Output = isize> + 'static>>) {
     info!("Initialize executor...");
-    vdso::init();
     taskctx::init();
     UTRAP_HANDLER.init_by(utrap_handler);
     let mut scheduler = Scheduler::new();

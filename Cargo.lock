@@ -1813,6 +1813,7 @@ name = "user_boot"
 version = "0.1.0"
 dependencies = [
  "async_std",
+ "libvdsoexample",
  "trampoline",
 ]
 
@@ -1831,12 +1832,14 @@ dependencies = [
  "axconfig",
  "axhal",
  "build_vdso",
+ "crate_interface 0.2.0",
  "elf_parser 0.1.0 (git+https://github.com/rosy233333/elf_parser.git)",
  "include_bytes_aligned",
  "lazy_init",
  "libvdsoexample",
  "log",
  "memory_addr 0.1.0",
+ "sync",
  "xmas-elf",
 ]
 
@@ -1861,6 +1864,7 @@ dependencies = [
 name = "vdso_test"
 version = "0.1.0"
 dependencies = [
+ "crate_interface 0.2.0",
  "libc",
  "libvdsoexample",
  "xmas-elf",
