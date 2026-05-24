@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 async_std = { path = "../../modules/async_std", features = ["monolithic"] }
 trampoline = { path = "../../modules/trampoline" }
+libvdsoexample = { path = "../../vdso_output/libvdsoexample" }
