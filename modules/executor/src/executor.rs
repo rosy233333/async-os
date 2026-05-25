@@ -141,8 +141,7 @@ impl Executor {
                 flags: Mutex::new(OpenFlags::empty()),
             })),
         ]));
-        let mut memory_set = MemorySet::new_memory_set();
-        vdso::init(&mut memory_set);
+        let memory_set = MemorySet::new_memory_set();
         KERNEL_PAGE_TABLE_TOKEN.init_by(memory_set.page_table_token());
         Executor::new(
             KERNEL_EXECUTOR_ID,
