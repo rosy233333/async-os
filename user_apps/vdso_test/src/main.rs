@@ -82,7 +82,7 @@ unsafe fn test_vdso() {
     assert_eq!(libvdsoexample::get_shared().i, 1); // 共享数据已被内核修改
     libvdsoexample::set_shared(2);
     assert_eq!(libvdsoexample::get_shared().i, 2);
-    assert_eq!(libvdsoexample::get_private().i, 0); // 私有数据不应被内核的修改影响
+    assert_eq!(libvdsoexample::get_private().i, 0); // 私有数据不应被内核的修改影响 // 当前这个通不过，左边变成2了
     libvdsoexample::set_private(2);
     assert_eq!(libvdsoexample::get_private().i, 2);
     println!("Test passed!");
