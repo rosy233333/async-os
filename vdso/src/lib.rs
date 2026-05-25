@@ -16,14 +16,16 @@ use core::{
     cell::UnsafeCell,
     future::Future,
     hint::black_box,
+    mem,
     ptr::copy_nonoverlapping,
+    sync::atomic::{AtomicUsize, Ordering},
     task::{Context, Poll, Waker},
 };
 use elf_parser::get_relocate_pairs;
 use include_bytes_aligned::include_bytes_aligned;
 use lazy_init::LazyInit;
 use log::{info, warn};
-use memory_addr::{VirtAddr, PAGE_SIZE_4K};
+use memory_addr::{PhysAddr, VirtAddr, PAGE_SIZE_4K};
 use sync::Mutex;
 
 use libvdsoexample as vdso_lib;
@@ -34,7 +36,13 @@ const VDSO_SIZE: usize = ((SO_CONTENT.len() - 1) / PAGE_SIZE_4K + 1) * PAGE_SIZE
 
 pub fn init(k_memset: &mut MemorySet) {
     // VDSO_INFO.init_by(VdsoInfo::new());
-    vdso_lib::load_and_init(k_memset as *mut MemorySet as usize);
+    // vdso_lib::load_and_init(k_memset as *mut MemorySet as usize);
+    // 避免两个全局变量被编译器优化。
+    unsafe {
+        (*VVAR.0.get())[0] = 0;
+        (*VDSO.0.get())[0] = 0;
+    }
+    vdso_lib::load_and_init(0);
     unsafe {
         test_vdso();
     }
@@ -55,9 +63,11 @@ unsafe impl<T> Sync for SyncUnsafeCell<T> {}
 
 #[link_section = ".vvar"]
 #[no_mangle]
+#[used]
 static VVAR: SyncUnsafeCell<[u8; VVAR_SIZE]> = SyncUnsafeCell(UnsafeCell::new([0; VVAR_SIZE]));
 #[link_section = ".vdso"]
 #[no_mangle]
+#[used]
 static VDSO: SyncUnsafeCell<[u8; VDSO_SIZE]> = SyncUnsafeCell(UnsafeCell::new([0; VDSO_SIZE]));
 
 pub static VDSO_INFO: LazyInit<VdsoInfo> = LazyInit::new();
@@ -203,8 +213,10 @@ pub unsafe fn test_vdso() {
 
 /// vspace：对应由&mut MemorySet转化而来的*mut MemorySet。
 ///
-/// PhysPagePtr：对应由Arc<Vec<Mutex<PhysPage>>>转化而来的*const Vec<Mutex<PhysPage>>。需要注意在这些函数中不要消耗引用计数。
+/// PhysPagePtr：物理页在内核空间的首地址
 struct MemIfImpl;
+
+static CURRENT_PTR: AtomicUsize = AtomicUsize::new(0);
 
 #[crate_interface::impl_interface]
 impl vdso_lib::MemIf for MemIfImpl {
@@ -216,6 +228,7 @@ impl vdso_lib::MemIf for MemIfImpl {
         if vspace == 0 {
             // 内核空间直接使用静态地址，不需要分配新的虚存区域。
             // 这里的vspace参数被忽略了。
+            CURRENT_PTR.store(&VVAR as *const _ as usize, Ordering::Release);
             &VVAR as *const _ as *const () as *mut u8
         } else {
             let memory_set = unsafe { &*(vspace as *const MemorySet) };
@@ -231,14 +244,28 @@ impl vdso_lib::MemIf for MemIfImpl {
     #[doc = " 若需要实现vDSO和vVAR在多地址空间的共享，则需要在分配时使这块空间可被共享（即，可被多次`map`）。"]
     fn ppage_alloc(size: usize) -> PhysPagePtr {
         assert_eq!(size % PAGE_SIZE_4K, 0);
-        let pages = Arc::new(
-            PhysPage::alloc_contiguous(size / PAGE_SIZE_4K, PAGE_SIZE_4K, None)
-                .unwrap()
-                .into_iter()
-                .map(|page| Mutex::new(page.unwrap()))
-                .collect::<Vec<_>>(),
-        );
-        Arc::into_raw(pages) as usize
+        // let pages = Arc::new(
+        //     PhysPage::alloc_contiguous(size / PAGE_SIZE_4K, PAGE_SIZE_4K, None)
+        //         .unwrap()
+        //         .into_iter()
+        //         .map(|page| Mutex::new(page.unwrap()))
+        //         .collect::<Vec<_>>(),
+        // );
+        // Arc::into_raw(pages) as usize
+        let current_ptr_end = &VVAR as *const _ as usize + VVAR_SIZE + VDSO_SIZE;
+        if CURRENT_PTR.load(Ordering::Acquire) < current_ptr_end {
+            // 内核空间直接使用静态分配的物理页，不需要分配新的物理页。
+            let vaddr = CURRENT_PTR.fetch_add(size, Ordering::AcqRel);
+            assert!(CURRENT_PTR.load(Ordering::Acquire) <= current_ptr_end);
+            virt_to_phys(VirtAddr::from(vaddr)).into()
+        } else {
+            // 为用户空间分配物理页。
+            let pages =
+                PhysPage::alloc_contiguous(size / PAGE_SIZE_4K, PAGE_SIZE_4K, None).unwrap();
+            let paddr = virt_to_phys(pages[0].as_ref().unwrap().start_vaddr);
+            mem::forget(pages);
+            paddr.into()
+        }
     }
 
     #[doc = " 从`alloc`返回的虚存区域中，映射其中一块到某个物理页面并设置权限。"]
@@ -255,36 +282,57 @@ impl vdso_lib::MemIf for MemIfImpl {
         size: usize,
         flags: vdso_lib::MappingFlags,
     ) {
-        let memory_set = unsafe { &mut *(vspace as *mut MemorySet) };
-        let ppage_vec = unsafe { Arc::from_raw(ppage as *const Vec<Mutex<PhysPage>>) };
-        let paddr = virt_to_phys(ppage_vec[0].lock().start_vaddr);
-        let flags_1 = MappingFlags::from_bits(flags.bits()).unwrap(); // 两个仓库的MappingFlags版本不同，但它们的bits是一样的，所以可以通过bits转换一下。
-        block_on(memory_set.map_attach_shared_page_without_alloc(
-            VirtAddr::from(vaddr as usize),
-            paddr,
-            size / PAGE_SIZE_4K,
-            flags_1,
-        ))
-        .unwrap();
-        Arc::into_raw(ppage_vec);
+        if vspace != 0 {
+            let memory_set = unsafe { &mut *(vspace as *mut MemorySet) };
+            let paddr = PhysAddr::from(ppage);
+            let flags_1 = MappingFlags::from_bits(flags.bits()).unwrap(); // 两个仓库的MappingFlags版本不同，但它们的bits是一样的，所以可以通过bits转换一下。
+            let shared_page_start = virt_to_phys(VirtAddr::from(&VVAR as *const _ as usize));
+            let shared_page_end = shared_page_start + VVAR_SIZE + VDSO_SIZE;
+            if paddr >= shared_page_start && paddr < shared_page_end {
+                // 需要共享
+                block_on(memory_set.map_attach_shared_page_without_alloc(
+                    VirtAddr::from(vaddr as usize),
+                    paddr,
+                    size / PAGE_SIZE_4K,
+                    flags_1,
+                ))
+                .unwrap();
+            } else {
+                // 不需要共享
+                block_on(memory_set.map_attach_page_without_alloc(
+                    VirtAddr::from(vaddr as usize),
+                    paddr,
+                    size / PAGE_SIZE_4K,
+                    flags_1,
+                ))
+                .unwrap();
+            }
+            // Arc::into_raw(ppage_vec);
+        }
     }
 
     #[doc = " 重新设置已映射好的，虚拟首地址为`vspace`区域的权限。"]
     #[doc = " "]
     #[doc = " 保证vaddr对齐到build_vdso传入的config.page_size。"]
     fn change_protect(vspace: usize, vaddr: *mut u8, size: usize, flags: vdso_lib::MappingFlags) {
-        let memory_set = unsafe { &mut *(vspace as *mut MemorySet) };
-        let flags_1 = MappingFlags::from_bits(flags.bits()).unwrap(); // 两个仓库的MappingFlags版本不同，但它们的bits是一样的，所以可以通过bits转换一下。
-        block_on(memory_set.mprotect(VirtAddr::from(vaddr as usize), size, flags_1));
+        if vspace != 0 {
+            let memory_set = unsafe { &mut *(vspace as *mut MemorySet) };
+            let flags_1 = MappingFlags::from_bits(flags.bits()).unwrap(); // 两个仓库的MappingFlags版本不同，但它们的bits是一样的，所以可以通过bits转换一下。
+            block_on(memory_set.mprotect(VirtAddr::from(vaddr as usize), size, flags_1));
+        }
     }
 
     #[doc = " 获取`vspace`空间中`vaddr`地址对应的内核虚拟地址。"]
     #[doc = " （也就是当前代码可以直接访问的地址）"]
     fn get_kernel_vaddr(vspace: usize, vaddr: *mut u8) -> *mut u8 {
-        let memory_set = unsafe { &*(vspace as *const MemorySet) };
-        let (paddr, _, _) = memory_set.query(VirtAddr::from(vaddr as usize)).unwrap();
-        let vaddr = phys_to_virt(paddr);
-        vaddr.as_mut_ptr()
+        if vspace == 0 {
+            vaddr
+        } else {
+            let memory_set = unsafe { &*(vspace as *const MemorySet) };
+            let (paddr, _, _) = memory_set.query(VirtAddr::from(vaddr as usize)).unwrap();
+            let vaddr = phys_to_virt(paddr);
+            vaddr.as_mut_ptr()
+        }
     }
 
     #[doc = " 复制物理页指针，复制前后指向同一块物理页。复制后，参数和返回值对应的两个指针均需可用。"]
@@ -293,10 +341,11 @@ impl vdso_lib::MemIf for MemIfImpl {
     #[doc = " "]
     #[doc = " 如果物理页不使用RAII管理，则可以直接返回参数。"]
     fn ppage_clone(ppage: PhysPagePtr) -> PhysPagePtr {
-        let ppage_vec = unsafe { Arc::from_raw(ppage as *const Vec<Mutex<PhysPage>>) };
-        let cloned_ppage_vec = ppage_vec.clone();
-        Arc::into_raw(ppage_vec);
-        Arc::into_raw(cloned_ppage_vec) as usize
+        // let ppage_vec = unsafe { Arc::from_raw(ppage as *const Vec<Mutex<PhysPage>>) };
+        // let cloned_ppage_vec = ppage_vec.clone();
+        // Arc::into_raw(ppage_vec);
+        // Arc::into_raw(cloned_ppage_vec) as usize
+        ppage
     }
 }
 
