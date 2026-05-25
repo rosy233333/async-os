@@ -13,6 +13,7 @@ pub use task_api::*;
 pub fn init(utrap_handler: fn() -> Pin<Box<dyn Future<Output = isize> + 'static>>) {
     info!("Initialize executor...");
     taskctx::init();
+    vdso::init();
     UTRAP_HANDLER.init_by(utrap_handler);
     let mut scheduler = Scheduler::new();
     scheduler.init();
