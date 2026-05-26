@@ -28,10 +28,10 @@ use log::{info, warn};
 use memory_addr::{PhysAddr, VirtAddr, PAGE_SIZE_4K};
 use sync::Mutex;
 
-use libvdsoexample as vdso_lib;
+use libvsched2 as vdso_lib;
 use vdso_lib::{PhysPagePtr, VvarData};
 
-static SO_CONTENT: &[u8] = include_bytes_aligned!(8, "../../vdso_output/libvdsoexample.so");
+static SO_CONTENT: &[u8] = include_bytes_aligned!(8, "../../vdso_output/libvsched2.so");
 const VDSO_SIZE: usize = ((SO_CONTENT.len() - 1) / PAGE_SIZE_4K + 1) * PAGE_SIZE_4K + PAGE_SIZE_4K; // 额外加了一页，用于bss段等未出现在文件中的段
 
 pub fn init() {
@@ -43,9 +43,9 @@ pub fn init() {
         (*VDSO.0.get())[0] = 0;
     }
     vdso_lib::load_and_init(0);
-    unsafe {
-        test_vdso();
-    }
+    // unsafe {
+    //     test_vdso();
+    // }
 }
 
 /// 返回值：vDSO在用户空间的基地址
@@ -71,16 +71,16 @@ static VVAR: SyncUnsafeCell<[u8; VVAR_SIZE]> = SyncUnsafeCell(UnsafeCell::new([0
 static VDSO: SyncUnsafeCell<[u8; VDSO_SIZE]> = SyncUnsafeCell(UnsafeCell::new([0; VDSO_SIZE]));
 
 /// SAFETY: 调用该函数前需要先调用vdso_lib::init_vdso_vtable。
-pub unsafe fn test_vdso() {
-    warn!("Testing vDSO in kernel...");
-    assert_eq!(vdso_lib::get_shared().i, 0);
-    vdso_lib::set_shared(1);
-    assert_eq!(vdso_lib::get_shared().i, 1);
-    assert_eq!(vdso_lib::get_private().i, 0);
-    vdso_lib::set_private(1);
-    assert_eq!(vdso_lib::get_private().i, 1);
-    warn!("Test passed!");
-}
+// pub unsafe fn test_vdso() {
+//     warn!("Testing vDSO in kernel...");
+//     assert_eq!(vdso_lib::get_shared().i, 0);
+//     vdso_lib::set_shared(1);
+//     assert_eq!(vdso_lib::get_shared().i, 1);
+//     assert_eq!(vdso_lib::get_private().i, 0);
+//     vdso_lib::set_private(1);
+//     assert_eq!(vdso_lib::get_private().i, 1);
+//     warn!("Test passed!");
+// }
 
 // 这以下是新版接口的实现
 
