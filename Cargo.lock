@@ -206,7 +206,7 @@ dependencies = [
  "lazy_init",
  "log",
  "smoltcp 0.11.0",
- "spin",
+ "spin 0.9.8",
  "sync",
  "taskctx",
 ]
@@ -312,7 +312,7 @@ dependencies = [
  "async_vfs",
  "log",
  "rand",
- "spin",
+ "spin 0.9.8",
 ]
 
 [[package]]
@@ -323,7 +323,7 @@ dependencies = [
  "axerrno",
  "lazy_static",
  "log",
- "spin",
+ "spin 0.9.8",
 ]
 
 [[package]]
@@ -335,7 +335,7 @@ dependencies = [
  "axfs_vfs",
  "lazy_static",
  "log",
- "spin",
+ "spin 0.9.8",
 ]
 
 [[package]]
@@ -429,7 +429,7 @@ checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 name = "batch_syscall"
 version = "0.1.0"
 dependencies = [
- "spin",
+ "spin 0.9.8",
  "syscalls 0.1.0",
  "uruntime",
 ]
@@ -683,7 +683,7 @@ dependencies = [
  "e1000-driver",
  "ixgbe-driver",
  "log",
- "spin",
+ "spin 0.9.8",
 ]
 
 [[package]]
@@ -919,6 +919,26 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bfb9eb618601c89945a70e254898da93b13be0388091d42117462b265bb3fad"
 dependencies = [
+ "hash32",
+ "stable_deref_trait",
+]
+
+[[package]]
+name = "heapless"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1edcd5a338e64688fbdcb7531a846cfd3476a54784dcb918a0844682bc7ada5"
+dependencies = [
+ "hash32",
+ "stable_deref_trait",
+]
+
+[[package]]
+name = "heapless"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1edcd5a338e64688fbdcb7531a846cfd3476a54784dcb918a0844682bc7ada5"
+dependencies = [
  "hash32 0.3.1",
  "stable_deref_trait",
 ]
@@ -988,7 +1008,7 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 dependencies = [
- "spin",
+ "spin 0.9.8",
 ]
 
 [[package]]
@@ -1004,7 +1024,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 
 [[package]]
-name = "libvdsoexample"
+name = "libvsched2"
 version = "0.0.0"
 dependencies = [
  "crate_interface 0.2.0",
@@ -1013,7 +1033,7 @@ dependencies = [
  "lazyinit",
  "log",
  "page_table_entry",
- "vdso_example",
+ "vsched2",
  "xmas-elf",
 ]
 
@@ -1165,7 +1185,7 @@ dependencies = [
  "cfg-if",
  "kernel_guard 0.1.1",
  "percpu_macros",
- "spin",
+ "spin 0.9.8",
  "x86",
 ]
 
@@ -1521,7 +1541,7 @@ dependencies = [
  "bitflags 1.3.2",
  "byteorder",
  "cfg-if",
- "defmt 0.3.100",
+ "defmt",
  "heapless 0.8.0",
  "log",
  "managed",
@@ -1535,6 +1555,12 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 dependencies = [
  "lock_api",
 ]
+
+[[package]]
+name = "spin"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5fe4ccb98d9c292d56fec89a5e07da7fc4cf0dc11e156b41793132775d3e591"
 
 [[package]]
 name = "spinlock"
@@ -1868,7 +1894,7 @@ dependencies = [
  "percpu",
  "rand",
  "riscv 0.11.1",
- "spin",
+ "spin 0.9.8",
  "spinlock 0.1.0 (git+https://github.com/Starry-OS/spinlock.git)",
  "sync",
  "syscall",
@@ -1915,7 +1941,6 @@ name = "user_boot"
 version = "0.1.0"
 dependencies = [
  "async_std",
- "libvdsoexample",
  "trampoline",
 ]
 
@@ -1938,7 +1963,7 @@ dependencies = [
  "elf_parser",
  "include_bytes_aligned",
  "lazy_init",
- "libvdsoexample",
+ "libvsched2",
  "log",
  "memory_addr",
  "sync",
@@ -1946,16 +1971,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "vdso_example"
-version = "0.1.0"
-dependencies = [
- "lazyinit",
- "vdso_helper",
-]
-
-[[package]]
 name = "vdso_helper"
 version = "0.1.0"
+source = "git+https://github.com/rosy233333/vdso_crate_template.git#85d005bc6c09fa22cc705708e5e8cce11b740b3d"
 dependencies = [
  "lazyinit",
  "paste",
@@ -1968,7 +1986,6 @@ version = "0.1.0"
 dependencies = [
  "crate_interface 0.2.0",
  "libc",
- "libvdsoexample",
  "xmas-elf",
 ]
 
@@ -2013,6 +2030,16 @@ name = "volatile"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "442887c63f2c839b346c192d047a7c87e73d0689c9157b00b53dcc27dd5ea793"
+
+[[package]]
+name = "vsched2"
+version = "0.1.0"
+dependencies = [
+ "heapless 0.9.1",
+ "lazyinit",
+ "spin 0.10.0",
+ "vdso_helper",
+]
 
 [[package]]
 name = "vsched_hal"
