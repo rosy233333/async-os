@@ -364,7 +364,8 @@ pub async fn syscall_sendto(args: [usize; 6]) -> SyscallResult {
             Ok(len as isize)
         }
         Err(AxError::Interrupted) => Err(SyscallError::EINTR),
-        Err(AxError::Again) | Err(AxError::WouldBlock) => Err(SyscallError::EAGAIN),
+        // Err(AxError::Again) | Err(AxError::WouldBlock) => Err(SyscallError::EAGAIN),
+        Err(AxError::WouldBlock) => Err(SyscallError::EAGAIN),
         Err(AxError::NotConnected) => Err(SyscallError::ENOTCONN),
         Err(AxError::ConnectionReset) => Err(SyscallError::EPIPE),
         Err(e) => {
@@ -438,7 +439,7 @@ pub async fn syscall_recvfrom(args: [usize; 6]) -> SyscallResult {
         Err(AxError::NotConnected) => Err(SyscallError::ENOTCONN),
         Err(AxError::ConnectionRefused) => Err(SyscallError::ECONNREFUSED),
         Err(AxError::Interrupted) => Err(SyscallError::EINTR),
-        Err(AxError::Timeout) | Err(AxError::WouldBlock) => Err(SyscallError::EAGAIN),
+        Err(AxError::TimedOut) | Err(AxError::WouldBlock) => Err(SyscallError::EAGAIN),
         Err(_) => Err(SyscallError::EPERM),
     }
 }

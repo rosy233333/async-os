@@ -2,7 +2,7 @@
 
 use core::str;
 use std::os::fd::AsRawFd;
-use std::pipe::{pipe, PipeReader, PipeWriter};
+use std::io::{pipe, PipeReader, PipeWriter};
 use std::task::Context;
 
 use syscalls::{sys_read, sys_write};

@@ -46,6 +46,7 @@ driver_net = { git = "https://github.com/Starry-OS/driver_net.git", optional = t
 driver_display = { git = "https://github.com/Starry-OS/driver_display.git", optional = true }
 driver_pci = { git = "https://github.com/Starry-OS/driver_pci.git", optional = true }
 driver_virtio = { path = "../driver_virtio", optional = true }
-axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
+# axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
+axalloc = { path = "../axalloc", optional = true }
 axhal = { git = "https://github.com/Starry-OS/axhal.git", optional = true }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git", optional = true }

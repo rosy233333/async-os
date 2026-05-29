@@ -1,6 +1,6 @@
 use riscv::register::sstatus::{self, Sstatus};
 // use taskctx::TaskContext;
-include_asm_marcos!();
+// include_asm_marcos!();
 
 /// General registers of RISC-V.
 #[allow(missing_docs)]

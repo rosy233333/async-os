@@ -455,7 +455,7 @@ impl TcpSocket {
                     } else {
                         // no more data
                         if current_ticks() > expire_at {
-                            Err(AxError::Timeout)
+                            Err(AxError::TimedOut)
                         } else {
                             Err(AxError::WouldBlock)
                         }

@@ -18,7 +18,7 @@ extern crate log;
 
 use axhal::{
     arch::flush_tlb,
-    mem::{memory_regions, phys_to_virt, PhysAddr, VirtAddr, PAGE_SIZE_4K},
+    mem::{memory_regions, phys_to_virt, MemoryAddr, PhysAddr, VirtAddr, PAGE_SIZE_4K},
     paging::{MappingFlags, PageSize, PageTable, PagingError},
 };
 
@@ -767,5 +767,5 @@ pub fn check_page_table_entry_validity(
     // }
 
     // Ok(())
-    page_table.query(addr).map(|| ())
+    page_table.query(addr).map(|_| ())
 }

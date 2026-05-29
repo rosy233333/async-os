@@ -20,7 +20,8 @@ sched_taic = []
 log = "0.4"
 cfg-if = "1.0"
 static_assertions = "1.1.0"
-memory_addr = { git = "https://github.com/Starry-OS/memory_addr.git" }
+# memory_addr = { git = "https://github.com/Starry-OS/memory_addr.git" }
+memory_addr = "0.4"
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
 numeric-enum-macro = { git = "https://github.com/mexus/numeric-enum-macro" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }

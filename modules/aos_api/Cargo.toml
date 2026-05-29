@@ -25,7 +25,8 @@ net = ["dep:async_net", "feat/net"]
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
-axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
+# axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
+axalloc = { path = "../../crates/axalloc", optional = true }
 # axnet = { git = "https://github.com/Starry-OS/axnet.git", optional = true }
 # axdisplay = { git = "https://github.com/Starry-OS/axdisplay.git", optional = true }
 

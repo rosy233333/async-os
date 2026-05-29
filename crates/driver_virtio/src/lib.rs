@@ -12,7 +12,7 @@
 
 #![no_std]
 #![feature(const_trait_impl)]
-#![feature(doc_auto_cfg)]
+#![feature(doc_cfg)]
 
 #[cfg(feature = "block")]
 mod blk;

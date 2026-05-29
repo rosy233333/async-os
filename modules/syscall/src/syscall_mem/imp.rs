@@ -3,7 +3,11 @@ extern crate alloc;
 
 use async_mem::{BackEndFile, MemorySet};
 use axerrno::AxError;
-use axhal::{arch::flush_tlb, mem::VirtAddr, paging::MappingFlags};
+use axhal::{
+    arch::flush_tlb,
+    mem::{MemoryAddr, VirtAddr},
+    paging::MappingFlags,
+};
 use axlog::info;
 
 use bitflags::bitflags;

@@ -13,7 +13,7 @@ sched_taic = []
 
 [dependencies]
 cfg-if = "1.0"
-taic-driver = { git = "https://github.com/taic-repo/taic-driver.git" }
+taic-driver = { git = "https://github.com/taic-repo/taic-driver.git", rev = "03a149985e9efe8e25705c4a9bb4a6f19138b0e5" }
 syscalls = { path = "../syscalls" }
 heapless = "0.8.0"
 

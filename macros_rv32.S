@@ -51,4 +51,35 @@
     PUSH_POP_GENERAL_REGS LDR
 .endm
 
+.macro SAVE_REGS
+    PUSH_GENERAL_REGS                   // 保存通用寄存器
+
+    csrr    t0, sepc
+    csrr    t1, sstatus
+    csrrw   t2, sscratch, zero          // save sscratch (sp) and zero it
+    STR     t0, sp, 31                  // tf.sepc
+    STR     t1, sp, 32                  // tf.sstatus
+    STR     t2, sp, 1                   // tf.regs.sp
+    .short  0xa622                      // fsd fs0,264(sp)
+    .short  0xaa26                      // fsd fs1,272(sp)
+    csrr    t0, scause                  
+    csrr    t1, stval                   
+    STR     t0, sp, 35                  // save scause
+    STR     t1, sp, 36                  // save stval
+    
+    li      t0, 1
+    STR     t0, sp, 37                  // update trap status
+.endm
+
+.macro RESTORE_REGS
+    LDR     t0, sp, 31                  // load sepc from tf.sepc
+    LDR     t1, sp, 32                  // load sstatus from tf.sstatus
+    csrw    sepc, t0
+    csrw    sstatus, t1
+    .short  0x2432                      // fld fs0,264(sp)
+    .short  0x24d2                      // fld fs1,272(sp)
+    POP_GENERAL_REGS                    // 恢复通用寄存器
+    LDR     sp, sp, 1                   // load sp from tf.regs.sp
+.endm
+
 .endif

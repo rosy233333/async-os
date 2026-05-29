@@ -27,11 +27,13 @@ bitflags = "2.6"
 static_assertions = "1.1.0"
 axlog = { git = "https://github.com/Starry-OS/axlog.git" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
-axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
+# axalloc = { git = "https://github.com/Starry-OS/axalloc.git", optional = true }
+axalloc = { path = "../../crates/axalloc", optional = true }
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }
 ratio = { git = "https://github.com/Starry-OS/ratio.git" }
 lazy_init = { git = "https://github.com/Starry-OS/lazy_init.git" }
-page_table = { version = "0.5.7", package = "page_table_multiarch", optional = true }
+# page_table = { version = "0.5.7", package = "page_table_multiarch", optional = true }
+page_table = { path = "../../crates/page_table", optional = true }
 page_table_entry = "0.5.7"
 percpu = { git = "https://github.com/Starry-OS/percpu.git" }
 memory_addr = "0.4"

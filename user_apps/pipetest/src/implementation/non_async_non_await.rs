@@ -1,7 +1,7 @@
 /// use with `syscalls` crate's `thread` feature.
 use core::str;
 use std::os::fd::AsRawFd;
-use std::pipe::{pipe, PipeReader, PipeWriter};
+use std::io::{pipe, PipeReader, PipeWriter};
 use user_lib::{sys_read, sys_write};
 
 #[cfg(feature = "blocking")]

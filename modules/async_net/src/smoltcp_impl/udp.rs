@@ -174,7 +174,7 @@ impl UdpSocket {
             Ok((len, meta)) => Ok((len, into_core_sockaddr(meta.endpoint))),
             Err(_) => {
                 if current_ticks() > expire_at {
-                    Err(AxError::Timeout)
+                    Err(AxError::TimedOut)
                 } else {
                     Err(AxError::WouldBlock)
                 }

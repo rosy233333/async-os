@@ -3,7 +3,7 @@ use async_io::{Seek, SeekFrom};
 use axalloc::PhysPage;
 use axerrno::AxResult;
 use axhal::{
-    mem::{virt_to_phys, PhysAddr, VirtAddr, PAGE_SIZE_4K},
+    mem::{virt_to_phys, MemoryAddr, PhysAddr, VirtAddr, PAGE_SIZE_4K},
     paging::{MappingFlags, PageSize, PageTable},
 };
 use core::ptr::copy_nonoverlapping;

@@ -3,7 +3,7 @@
 use core::str;
 use spin::Once;
 use std::os::fd::AsRawFd;
-use std::pipe::{pipe, PipeReader, PipeWriter};
+use std::io::{pipe, PipeReader, PipeWriter};
 use std::task::Context;
 use syscalls::{sys_read, sys_write};
 use uruntime::{block_current, yield_now, SyscallItemQueue};

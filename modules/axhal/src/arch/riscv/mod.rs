@@ -107,6 +107,6 @@ pub unsafe fn write_thread_pointer(tp: usize) {
     core::arch::asm!("mv tp, {}", in(reg) tp)
 }
 
-include_asm_marcos!();
+// include_asm_marcos!();
 
 core::arch::global_asm!(include_str!("signal.S"));

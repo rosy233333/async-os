@@ -5,7 +5,8 @@ edition = "2021"
 
 [dependencies]
 log = "0.4"
-axalloc = { git = "https://github.com/Starry-OS/axalloc.git" }
+# axalloc = { git = "https://github.com/Starry-OS/axalloc.git" }
+axalloc = { path = "../../crates/axalloc" }
 axconfig = { git = "https://github.com/Starry-OS/axconfig.git" }
 axerrno = { git = "https://github.com/Starry-OS/axerrno.git" }
 spinlock = { git = "https://github.com/Starry-OS/spinlock.git" }

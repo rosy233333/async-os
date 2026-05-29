@@ -6,7 +6,7 @@ use axfutex::{
     futex::{FutexKey, FutexQ},
     queues::{futex_hash, FUTEXQUEUES},
 };
-use axhal::mem::VirtAddr;
+use axhal::mem::{MemoryAddr, VirtAddr};
 use axlog::info;
 use core::time::Duration;
 //use axtask::WaitQueue;

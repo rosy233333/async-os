@@ -310,7 +310,7 @@ impl TrapFrame {
 
 #[cfg(feature = "thread")]
 impl TrapFrame {
-    #[naked]
+    #[unsafe(naked)]
     pub extern "C" fn thread_ctx(set_tf_fn: usize, ctx_type: crate::CtxType) -> &'static Self {
         #[cfg(target_arch = "riscv32")]
         unsafe {
@@ -368,7 +368,7 @@ impl TrapFrame {
         }
     }
 
-    #[naked]
+    #[unsafe(naked)]
     pub extern "C" fn thread_return(&self) {
         #[cfg(target_arch = "riscv32")]
         unsafe {
