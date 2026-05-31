@@ -32,7 +32,9 @@ use libvsched2 as vdso_lib;
 use vdso_lib::{PhysPagePtr, VvarData};
 
 static SO_CONTENT: &[u8] = include_bytes_aligned!(8, "../../vdso_output/libvsched2.so");
-const VDSO_SIZE: usize = ((SO_CONTENT.len() - 1) / PAGE_SIZE_4K + 1) * PAGE_SIZE_4K + PAGE_SIZE_4K; // 额外加了一页，用于bss段等未出现在文件中的段
+const VDSO_FILE_SIZE: usize =
+    ((SO_CONTENT.len() - 1) / PAGE_SIZE_4K + 1) * PAGE_SIZE_4K + PAGE_SIZE_4K; // 额外加了一页，用于bss段等未出现在文件中的段
+static VDSO_SIZE: AtomicUsize = AtomicUsize::new(0);
 
 pub fn init() {
     // VDSO_INFO.init_by(VdsoInfo::new());
@@ -42,6 +44,16 @@ pub fn init() {
         (*VVAR.0.get())[0] = 0;
         (*VDSO.0.get())[0] = 0;
     }
+
+    let vdso_elf = xmas_elf::ElfFile::new(SO_CONTENT).expect("Error parsing app ELF file.");
+    let segments = elf_parser::get_elf_segments(&vdso_elf, Some(0));
+    let vdso_size: usize = segments
+        .iter()
+        .map(|seg| ((seg.size + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K) * PAGE_SIZE_4K)
+        .sum();
+    log::warn!("vdso_size: {}", vdso_size);
+    VDSO_SIZE.store(vdso_size, Ordering::Release);
+
     vdso_lib::load_and_init(0);
     // unsafe {
     //     test_vdso();
@@ -68,7 +80,8 @@ static VVAR: SyncUnsafeCell<[u8; VVAR_SIZE]> = SyncUnsafeCell(UnsafeCell::new([0
 #[link_section = ".vdso"]
 #[no_mangle]
 #[used]
-static VDSO: SyncUnsafeCell<[u8; VDSO_SIZE]> = SyncUnsafeCell(UnsafeCell::new([0; VDSO_SIZE]));
+static VDSO: SyncUnsafeCell<[u8; VDSO_FILE_SIZE]> =
+    SyncUnsafeCell(UnsafeCell::new([0; VDSO_FILE_SIZE]));
 
 /// SAFETY: 调用该函数前需要先调用vdso_lib::init_vdso_vtable。
 // pub unsafe fn test_vdso() {
@@ -125,7 +138,8 @@ impl vdso_lib::MemIf for MemIfImpl {
         //         .collect::<Vec<_>>(),
         // );
         // Arc::into_raw(pages) as usize
-        let current_ptr_end = &VVAR as *const _ as usize + VVAR_SIZE + VDSO_SIZE;
+        let current_ptr_end =
+            &VVAR as *const _ as usize + VVAR_SIZE + VDSO_SIZE.load(Ordering::Acquire);
         if CURRENT_PTR.load(Ordering::Acquire) < current_ptr_end {
             // 内核空间直接使用静态分配的物理页，不需要分配新的物理页。
             let vaddr = CURRENT_PTR.fetch_add(size, Ordering::AcqRel);
@@ -154,14 +168,15 @@ impl vdso_lib::MemIf for MemIfImpl {
         ppage: PhysPagePtr,
         size: usize,
         flags: vdso_lib::MappingFlags,
+        shared: bool,
     ) {
         if vspace != 0 {
             let memory_set = unsafe { &mut *(vspace as *mut MemorySet) };
             let paddr = PhysAddr::from(ppage);
             let flags_1 = MappingFlags::from_bits(flags.bits()).unwrap(); // 两个仓库的MappingFlags版本不同，但它们的bits是一样的，所以可以通过bits转换一下。
-            let shared_page_start = virt_to_phys(VirtAddr::from(&VVAR as *const _ as usize));
-            let shared_page_end = shared_page_start + VVAR_SIZE + VDSO_SIZE;
-            if paddr >= shared_page_start && paddr < shared_page_end {
+                                                                          // let shared_page_start = virt_to_phys(VirtAddr::from(&VVAR as *const _ as usize));
+                                                                          // let shared_page_end = shared_page_start + VVAR_SIZE + VDSO_FILE_SIZE;
+            if shared {
                 // 需要共享
                 block_on(memory_set.map_attach_shared_page_without_alloc(
                     VirtAddr::from(vaddr as usize),
