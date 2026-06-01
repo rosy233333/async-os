@@ -5,6 +5,8 @@
 
 extern crate alloc;
 
+mod vsched2;
+
 use alloc::{boxed::Box, collections::btree_set::Union, sync::Arc, vec::Vec};
 use async_mem::MemorySet;
 use axalloc::PhysPage;

@@ -11,6 +11,8 @@ mod stat;
 mod task;
 mod waker;
 
+use core::ops::Deref;
+
 use alloc::sync::Arc;
 pub use arch::TrapFrame;
 pub use arch::TrapStatus;

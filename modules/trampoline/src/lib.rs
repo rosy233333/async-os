@@ -14,6 +14,7 @@ mod fs_api;
 mod init_api;
 mod task_api;
 mod trap_api;
+mod vsched2;
 
 use alloc::sync::Arc;
 pub use arch::init_interrupt;

@@ -622,4 +622,14 @@ impl TaskInner {
         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
         stack_ctx.take()
     }
+
+    pub fn have_stack_ctx(&self) -> bool {
+        let stack_ctx = unsafe { &*self.stack_ctx.get() };
+        stack_ctx.is_some()
+    }
+
+    pub fn stack_top(&self) -> usize {
+        let stack_ctx = unsafe { &*self.stack_ctx.get() };
+        stack_ctx.as_ref().unwrap().kstack.top().as_usize()
+    }
 }
