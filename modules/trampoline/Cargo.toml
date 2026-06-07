@@ -50,7 +50,8 @@ syscall = { path = "../syscall" }
 async_mem = { path = "../async_mem" }
 async_fs = { path = "../async_fs" }
 taic-driver = { git = "https://github.com/taic-repo/taic-driver.git", rev = "03a149985e9efe8e25705c4a9bb4a6f19138b0e5" }
-
+libvsched2 = { path = "../../vdso_output/libvsched2" }
+vdso = { path = "../../vdso" }
 
 [target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
 riscv = "0.11"

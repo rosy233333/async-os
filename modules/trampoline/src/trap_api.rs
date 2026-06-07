@@ -31,15 +31,15 @@ pub fn handle_irq(_irq_num: usize, tf: &mut TrapFrame) {
     }
 }
 
-pub async fn handle_user_irq(_irq_num: usize, tf: &mut TrapFrame) {
+pub async fn handle_user_irq(_irq_num: usize) {
     #[cfg(feature = "irq")]
     {
         let guard = kernel_guard::NoPreempt::new();
         axhal::irq::dispatch_irq(_irq_num);
         drop(guard); // rescheduling may occur when preemption is re-enabled.
 
-        tf.trap_status = TrapStatus::Done;
-        #[cfg(feature = "preempt")]
-        crate::current_check_user_preempt_pending(tf).await;
+        // tf.trap_status = TrapStatus::Done;
+        // #[cfg(feature = "preempt")]
+        // crate::current_check_user_preempt_pending(tf).await;
     }
 }

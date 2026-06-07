@@ -32,6 +32,6 @@ unsafe fn drop(_p: *const ()) {}
 
 /// 只有在运行的任务才需要 waker，
 /// 只需要从 CurrentTask 中获取任务的原始指针
-pub(crate) fn waker_from_task(task_ptr: *const Task) -> Waker {
+pub fn waker_from_task(task_ptr: *const Task) -> Waker {
     unsafe { Waker::from_raw(RawWaker::new(task_ptr as _, &VTABLE)) }
 }

@@ -1879,6 +1879,7 @@ dependencies = [
  "executor",
  "kernel_guard 0.1.1",
  "lazy_init",
+ "libvsched2",
  "log",
  "num_enum",
  "numeric-enum-macro",
@@ -1893,6 +1894,7 @@ dependencies = [
  "taic-driver",
  "task_api",
  "taskctx",
+ "vdso",
 ]
 
 [[package]]
@@ -1964,7 +1966,6 @@ dependencies = [
 [[package]]
 name = "vdso_helper"
 version = "0.1.0"
-source = "git+https://github.com/rosy233333/vdso_crate_template.git#85d005bc6c09fa22cc705708e5e8cce11b740b3d"
 dependencies = [
  "lazyinit",
  "paste",

@@ -24,6 +24,7 @@ pub type TaskRef = Arc<Task>;
 pub use kstack::*;
 pub use scheduler::BaseScheduler;
 pub use task::{SchedPolicy, SchedStatus, TaskId, TaskInner, TaskState};
+pub use waker::waker_from_task;
 
 #[cfg(feature = "thread")]
 pub use task::{CtxType, StackCtx};

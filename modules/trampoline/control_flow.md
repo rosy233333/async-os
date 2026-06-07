@@ -28,19 +28,15 @@
 
 --call->
 
-`modules/executor/src/executor.rs:Executor::init_user`：创建用户进程（executor）和其中的主协程，将该executor的run协程放入内核executor
+`modules/executor/src/executor.rs:Executor::init_user`：创建用户进程（executor）和其中的主协程（内核执行流由`UTRAP_HANDLER`存储，被赋值为`trampoline::user_task_top`，用户执行流为进程的执行流），主协程放入内核executor和内核调度器
 
---内核调度运行该run协程->
+--内核调度到该进程的主协程，使用`modules/trampoline/src/lib.rs:run_task`运行：切换到用户空间，再poll其内核态执行流->
 
-`modules/executor/src/executor.rs:Executor::run`：切换地址空间和调度器
-
---（当前调度器已变为用户executor）调度运行进程的主协程->
-
-`modules/trampoline/src/task_api.rs:user_task_top`：（该async函数作为用户态任务的Future上下文）但在此过程中没有作用
+`modules/trampoline/src/task_api.rs:user_task_top`：（该async函数作为用户态任务的内核上下文）但在此过程中没有作用
 
 --return（从协程返回到executor）->
 
-`modules/trampoline/src/lib.rs:run_task`：使用sret恢复到用户态执行流
+`run_task`：使用sret恢复到用户态执行流
 
 ## 内核任务切换
 

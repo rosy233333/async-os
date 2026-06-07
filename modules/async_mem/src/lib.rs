@@ -43,6 +43,8 @@ pub struct MemorySet {
 
     private_mem: BTreeMap<i32, Arc<SharedMem>>,
     attached_mem: Vec<(VirtAddr, MappingFlags, Arc<SharedMem>)>,
+    /// vvar在当前地址空间中的映射地址
+    pub vvar_base: VirtAddr,
 }
 
 impl MemorySet {
@@ -58,6 +60,7 @@ impl MemorySet {
             owned_mem: BTreeMap::new(),
             private_mem: BTreeMap::new(),
             attached_mem: Vec::new(),
+            vvar_base: VirtAddr::from(0),
         }
     }
 
@@ -90,6 +93,7 @@ impl MemorySet {
             owned_mem: BTreeMap::new(),
             private_mem: BTreeMap::new(),
             attached_mem: Vec::new(),
+            vvar_base: VirtAddr::from(0),
         }
     }
 
@@ -688,9 +692,9 @@ impl MemorySet {
         let mut new_memory = Self {
             page_table,
             owned_mem,
-
             private_mem: self.private_mem.clone(),
             attached_mem: Vec::new(),
+            vvar_base: VirtAddr::from(0),
         };
 
         for (addr, flags, mem) in &self.attached_mem {

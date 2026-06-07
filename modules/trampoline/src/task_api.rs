@@ -75,7 +75,7 @@ pub async fn user_task_top() -> isize {
             let stval = tf.stval;
             match trap {
                 Trap::Interrupt(_interrupt) => {
-                    crate::handle_user_irq(tf.get_scause_code(), &mut tf).await;
+                    crate::handle_user_irq(tf.get_scause_code()).await;
                 }
                 Trap::Exception(Exception::UserEnvCall) => {
                     axhal::arch::enable_irqs();

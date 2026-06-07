@@ -72,13 +72,13 @@ pub fn map(memset: &mut MemorySet) -> VirtAddr {
 const VVAR_PAGES: usize = (size_of::<VvarData>() - 1) / PAGE_SIZE_4K + 1;
 const VVAR_SIZE: usize = VVAR_PAGES * PAGE_SIZE_4K;
 
-struct SyncUnsafeCell<T>(UnsafeCell<T>);
+pub struct SyncUnsafeCell<T>(UnsafeCell<T>);
 unsafe impl<T> Sync for SyncUnsafeCell<T> {}
 
 #[link_section = ".vvar"]
 #[no_mangle]
 #[used]
-static VVAR: SyncUnsafeCell<[u8; VVAR_SIZE]> = SyncUnsafeCell(UnsafeCell::new([0; VVAR_SIZE]));
+pub static VVAR: SyncUnsafeCell<[u8; VVAR_SIZE]> = SyncUnsafeCell(UnsafeCell::new([0; VVAR_SIZE]));
 #[link_section = ".vdso"]
 #[no_mangle]
 #[used]
@@ -119,9 +119,10 @@ impl vdso_lib::MemIf for MemIfImpl {
             CURRENT_PTR.store(&VVAR as *const _ as usize, Ordering::Release);
             &VVAR as *const _ as *const () as *mut u8
         } else {
-            let memory_set = unsafe { &*(vspace as *const MemorySet) };
-            let vaddr = memory_set.find_free_area(VirtAddr::from(0), size);
-            vaddr.unwrap().as_mut_ptr()
+            let memory_set = unsafe { &mut *(vspace as *mut MemorySet) };
+            let vaddr = memory_set.find_free_area(VirtAddr::from(0), size).unwrap();
+            memory_set.vvar_base = vaddr;
+            vaddr.as_mut_ptr()
         }
     }
 
