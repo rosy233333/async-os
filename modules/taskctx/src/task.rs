@@ -583,24 +583,25 @@ impl Drop for TaskInner {
     }
 }
 
-#[cfg(feature = "thread")]
+#[cfg(any(feature = "thread", feature = "preempt"))]
 #[repr(usize)]
 pub enum CtxType {
     /// 其中的 usize 是中断状态，在使用线程接口让权时，将当前的中断状态保存至此，并且关闭中断
     /// 在线程恢复执行后，需要恢复原来的中断状态
+    #[cfg(feature = "thread")]
     Thread = 0,
     #[cfg(feature = "preempt")]
     Interrupt,
 }
 
-#[cfg(feature = "thread")]
+#[cfg(any(feature = "thread", feature = "preempt"))]
 pub struct StackCtx {
     pub kstack: TaskStack,
     pub trap_frame: *const TrapFrame,
     pub ctx_type: CtxType,
 }
 
-#[cfg(feature = "thread")]
+#[cfg(any(feature = "thread", feature = "preempt"))]
 /// 线程的接口需要根据任务的状态来进行不同的操作
 impl TaskInner {
     pub fn set_stack_ctx(&self, trap_frame: *const TrapFrame, ctx_type: CtxType) {

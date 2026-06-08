@@ -13,8 +13,6 @@ use sync::Mutex;
 use taskctx::{TaskInner, TaskState, TrapFrame};
 use vdso::VVAR;
 
-use crate::restore_from_stack_ctx;
-
 #[repr(transparent)]
 struct Task(taskctx::Task);
 
@@ -101,11 +99,19 @@ impl libvsched2::Task for Task {
 
     #[doc = r" 恢复寄存器上下文（可能为线程上下文或trap上下文）"]
     fn restore_context(&self) {
-        // restore_from_stack_ctx接收的参数为&Arc类型，不涉及引用计数更改。此处用Arc包装只是为了适配已有的接口。
-        let self_ref = unsafe {
-            ManuallyDrop::new(Arc::from_raw(self as *const Task as *const taskctx::Task))
-        };
-        restore_from_stack_ctx(&self_ref);
+        #[cfg(any(feature = "thread", feature = "preempt"))]
+        {
+            use crate::restore_from_stack_ctx;
+            // restore_from_stack_ctx接收的参数为&Arc类型，不涉及引用计数更改。此处用Arc包装只是为了适配已有的接口。
+            let self_ref = unsafe {
+                ManuallyDrop::new(Arc::from_raw(self as *const Task as *const taskctx::Task))
+            };
+            restore_from_stack_ctx(&self_ref);
+        }
+        #[cfg(not(any(feature = "thread", feature = "preempt")))]
+        {
+            todo!()
+        }
     }
 
     #[doc = r" 恢复协程上下文，函数返回时自动保存了协程上下文"]
@@ -118,7 +124,14 @@ impl libvsched2::Task for Task {
     #[doc = r" 获取线程上下文保存的栈底指针"]
     fn thread_stack_base(&self) -> usize {
         assert!(!self.is_coroutine());
-        self.0.stack_top()
+        #[cfg(any(feature = "thread", feature = "preempt"))]
+        {
+            self.0.stack_top()
+        }
+        #[cfg(not(any(feature = "thread", feature = "preempt")))]
+        {
+            unreachable!()
+        }
     }
 
     #[doc = r" 设置协程运行返回值"]
@@ -129,6 +142,16 @@ impl libvsched2::Task for Task {
     #[doc = r" 判断任务是否为内核态任务"]
     fn is_kernel(&self) -> bool {
         true
+    }
+
+    #[doc = r" 保存线程上下文，然后进入`api::raw_thread_entry`。"]
+    #[doc = r" 下次从上下文中恢复后，从该函数中返回。"]
+    #[doc = r""]
+    #[doc = r" 不需修改任务状态。"]
+    #[doc = r""]
+    #[doc = r" 调用此函数时，`self`一定是当前任务。"]
+    fn resched(&self) {
+        todo!()
     }
 }
 
@@ -236,7 +259,7 @@ impl libvsched2::TrapInfo for TrapInfo {
         let task_ref = block_on(KERNEL_EXECUTOR.new_ktask(
             "trap_handler".into(),
             Box::pin(async move {
-                libvsched2::schedule::trap_wait_queue::trap_handler(queue).await;
+                libvsched2::api::trap_handler(queue);
                 0
             }),
         ));
@@ -246,7 +269,7 @@ impl libvsched2::TrapInfo for TrapInfo {
 
 // TODO: 目前只支持用户trap_frame，还不支持内核trap_frame。
 async fn vsched2_trap_handle(tf: &TrapFrame, task: Option<*const ()>) {
-    #[cfg(target_arch = "riscv64")]
+    #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
     {
         use riscv::register::scause::{Exception, Trap};
         use syscall::trap::{handle_page_fault, MappingFlags};
