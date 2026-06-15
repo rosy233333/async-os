@@ -254,12 +254,12 @@ impl Executor {
         None
     }
 
-    #[inline]
-    /// Pick one task from Executor
-    pub fn pick_next_task(&self) -> Option<TaskRef> {
-        // self.scheduler.lock().pick_next_task()
-        KERNEL_SCHEDULER.lock().pick_next_task()
-    }
+    // #[inline]
+    // /// Pick one task from Executor
+    // pub fn pick_next_task(&self) -> Option<TaskRef> {
+    //     // self.scheduler.lock().pick_next_task()
+    //     KERNEL_SCHEDULER.lock().pick_next_task()
+    // }
 
     // #[inline]
     // /// Add curr task to Executor, it ususally add to back
@@ -465,7 +465,8 @@ impl Executor {
             path = format!("{}{}", cwd, path);
         }
         new_executor.set_file_path(path.clone()).await;
-        let scheduler = KERNEL_SCHEDULER.clone();
+        // let scheduler = KERNEL_SCHEDULER.clone();
+        let scheduler = Arc::new(SpinNoIrq::new(Scheduler::new()));
         let fut = UTRAP_HANDLER();
         let pid = new_executor.pid();
         let new_task = Arc::new(Task::new(TaskInner::new_user(
@@ -573,7 +574,8 @@ impl Executor {
             self.pid
         };
         let page_table_token = new_memory_set.lock().await.page_table_token();
-        let scheduler = KERNEL_SCHEDULER.clone();
+        // let scheduler = KERNEL_SCHEDULER.clone();
+        let scheduler = Arc::new(SpinNoIrq::new(Scheduler::new()));
         let fut = UTRAP_HANDLER();
         let utrap_frame = Box::new(*current_task().utrap_frame().unwrap());
         let new_task = Arc::new(Task::new(TaskInner::new_user(
@@ -963,7 +965,8 @@ impl Executor {
         name: String,
         fut: Pin<Box<dyn Future<Output = isize> + 'static>>,
     ) -> TaskRef {
-        let scheduler = KERNEL_SCHEDULER.clone();
+        // let scheduler = KERNEL_SCHEDULER.clone();
+        let scheduler = Arc::new(SpinNoIrq::new(Scheduler::new()));
         let page_table_token = self.memory_set.lock().await.page_table_token();
         let ktask = Arc::new(Task::new(TaskInner::new(
             name,

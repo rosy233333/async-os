@@ -41,3 +41,5 @@ riscv = "0.10"
 axfutex = { path = "../axfutex" }
 async_utils = { path = "../async_utils" }
 vdso = { path = "../../vdso" }
+
+libvsched2 = { path = "../../vdso_output/libvsched2" }

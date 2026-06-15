@@ -56,7 +56,8 @@ pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
         } else {
             // 用户态发生了 Trap 或者需要调度
             if let Some(curr) = CurrentTask::try_get().or_else(|| {
-                if let Some(task) = CurrentExecutor::get().pick_next_task() {
+                // if let Some(task) = CurrentExecutor::get().pick_next_task() {
+                if let Some(task) = None {
                     unsafe {
                         CurrentTask::init_current(task);
                     }
@@ -65,7 +66,7 @@ pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
                     None
                 }
             }) {
-                run_task(curr);
+                // run_task(curr);
             } else {
                 axhal::arch::enable_irqs();
                 // 没有就绪任务，等待中断
@@ -78,81 +79,81 @@ pub fn trampoline(tf: &mut TrapFrame, has_trap: bool, from_user: bool) {
 
 const IS_ASYNC: usize = 0x5f5f5f5f;
 
-pub fn run_task(curr: CurrentTask) {
-    let waker = curr.waker();
-    let cx = &mut Context::from_waker(&waker);
-    let page_table_token = curr.get_page_table_token();
-    if page_table_token != 0 {
-        unsafe {
-            axhal::arch::write_page_table_root0(page_table_token.into());
-            #[cfg(target_arch = "riscv64")]
-            riscv::register::sstatus::set_sum();
-        };
-    }
-    #[cfg(any(feature = "thread", feature = "preempt"))]
-    restore_from_stack_ctx(curr.as_task_ref());
-    // warn!("run task {} count {}", task.id_name(), Arc::strong_count(task));
-    let res = curr.get_fut().as_mut().poll(cx);
-    match res {
-        Poll::Ready(exit_code) => {
-            debug!("task exit: {}, exit_code={}", curr.id_name(), exit_code);
-            curr.set_state(TaskState::Exited);
-            curr.set_exit_code(exit_code);
-            curr.notify_waker_for_exit();
-            if curr.is_init() {
-                assert!(
-                    Arc::strong_count(curr.as_task_ref()) == 1,
-                    "count {}",
-                    Arc::strong_count(curr.as_task_ref())
-                );
-                axhal::misc::terminate();
-            }
-            CurrentTask::clean_current();
-        }
-        Poll::Pending => {
-            let mut state = curr.state_lock_manual();
-            match **state {
-                // await 主动让权，将任务的状态修改为就绪后，放入就绪队列中
-                TaskState::Running => {
-                    if let Some(tf) = curr.utrap_frame() {
-                        if tf.trap_status == TrapStatus::Done {
-                            tf.kernel_sp = taskctx::current_stack_top();
-                            tf.scause = 0;
-                            // 这里不能打开中断
-                            axhal::arch::disable_irqs();
-                            drop(core::mem::ManuallyDrop::into_inner(state));
-                            unsafe {
-                                tf.user_return();
-                            }
-                            panic!("never reach here");
-                        }
-                    }
-                    **state = TaskState::Runable;
-                    curr.get_scheduler()
-                        .lock()
-                        .put_prev_task(curr.clone(), false);
-                    CurrentTask::clean_current();
-                }
-                // 处于 Runable 状态的任务一定处于就绪队列中，不可能在 CPU 上运行
-                TaskState::Runable => panic!("Runable {} cannot be peding", curr.id_name()),
-                // 等待 Mutex 等进入到 Blocking 状态，但还在这个 CPU 上运行，
-                // 此时还没有被唤醒，因此将状态修改为 Blocked，等待被唤醒
-                TaskState::Blocking => {
-                    **state = TaskState::Blocked;
-                    CurrentTask::clean_current_without_drop();
-                }
-                // 由于等待 Mutex 等，导致进入到了 Blocking 状态，但在这里还没有修改状态为 Blocked 时
-                // 已经被其他 CPU 上运行的任务唤醒了，因此这里直接返回，让当前的任务继续执行
-                TaskState::Waked => {
-                    **state = TaskState::Running;
-                }
-                // Blocked 状态的任务不可能在 CPU 上运行
-                TaskState::Blocked => panic!("Blocked {} cannot be pending", curr.id_name()),
-                // 退出的任务只能对应到 Poll::Ready
-                TaskState::Exited => panic!("Exited {} cannot be pending", curr.id_name()),
-            }
-            // 在这里释放锁，中间的过程不会发生中断
-            drop(core::mem::ManuallyDrop::into_inner(state));
-        }
-    }
-}
+// pub fn run_task(curr: CurrentTask) {
+//     let waker = curr.waker();
+//     let cx = &mut Context::from_waker(&waker);
+//     let page_table_token = curr.get_page_table_token();
+//     if page_table_token != 0 {
+//         unsafe {
+//             axhal::arch::write_page_table_root0(page_table_token.into());
+//             #[cfg(target_arch = "riscv64")]
+//             riscv::register::sstatus::set_sum();
+//         };
+//     }
+//     #[cfg(any(feature = "thread", feature = "preempt"))]
+//     restore_from_stack_ctx(curr.as_task_ref());
+//     // warn!("run task {} count {}", task.id_name(), Arc::strong_count(task));
+//     let res = curr.get_fut().as_mut().poll(cx);
+//     match res {
+//         Poll::Ready(exit_code) => {
+//             debug!("task exit: {}, exit_code={}", curr.id_name(), exit_code);
+//             curr.set_state(TaskState::Exited);
+//             curr.set_exit_code(exit_code);
+//             curr.notify_waker_for_exit();
+//             if curr.is_init() {
+//                 assert!(
+//                     Arc::strong_count(curr.as_task_ref()) == 1,
+//                     "count {}",
+//                     Arc::strong_count(curr.as_task_ref())
+//                 );
+//                 axhal::misc::terminate();
+//             }
+//             CurrentTask::clean_current();
+//         }
+//         Poll::Pending => {
+//             let mut state = curr.state_lock_manual();
+//             match **state {
+//                 // await 主动让权，将任务的状态修改为就绪后，放入就绪队列中
+//                 TaskState::Running => {
+//                     if let Some(tf) = curr.utrap_frame() {
+//                         if tf.trap_status == TrapStatus::Done {
+//                             tf.kernel_sp = taskctx::current_stack_top();
+//                             tf.scause = 0;
+//                             // 这里不能打开中断
+//                             axhal::arch::disable_irqs();
+//                             drop(core::mem::ManuallyDrop::into_inner(state));
+//                             unsafe {
+//                                 tf.user_return();
+//                             }
+//                             panic!("never reach here");
+//                         }
+//                     }
+//                     **state = TaskState::Runable;
+//                     curr.get_scheduler()
+//                         .lock()
+//                         .put_prev_task(curr.clone(), false);
+//                     CurrentTask::clean_current();
+//                 }
+//                 // 处于 Runable 状态的任务一定处于就绪队列中，不可能在 CPU 上运行
+//                 TaskState::Runable => panic!("Runable {} cannot be peding", curr.id_name()),
+//                 // 等待 Mutex 等进入到 Blocking 状态，但还在这个 CPU 上运行，
+//                 // 此时还没有被唤醒，因此将状态修改为 Blocked，等待被唤醒
+//                 TaskState::Blocking => {
+//                     **state = TaskState::Blocked;
+//                     CurrentTask::clean_current_without_drop();
+//                 }
+//                 // 由于等待 Mutex 等，导致进入到了 Blocking 状态，但在这里还没有修改状态为 Blocked 时
+//                 // 已经被其他 CPU 上运行的任务唤醒了，因此这里直接返回，让当前的任务继续执行
+//                 TaskState::Waked => {
+//                     **state = TaskState::Running;
+//                 }
+//                 // Blocked 状态的任务不可能在 CPU 上运行
+//                 TaskState::Blocked => panic!("Blocked {} cannot be pending", curr.id_name()),
+//                 // 退出的任务只能对应到 Poll::Ready
+//                 TaskState::Exited => panic!("Exited {} cannot be pending", curr.id_name()),
+//             }
+//             // 在这里释放锁，中间的过程不会发生中断
+//             drop(core::mem::ManuallyDrop::into_inner(state));
+//         }
+//     }
+// }

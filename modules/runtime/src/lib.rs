@@ -295,7 +295,7 @@ fn init_interrupt() {
 
     axhal::irq::register_handler(TIMER_IRQ_NUM, || {
         update_timer();
-        trampoline::on_timer_tick();
+        trampoline::on_timer_tick(); // TODO: 这里面用到了current_task，但此时current_task还没初始化。
     });
 
     // Enable IRQs before starting app

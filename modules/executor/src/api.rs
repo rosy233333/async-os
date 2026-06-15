@@ -1,7 +1,7 @@
 use crate::{
     flags::WaitStatus, futex::futex_wake, send_signal_to_process, send_signal_to_thread,
-    CurrentExecutor, Executor, KERNEL_EXECUTOR, KERNEL_EXECUTOR_ID, KERNEL_SCHEDULER, PID2PC,
-    TID2TASK, UTRAP_HANDLER,
+    CurrentExecutor, Executor, KERNEL_EXECUTOR, KERNEL_EXECUTOR_ID, PID2PC, TID2TASK,
+    UTRAP_HANDLER,
 };
 use alloc::{boxed::Box, string::String, sync::Arc};
 use axsignal::signal_no::SignalNo;
@@ -12,12 +12,12 @@ pub use task_api::*;
 // Initializes the executor (for the primary CPU).
 pub fn init(utrap_handler: fn() -> Pin<Box<dyn Future<Output = isize> + 'static>>) {
     info!("Initialize executor...");
-    taskctx::init();
+    // taskctx::init();
     vdso::init();
     UTRAP_HANDLER.init_by(utrap_handler);
-    let mut scheduler = Scheduler::new();
-    scheduler.init();
-    KERNEL_SCHEDULER.init_by(Arc::new(SpinNoIrq::new(scheduler)));
+    // let mut scheduler = Scheduler::new();
+    // scheduler.init();
+    // KERNEL_SCHEDULER.init_by(Arc::new(SpinNoIrq::new(scheduler)));
     let kexecutor = Arc::new(Executor::new_init());
     KERNEL_EXECUTOR.init_by(kexecutor.clone());
     unsafe { CurrentExecutor::init_current(kexecutor) };
@@ -63,7 +63,7 @@ where
     F: FnOnce() -> T,
     T: Future<Output = isize> + 'static,
 {
-    let scheduler = &*KERNEL_SCHEDULER;
+    // let scheduler = &*KERNEL_SCHEDULER;
     let task = Arc::new(Task::new(TaskInner::new(
         name,
         KERNEL_EXECUTOR_ID,
@@ -71,7 +71,8 @@ where
         0,
         Box::pin(f()),
     )));
-    scheduler.lock().add_task(task.clone());
+    // scheduler.lock().add_task(task.clone());
+    libvsched2::api::push_task_into_current(Arc::into_raw(task) as *const (), 0);
     task
 }
 
@@ -223,10 +224,11 @@ where
 ///
 /// [CFS]: https://en.wikipedia.org/wiki/Completely_Fair_Scheduler
 pub fn set_priority(prio: isize) -> bool {
-    let curr = current_task();
-    let scheduler = curr.get_scheduler();
-    let mut scheduler_guard = scheduler.lock();
-    scheduler_guard.set_priority(current_task().as_task_ref(), prio)
+    // let curr = current_task();
+    // let scheduler = curr.get_scheduler();
+    // let mut scheduler_guard = scheduler.lock();
+    // scheduler_guard.set_priority(current_task().as_task_ref(), prio)
+    false
 }
 
 /// 在当前进程找对应的子进程，并等待子进程结束

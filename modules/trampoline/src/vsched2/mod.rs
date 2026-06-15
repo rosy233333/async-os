@@ -10,8 +10,11 @@ use async_mem::MemorySet;
 use axhal::mem::{phys_to_virt, VirtAddr};
 use executor::KERNEL_EXECUTOR;
 use sync::Mutex;
-use taskctx::{TaskInner, TaskState, TrapFrame};
+use taskctx::{TaskInner, TaskStack, TaskState, TrapFrame};
 use vdso::VVAR;
+
+// mod stack;
+pub mod task;
 
 #[repr(transparent)]
 struct Task(taskctx::Task);
@@ -25,7 +28,7 @@ impl libvsched2::Task for Task {
             TaskState::Runable => libvsched2::TaskState::Ready,
             TaskState::Waked => libvsched2::TaskState::Running,
             TaskState::Blocked => libvsched2::TaskState::Blocked,
-            TaskState::Blocking => libvsched2::TaskState::Running,
+            TaskState::Blocking => libvsched2::TaskState::Blocking,
             TaskState::Exited => libvsched2::TaskState::Exited,
         }
     }
@@ -38,6 +41,7 @@ impl libvsched2::Task for Task {
             libvsched2::TaskState::Ready => TaskState::Runable,
             libvsched2::TaskState::Blocked => TaskState::Blocked,
             libvsched2::TaskState::Exited => TaskState::Exited,
+            libvsched2::TaskState::Blocking => TaskState::Blocking,
         };
         TaskInner::set_state(&self.0, curr_state);
         prev_state
@@ -121,19 +125,6 @@ impl libvsched2::Task for Task {
         self.0.get_fut().as_mut().poll(cx)
     }
 
-    #[doc = r" 获取线程上下文保存的栈底指针"]
-    fn thread_stack_base(&self) -> usize {
-        assert!(!self.is_coroutine());
-        #[cfg(any(feature = "thread", feature = "preempt"))]
-        {
-            self.0.stack_top()
-        }
-        #[cfg(not(any(feature = "thread", feature = "preempt")))]
-        {
-            unreachable!()
-        }
-    }
-
     #[doc = r" 设置协程运行返回值"]
     fn set_return_value(&self, value: isize) {
         self.0.set_exit_code(value)
@@ -151,29 +142,51 @@ impl libvsched2::Task for Task {
     #[doc = r""]
     #[doc = r" 调用此函数时，`self`一定是当前任务。"]
     fn resched(&self) {
-        todo!()
+        #[cfg(any(feature = "thread", feature = "preempt"))]
+        task::resched();
+        #[cfg(not(any(feature = "thread", feature = "preempt")))]
+        panic!("Do not support thread reschedule!");
+    }
+
+    #[doc = r" 获取线程上下文保存的`Stack`指针"]
+    fn thread_stack(&self) -> *mut () {
+        #[cfg(any(feature = "thread", feature = "preempt"))]
+        {
+            self.0.stack() as *const _ as *const () as *mut ()
+        }
+        #[cfg(not(any(feature = "thread", feature = "preempt")))]
+        {
+            panic!("Do not support thread stack!");
+        }
+    }
+
+    #[doc = r" 释放一个已经退出的任务"]
+    fn dealloc(&self) {
+        // 释放一个引用计数
+        unsafe { Arc::from_raw(self as *const Task as *const taskctx::Task) };
     }
 }
 
 /// 栈的分配和回收。
-/// 以栈底指针为标识，分配时返回栈底指针，回收时传入栈底指针
 ///
 /// 只会在栈所在的地址空间中调用。
-struct StackImpl;
+#[repr(transparent)]
+struct Stack(taskctx::TaskStack);
 
-impl libvsched2::Stack for StackImpl {
+impl libvsched2::Stack for Stack {
     /// 分配栈
     fn alloc() -> *mut () {
-        let layout = Layout::from_size_align(axconfig::TASK_STACK_SIZE, 16).unwrap();
-        let ptr = unsafe { alloc::alloc::alloc(layout) };
-        assert!(!ptr.is_null());
-        unsafe { ptr.add(axconfig::TASK_STACK_SIZE) as *mut () }
+        let stack = Box::new(Stack(TaskStack::alloc(axconfig::TASK_STACK_SIZE)));
+        Box::into_raw(stack) as *mut ()
     }
     /// 回收栈
-    fn dealloc(stack: *mut ()) {
-        let layout = Layout::from_size_align(axconfig::TASK_STACK_SIZE, 16).unwrap();
-        let ptr = unsafe { (stack as *mut u8).sub(axconfig::TASK_STACK_SIZE) };
-        unsafe { alloc::alloc::dealloc(ptr, layout) };
+    fn dealloc(&mut self) {
+        unsafe { Box::from_raw(self as *mut Stack) };
+    }
+
+    #[doc = r" 栈底指针"]
+    fn base(&self) -> *mut () {
+        self.0.top().as_mut_ptr() as *mut ()
     }
 }
 
@@ -409,4 +422,24 @@ fn block_on<F: Future>(fut: F) -> F::Output {
             return output;
         }
     }
+}
+
+pub(crate) fn init_vsched2() {
+    libvsched2::init_vtable_Context::<ContextImpl>();
+    libvsched2::init_vtable_SMP::<SMPImpl>();
+    libvsched2::init_vtable_Stack::<Stack>();
+    libvsched2::init_vtable_Task::<Task>();
+    libvsched2::init_vtable_TrapInfo::<TrapInfo>();
+    libvsched2::init_vtable_UserData::<UserDataImpl>();
+    libvsched2::init_vtable_VSpace::<VSpaceImpl>();
+
+    let init_stack = Stack(TaskStack::new_init());
+    let init_task = Task(TaskInner::new(
+        name,
+        process_id,
+        scheduler,
+        page_table_token,
+        fut,
+    ));
+    libvsched2::kernel_init_main(init_stack, init_task_ptr);
 }

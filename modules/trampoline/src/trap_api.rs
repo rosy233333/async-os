@@ -10,12 +10,12 @@ pub fn on_timer_tick() {
     use taskctx::BaseScheduler;
     task_api::check_events();
     // warn!("on_timer_tick");
-    if let Some(curr) = current_task_may_uninit() {
-        if curr.get_scheduler().lock().task_tick(curr.as_task_ref()) {
-            #[cfg(feature = "preempt")]
-            curr.set_preempt_pending(true);
-        }
-    }
+    // if let Some(curr) = current_task_may_uninit() {
+    //     if curr.get_scheduler().lock().task_tick(curr.as_task_ref()) {
+    //         #[cfg(feature = "preempt")]
+    //         curr.set_preempt_pending(true);
+    //     }
+    // }
 }
 
 pub fn handle_irq(_irq_num: usize, tf: &mut TrapFrame) {

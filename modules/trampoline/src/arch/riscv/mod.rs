@@ -1,5 +1,9 @@
 use crate::trampoline;
-use riscv::register::stvec;
+use riscv::register::{
+    scause::{Interrupt::SupervisorExternal, Trap},
+    stvec,
+};
+use task_api::current_task;
 use taskctx::TrapFrame;
 
 /// Writes Supervisor Trap Vector Base Address Register (`stvec`).
@@ -20,43 +24,64 @@ pub fn init_interrupt() {
 pub unsafe extern "C" fn trap_vector_base() {
     core::arch::naked_asm!(
         "
-        .include \"macros_rv64.S\"
+        .include \"macros_rv64.S\"        
         csrrw   sp, sscratch, sp            // 交换 sp 以及 sscratch 寄存器
-        bnez    sp, 1f                      // sscratch 寄存器不为 0，在用户态发生了 Trap
-        
-        csrr    sp, sscratch                // sscratch 寄存器为 0，在内核发生了 Trap
-                                            // 此时 sscratch 寄存器上的内容为发生 Trap 时的栈指针
         addi    sp, sp, -{trapframe_size}   // 在当前的内核栈上预留出 TrapFrame 的空间
+        STR     a7, sp, 16
+        addi    a7, a7, -1024
+        bnez    a7, slow_path
+        csrr    a7, scause
+        addi    a7, a7, -8
+        bnez    a7, slow_path               // 判断 scause == 8 && a7 == 1024 （是系统调用，且为留给调度器陷入内核的系统调用号1024），若是则不需保存上下文直接跳转raw_trap_entry，否则先保存上下文再跳转 
+
+        j       {fast_path_entry}
+
+        slow_path: 
+        LDR     a7, sp, 16                  // 恢复a7的值
         SAVE_REGS                           // 保存通用寄存器、sepc、sstatus、sp、fs0、fs1
         mv      a0, sp
-        li      a1, 1                       // 设置 a1 寄存器，表示是通过 trap 进入到 trampoline 的
-        li      a2, 0                       // 设置 a2 寄存器，表示是在内核中发生的 Trap
-        call    {trampoline}                // 调用 trampoline 处理中断
-        RESTORE_REGS
-        sret
-
-        1:
-        SAVE_REGS                           // sp 为 trapframe 的指针，sscratch 为之前的栈指针
-
-        LDR     t1, sp, 2                   // load gp with CPU ID
-        LDR     t0, sp, 3                   // load tp
-        STR     gp, sp, 2                   // save gp and tp
-        STR     tp, sp, 3
-        mv      gp, t1
-        mv      tp, t0
-
-        li      a0, 1
-        STR     a0, sp, 37                  // 表示任务需要优先处理 Trap
-        mv      a0, sp                      // 传递 TrapFrame 的指针
-        li      a1, 1                       // 设置 a0 寄存器，表示是通过 trap 进入到 trampoline 的
-        li      a2, 1                       // 表示是由用户态进入
-        LDR     sp, sp, 38                  // 从栈上加载 内核栈 的栈顶
-        call    {trampoline}                // 调用 trampoline 处理中断
-        // 当有任务在运行时，不会从这里返回，在 trampoline 中会调用 trap_frame 的 trap_return 直接返回
+        j       {slow_path_entry}
         ",
         trapframe_size = const core::mem::size_of::<TrapFrame>(),
-        trampoline = sym trampoline,
+        fast_path_entry = sym fast_path_entry,
+        slow_path_entry = sym slow_path_entry,
     )
+}
+
+fn fast_path_entry() -> ! {
+    #[cfg(any(feature = "thread", feature = "preempt"))]
+    {
+        let raw_trap_entry = unsafe {
+            &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
+                as *const fn(usize, usize) -> !)
+        };
+        raw_trap_entry(2, 0);
+    }
+    #[cfg(not(any(feature = "thread", feature = "preempt")))]
+    panic!("`thread` or `preempt` feature is not enabled!");
+}
+
+fn slow_path_entry(tf: &TrapFrame) -> ! {
+    #[cfg(any(feature = "thread", feature = "preempt"))]
+    {
+        use alloc::boxed::Box;
+
+        let tf_c = Box::new(tf.clone()); // 需要clone的原因是当前trapframe存储于内核栈上，该内核栈在出调度器时就会被回收。
+                                         // 任务释放时，`tf_c`释放不掉，会内存泄漏。先这么实现吧。
+        current_task().set_stack_ctx(Box::into_raw(tf_c), taskctx::CtxType::Interrupt);
+        let raw_trap_entry = unsafe {
+            &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
+                as *const fn(usize, usize) -> !)
+        };
+        // 判断是否为外部中断
+        if tf.get_scause_type() == Trap::Interrupt(SupervisorExternal) {
+            raw_trap_entry(1, 0);
+        } else {
+            raw_trap_entry(0, 0);
+        }
+    }
+    #[cfg(not(any(feature = "thread", feature = "preempt")))]
+    panic!("`thread` or `preempt` feature is not enabled!");
 }
 
 // macro_rules! include_save_regs_macros {

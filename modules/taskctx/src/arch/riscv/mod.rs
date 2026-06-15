@@ -310,6 +310,9 @@ impl TrapFrame {
 
 #[cfg(feature = "thread")]
 impl TrapFrame {
+    /// 将线程上下文保存在栈上，之后跳转到set_tf_fn函数。
+    ///
+    /// 恢复线程上下文时，返回到调用thread_ctx的函数中，调用thread_ctx后的下一行。
     #[unsafe(naked)]
     pub extern "C" fn thread_ctx(set_tf_fn: usize, ctx_type: crate::CtxType) -> &'static Self {
         #[cfg(target_arch = "riscv32")]

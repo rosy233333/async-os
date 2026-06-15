@@ -604,7 +604,7 @@ pub struct StackCtx {
 #[cfg(any(feature = "thread", feature = "preempt"))]
 /// 线程的接口需要根据任务的状态来进行不同的操作
 impl TaskInner {
-    pub fn set_stack_ctx(&self, trap_frame: *const TrapFrame, ctx_type: CtxType) {
+    pub fn set_stack_ctx(&self, trap_frame: *const TrapFrame, ctx_type: CtxType) -> usize {
         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
         assert!(
             stack_ctx.is_none(),
@@ -612,11 +612,13 @@ impl TaskInner {
             self.id_name()
         );
         let kstack = crate::pick_current_stack();
+        let top = kstack.top();
         stack_ctx.replace(StackCtx {
             kstack,
             trap_frame,
             ctx_type,
         });
+        top.as_usize()
     }
 
     pub fn get_stack_ctx(&self) -> Option<StackCtx> {
@@ -629,8 +631,8 @@ impl TaskInner {
         stack_ctx.is_some()
     }
 
-    pub fn stack_top(&self) -> usize {
+    pub fn stack(&self) -> &TaskStack {
         let stack_ctx = unsafe { &*self.stack_ctx.get() };
-        stack_ctx.as_ref().unwrap().kstack.top().as_usize()
+        &stack_ctx.as_ref().unwrap().kstack
     }
 }

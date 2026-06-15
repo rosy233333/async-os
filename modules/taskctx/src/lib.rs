@@ -17,7 +17,7 @@ use alloc::sync::Arc;
 pub use arch::TrapFrame;
 pub use arch::TrapStatus;
 pub use current::CurrentTask;
-pub use kstack::init;
+// pub use kstack::init;
 pub use kstack::TaskStack;
 
 pub type TaskRef = Arc<Task>;
@@ -26,7 +26,7 @@ pub use scheduler::BaseScheduler;
 pub use task::{SchedPolicy, SchedStatus, TaskId, TaskInner, TaskState};
 pub use waker::waker_from_task;
 
-#[cfg(feature = "thread")]
+#[cfg(any(feature = "thread", feature = "preempt"))]
 pub use task::{CtxType, StackCtx};
 
 cfg_if::cfg_if! {

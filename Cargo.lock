@@ -807,6 +807,7 @@ dependencies = [
  "elf_parser",
  "kernel_guard 0.1.1",
  "lazy_init",
+ "libvsched2",
  "log",
  "percpu",
  "riscv 0.10.1",

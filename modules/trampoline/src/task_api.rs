@@ -16,24 +16,25 @@ use kernel_guard::BaseGuard;
 /// This api called after handle irq,it may be on a
 /// disable_preempt ctx
 pub fn current_check_preempt_pending(tf: &mut TrapFrame) {
-    if let Some(curr) = current_task_may_uninit() {
-        // if task is already exited or blocking,
-        // no need preempt, they are rescheduling
-        if curr.get_preempt_pending()
-            && curr.can_preempt()
-            && !curr.is_exited()
-            && !curr.is_blocking()
-        {
-            trace!(
-                "current {} is to be preempted in kernel, allow {}",
-                curr.id_name(),
-                curr.can_preempt()
-            );
-            curr.set_preempt_pending(false);
-            tf.trap_status = TrapStatus::Blocked;
-            set_task_tf(tf, CtxType::Interrupt);
-        }
-    }
+    // 不需要特意实现抢占，因为从trap处理任务返回后，本来就是运行最高优先级的任务。
+    // if let Some(curr) = current_task_may_uninit() {
+    //     // if task is already exited or blocking,
+    //     // no need preempt, they are rescheduling
+    //     if curr.get_preempt_pending()
+    //         && curr.can_preempt()
+    //         && !curr.is_exited()
+    //         && !curr.is_blocking()
+    //     {
+    //         trace!(
+    //             "current {} is to be preempted in kernel, allow {}",
+    //             curr.id_name(),
+    //             curr.can_preempt()
+    //         );
+    //         curr.set_preempt_pending(false);
+    //         tf.trap_status = TrapStatus::Blocked;
+    //         set_task_tf(tf, CtxType::Interrupt);
+    //     }
+    // }
 }
 
 #[cfg(feature = "preempt")]
@@ -149,7 +150,7 @@ pub async fn user_task_top() -> isize {
                             res
                         } else {
                             ktask.set_state(TaskState::Runable);
-                            ktask.get_scheduler().lock().add_task(ktask.clone());
+                            // ktask.get_scheduler().lock().add_task(ktask.clone());
                             CurrentTask::clean_current_without_drop();
                             let utask_ptr = tf.regs.t2;
                             ktask_callback.lock().replace(utask_ptr);
@@ -272,14 +273,16 @@ impl task_api::TaskApi for TaskApiImpl {
 
 #[cfg(feature = "thread")]
 pub fn thread_yield() {
-    let _guard = kernel_guard::NoPreemptIrqSave::acquire();
-    TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
+    // let _guard = kernel_guard::NoPreemptIrqSave::acquire();
+    // TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
+    crate::vsched2::task::resched();
 }
 
 #[cfg(feature = "thread")]
 pub fn thread_blocked() {
-    let _guard = kernel_guard::NoPreemptIrqSave::acquire();
-    TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
+    // let _guard = kernel_guard::NoPreemptIrqSave::acquire();
+    // TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
+    crate::vsched2::task::resched();
 }
 
 #[cfg(feature = "thread")]
@@ -292,8 +295,9 @@ pub fn thread_sleep(deadline: TimeValue) {
 
 #[cfg(feature = "thread")]
 pub fn thread_exit() {
-    let _guard = kernel_guard::NoPreemptIrqSave::acquire();
-    TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
+    // let _guard = kernel_guard::NoPreemptIrqSave::acquire();
+    // TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
+    crate::vsched2::task::resched();
 }
 
 #[cfg(feature = "thread")]
@@ -308,54 +312,54 @@ pub fn thread_join(_task: &TaskRef) -> Option<i32> {
     }
 }
 
-#[cfg(any(feature = "thread", feature = "preempt"))]
-pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
-    let curr = current_task();
-    let mut state = curr.state_lock_manual();
-    curr.set_stack_ctx(tf as *const _, ctx_type);
-    let new_kstack_top = taskctx::current_stack_top();
-    match **state {
-        // await 主动让权，将任务的状态修改为就绪后，放入就绪队列中
-        TaskState::Running => {
-            **state = TaskState::Runable;
-            curr.get_scheduler()
-                .lock()
-                .put_prev_task(curr.clone(), false);
-            CurrentTask::clean_current();
-        }
-        // 处于 Runable 状态的任务一定处于就绪队列中，不可能在 CPU 上运行
-        TaskState::Runable => panic!("Runable {} cannot be peding", curr.id_name()),
-        // 等待 Mutex 等进入到 Blocking 状态，但还在这个 CPU 上运行，
-        // 此时还没有被唤醒，因此将状态修改为 Blocked，等待被唤醒
-        TaskState::Blocking => {
-            **state = TaskState::Blocked;
-            CurrentTask::clean_current_without_drop();
-        }
-        // 由于等待 Mutex 等，导致进入到了 Blocking 状态，但在这里还没有修改状态为 Blocked 时
-        // 已经被其他 CPU 上运行的任务唤醒了，因此这里直接返回，让当前的任务继续执行
-        TaskState::Waked => {
-            **state = TaskState::Running;
-            drop(core::mem::ManuallyDrop::into_inner(state));
-            return;
-        }
-        // Blocked 状态的任务不可能在 CPU 上运行
-        TaskState::Blocked => panic!("Blocked {} cannot be pending", curr.id_name()),
-        // 退出的任务只能对应到 Poll::Ready
-        TaskState::Exited => panic!("Exited {} cannot be pending", curr.id_name()),
-    }
-    // 在这里释放锁，中间的过程不会发生中断
-    drop(core::mem::ManuallyDrop::into_inner(state));
-    unsafe {
-        core::arch::asm!(
-            "li a1, 0",
-            "li a2, 0",
-            "mv sp, {new_kstack_top}",
-            "j  {trampoline}",
-            new_kstack_top = in(reg) new_kstack_top,
-            trampoline = sym crate::trampoline,
-        )
-    }
-}
+// #[cfg(any(feature = "thread", feature = "preempt"))]
+// pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
+//     let curr = current_task();
+//     let mut state = curr.state_lock_manual();
+//     let new_kstack_top = curr.set_stack_ctx(tf as *const _, ctx_type);
+//     // let new_kstack_top = taskctx::current_stack_top();
+//     match **state {
+//         // await 主动让权，将任务的状态修改为就绪后，放入就绪队列中
+//         TaskState::Running => {
+//             **state = TaskState::Runable;
+//             curr.get_scheduler()
+//                 .lock()
+//                 .put_prev_task(curr.clone(), false);
+//             CurrentTask::clean_current();
+//         }
+//         // 处于 Runable 状态的任务一定处于就绪队列中，不可能在 CPU 上运行
+//         TaskState::Runable => panic!("Runable {} cannot be peding", curr.id_name()),
+//         // 等待 Mutex 等进入到 Blocking 状态，但还在这个 CPU 上运行，
+//         // 此时还没有被唤醒，因此将状态修改为 Blocked，等待被唤醒
+//         TaskState::Blocking => {
+//             **state = TaskState::Blocked;
+//             CurrentTask::clean_current_without_drop();
+//         }
+//         // 由于等待 Mutex 等，导致进入到了 Blocking 状态，但在这里还没有修改状态为 Blocked 时
+//         // 已经被其他 CPU 上运行的任务唤醒了，因此这里直接返回，让当前的任务继续执行
+//         TaskState::Waked => {
+//             **state = TaskState::Running;
+//             drop(core::mem::ManuallyDrop::into_inner(state));
+//             return;
+//         }
+//         // Blocked 状态的任务不可能在 CPU 上运行
+//         TaskState::Blocked => panic!("Blocked {} cannot be pending", curr.id_name()),
+//         // 退出的任务只能对应到 Poll::Ready
+//         TaskState::Exited => panic!("Exited {} cannot be pending", curr.id_name()),
+//     }
+//     // 在这里释放锁，中间的过程不会发生中断
+//     drop(core::mem::ManuallyDrop::into_inner(state));
+//     unsafe {
+//         core::arch::asm!(
+//             "li a1, 0",
+//             "li a2, 0",
+//             "mv sp, {new_kstack_top}",
+//             "j  {trampoline}",
+//             new_kstack_top = in(reg) new_kstack_top,
+//             trampoline = sym crate::trampoline,
+//         )
+//     }
+// }
 
 #[cfg(any(feature = "thread", feature = "preempt"))]
 pub fn restore_from_stack_ctx(task: &TaskRef) {
@@ -365,7 +369,7 @@ pub fn restore_from_stack_ctx(task: &TaskRef) {
         ctx_type,
     }) = task.get_stack_ctx()
     {
-        taskctx::put_prev_stack(kstack);
+        // taskctx::put_prev_stack(kstack);
         match ctx_type {
             CtxType::Thread => unsafe { &*trap_frame }.thread_return(),
             #[cfg(feature = "preempt")]

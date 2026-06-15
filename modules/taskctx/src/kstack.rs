@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{boxed::Box, vec::Vec};
 use core::{alloc::Layout, ptr::NonNull};
 use lazy_init::LazyInit;
 use memory_addr::VirtAddr;
@@ -53,73 +53,77 @@ impl Drop for TaskStack {
     }
 }
 
-#[percpu::def_percpu]
-static STACK_POOL: LazyInit<SpinNoIrq<StackPool>> = LazyInit::new();
+// #[percpu::def_percpu]
+// static STACK_POOL: LazyInit<SpinNoIrq<StackPool>> = LazyInit::new();
 
-pub fn init() {
-    STACK_POOL.with_current(|i| {
-        let mut stack_pool = StackPool::new();
-        stack_pool.init();
-        i.init_by(SpinNoIrq::new(stack_pool));
-    });
-}
+// pub fn init() {
+//     STACK_POOL.with_current(|i| {
+//         let mut stack_pool = StackPool::new();
+//         stack_pool.init();
+//         i.init_by(SpinNoIrq::new(stack_pool));
+//     });
+// }
+
+// pub fn pick_current_stack() -> TaskStack {
+//     let mut stack_pool = unsafe { STACK_POOL.current_ref_mut_raw().lock() };
+//     stack_pool.pick_current_stack()
+// }
 
 pub fn pick_current_stack() -> TaskStack {
-    let mut stack_pool = unsafe { STACK_POOL.current_ref_mut_raw().lock() };
-    stack_pool.pick_current_stack()
+    *unsafe { Box::from_raw(libvsched2::take_current_stack() as *mut TaskStack) }
 }
 
-pub fn current_stack_top() -> usize {
-    let stack_pool = unsafe { STACK_POOL.current_ref_mut_raw().lock() };
-    stack_pool.current_stack().top().as_usize()
-}
+// pub fn current_stack_top() -> usize {
+//     let stack_pool = unsafe { STACK_POOL.current_ref_mut_raw().lock() };
+//     stack_pool.current_stack().top().as_usize()
+// }
 
-pub fn put_prev_stack(kstack: TaskStack) {
-    let mut stack_pool = unsafe { STACK_POOL.current_ref_mut_raw().lock() };
-    stack_pool.put_prev_stack(kstack)
-}
+// pub fn put_prev_stack(kstack: TaskStack) {
+//     let mut stack_pool = unsafe { STACK_POOL.current_ref_mut_raw().lock() };
+//     stack_pool.put_prev_stack(kstack)
+// }
 
-/// A simple stack pool
-pub(crate) struct StackPool {
-    free_stacks: Vec<TaskStack>,
-    current: Option<TaskStack>,
-}
+// /// A simple stack pool
+// pub(crate) struct StackPool {
+//     free_stacks: Vec<TaskStack>,
+//     current: Option<TaskStack>,
+// }
 
-impl StackPool {
-    /// Creates a new empty stack pool.
-    pub const fn new() -> Self {
-        Self {
-            free_stacks: Vec::new(),
-            current: None,
-        }
-    }
+// impl StackPool {
+//     /// Creates a new empty stack pool.
+//     pub const fn new() -> Self {
+//         Self {
+//             free_stacks: Vec::new(),
+//             current: None,
+//         }
+//     }
 
-    pub fn init(&mut self) {
-        self.current = Some(TaskStack::new_init());
-    }
+//     pub fn init(&mut self) {
+//         self.current = Some(TaskStack::new_init());
+//     }
 
-    /// Alloc a free stack from the pool.
-    fn alloc(&mut self) -> TaskStack {
-        self.free_stacks.pop().unwrap_or_else(|| {
-            let stack = TaskStack::alloc(axconfig::TASK_STACK_SIZE);
-            stack
-        })
-    }
+//     /// Alloc a free stack from the pool.
+//     fn alloc(&mut self) -> TaskStack {
+//         self.free_stacks.pop().unwrap_or_else(|| {
+//             let stack = TaskStack::alloc(axconfig::TASK_STACK_SIZE);
+//             stack
+//         })
+//     }
 
-    pub fn pick_current_stack(&mut self) -> TaskStack {
-        assert!(self.current.is_some());
-        let new_stack = self.alloc();
-        self.current.replace(new_stack).unwrap()
-    }
+//     pub fn pick_current_stack(&mut self) -> TaskStack {
+//         assert!(self.current.is_some());
+//         let new_stack = self.alloc();
+//         self.current.replace(new_stack).unwrap()
+//     }
 
-    pub fn current_stack(&self) -> &TaskStack {
-        assert!(self.current.is_some());
-        self.current.as_ref().unwrap()
-    }
+//     pub fn current_stack(&self) -> &TaskStack {
+//         assert!(self.current.is_some());
+//         self.current.as_ref().unwrap()
+//     }
 
-    pub fn put_prev_stack(&mut self, kstack: TaskStack) {
-        assert!(self.current.is_some());
-        let curr_stack = self.current.replace(kstack).unwrap();
-        self.free_stacks.push(curr_stack);
-    }
-}
+//     pub fn put_prev_stack(&mut self, kstack: TaskStack) {
+//         assert!(self.current.is_some());
+//         let curr_stack = self.current.replace(kstack).unwrap();
+//         self.free_stacks.push(curr_stack);
+//     }
+// }
