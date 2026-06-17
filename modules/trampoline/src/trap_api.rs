@@ -9,7 +9,7 @@ use taskctx::{TrapFrame, TrapStatus};
 pub fn on_timer_tick() {
     use taskctx::BaseScheduler;
     task_api::check_events();
-    // warn!("on_timer_tick");
+    warn!("on_timer_tick");
     // if let Some(curr) = current_task_may_uninit() {
     //     if curr.get_scheduler().lock().task_tick(curr.as_task_ref()) {
     //         #[cfg(feature = "preempt")]

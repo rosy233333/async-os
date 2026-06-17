@@ -67,12 +67,13 @@ where
     let task = Arc::new(Task::new(TaskInner::new(
         name,
         KERNEL_EXECUTOR_ID,
-        scheduler.clone(),
+        // scheduler.clone(),
+        Arc::new(SpinNoIrq::new(Scheduler::new())),
         0,
         Box::pin(f()),
     )));
     // scheduler.lock().add_task(task.clone());
-    libvsched2::api::push_task_into_current(Arc::into_raw(task) as *const (), 0);
+    libvsched2::api::push_task_into_current(Arc::into_raw(task.clone()) as *const ());
     task
 }
 

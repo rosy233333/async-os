@@ -32,8 +32,7 @@ pub fn rust_main_secondary(cpu_id: usize) -> ! {
     #[cfg(all(feature = "tls", not(feature = "multitask")))]
     super::init_tls();
 
-    let tf = unsafe { core::ptr::NonNull::<trampoline::TrapFrame>::dangling().as_mut() };
-    trampoline::trampoline(tf, false, false);
+    trampoline::thread_exit();
 
     unreachable!()
 }

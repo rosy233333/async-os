@@ -5,3 +5,4 @@ qemu.log
 modules/async-std
 *.img
 vdso_output
+symtab.txt

@@ -6,6 +6,7 @@ edition = "2021"
 [features]
 
 thread = ["trampoline/thread"]
+preempt = ["trampoline/preempt"]
 
 monolithic = ["feat/monolithic", "multitask", "alloc", "fs", "net_monolithic"]
 

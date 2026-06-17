@@ -6,9 +6,11 @@ path = "modules/axhal"
 
 [profile.dev]
 lto = true
+strip = false
 
 [profile.release]
 lto = true
+strip = false
 
 [workspace]
 members = [

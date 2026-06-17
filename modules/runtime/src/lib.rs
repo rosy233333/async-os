@@ -51,7 +51,8 @@ impl axlog::LogIf for LogIfImpl {
     }
 
     fn current_time() -> core::time::Duration {
-        axhal::time::current_time()
+        // axhal::time::current_time()
+        core::time::Duration::from_secs(0)
     }
 
     fn current_cpu_id() -> Option<usize> {
@@ -66,11 +67,12 @@ impl axlog::LogIf for LogIfImpl {
     }
 
     fn current_task_id() -> Option<u64> {
-        if is_init_ok() {
-            trampoline::current_task_may_uninit().map_or(None, |curr| Some(curr.id().as_u64()))
-        } else {
-            None
-        }
+        // if is_init_ok() {
+        //     trampoline::current_task_may_uninit().map_or(None, |curr| Some(curr.id().as_u64()))
+        // } else {
+        //     None
+        // }
+        None
     }
 }
 
@@ -92,9 +94,11 @@ pub fn is_init_ok() -> bool {
 ///
 /// In multi-core environment, this function is called on the primary CPU,
 /// and the secondary CPUs call [`rust_main_secondary`].
-#[cfg_attr(not(test), no_mangle)]
+// #[cfg_attr(not(test), no_mangle)]
+#[no_mangle]
 pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
     ax_println!("{}", LOGO);
+    loop {}
     ax_println!(
         "\
         arch = {}\n\
@@ -137,7 +141,7 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
     info!("Initialize platform devices...");
     axhal::platform_init();
 
-    trampoline::init_trampoline();
+    // trampoline::init_trampoline();
 
     #[cfg(feature = "irq")]
     {
@@ -151,7 +155,7 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
         init_tls();
     }
 
-    trampoline::spawn_raw(main_fut, "main".into());
+    // trampoline::spawn_raw(main_fut, "main".into());
 
     info!("Primary CPU {} init OK.", cpu_id);
     INITED_CPUS.fetch_add(1, Ordering::Relaxed);
@@ -295,11 +299,11 @@ fn init_interrupt() {
 
     axhal::irq::register_handler(TIMER_IRQ_NUM, || {
         update_timer();
-        trampoline::on_timer_tick(); // TODO: 这里面用到了current_task，但此时current_task还没初始化。
+        // trampoline::on_timer_tick();
     });
 
     // Enable IRQs before starting app
-    axhal::arch::enable_irqs();
+    // axhal::arch::enable_irqs();
 }
 
 #[cfg(all(feature = "tls", not(feature = "multitask")))]

@@ -26,6 +26,7 @@ unsafe extern "C" fn _start() -> ! {
     // a0 = hartid
     // a1 = dtb
     core::arch::naked_asm!("
+        csrci   sstatus, 2              // disable interrupt
         mv      s0, a0                  // save hartid
         mv      s1, a1                  // save DTB pointer
         la      sp, {boot_stack}
@@ -40,6 +41,7 @@ unsafe extern "C" fn _start() -> ! {
 
         mv      a0, s0
         mv      a1, s1
+        la      zero, {main}
         la      a2, {entry}
         add     a2, a2, s2
         jalr    a2                      // call rust_entry(hartid, dtb)
@@ -50,6 +52,7 @@ unsafe extern "C" fn _start() -> ! {
         init_boot_page_table = sym init_boot_page_table,
         init_mmu = sym init_mmu,
         entry = sym super::rust_entry,
+        main = sym runtime::rust_main, // 用于在符号表中显示rust_main
     )
 }
 

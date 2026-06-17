@@ -1,7 +1,7 @@
 use crate::trampoline;
 use riscv::register::{
     scause::{Interrupt::SupervisorExternal, Trap},
-    stvec,
+    sie, sstatus, stvec,
 };
 use task_api::current_task;
 use taskctx::TrapFrame;
@@ -14,6 +14,7 @@ pub fn set_trap_vector_base(stvec: usize) {
 
 /// To initialize the trap vector base address.
 pub fn init_interrupt() {
+    // axhal::arch::disable_irqs();
     set_trap_vector_base(trap_vector_base as usize);
 }
 
