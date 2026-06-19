@@ -238,7 +238,12 @@ pub fn current_task_ptr<T>() -> *const T {
     //     use tock_registers::interfaces::Readable;
     //     aarch64_cpu::registers::SP_EL0.get() as _
     // }
-    libvsched2::api::current_task_ptr() as *const T
+    let f = unsafe { libvsched2::api::VDSO_VTABLE.current_task_ptr };
+    if let Some(f) = f {
+        f() as *const T
+    } else {
+        core::ptr::null()
+    }
 }
 /// Sets the pointer to the current task with preemption-safety.
 ///

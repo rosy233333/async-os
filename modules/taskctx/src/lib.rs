@@ -87,14 +87,14 @@ struct KernelGuardIfImpl;
 impl KernelGuardIf for KernelGuardIfImpl {
     fn enable_preempt() {
         // Your implementation here
-        if let Some(curr) = CurrentTask::try_get() {
-            curr.enable_preempt();
-        }
+        // if let Some(curr) = CurrentTask::try_get() {
+        //     curr.enable_preempt();
+        // }
     }
     fn disable_preempt() {
         // Your implementation here
-        if let Some(curr) = CurrentTask::try_get() {
-            curr.disable_preempt();
-        }
+        // if let Some(curr) = CurrentTask::try_get() {
+        //     curr.disable_preempt();
+        // }
     }
 }
