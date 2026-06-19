@@ -5,6 +5,7 @@ use crate::vsched2::init_vsched2;
 /// Initializes the trampoline (for the primary CPU).
 pub fn init_trampoline() {
     executor::init(|| Box::pin(crate::user_task_top()));
+    // executor::init(|| Box::pin(async { 0 }));
     init_vsched2();
 }
 

@@ -434,7 +434,7 @@ pub(crate) fn init_vsched2() {
     libvsched2::init_vtable_VSpace::<VSpaceImpl>();
 
     let mut init_stack = Stack(TaskStack::new_init());
-    let init_task = block_on(KERNEL_EXECUTOR.new_ktask("boot".into(), Box::pin(async { 0 })));
+    let init_task = KERNEL_EXECUTOR.new_ktask_init("boot".into(), Box::pin(async { 0 }));
     libvsched2::kernel_init_main(
         &mut init_stack as *mut Stack as _,
         Arc::into_raw(init_task) as _,
@@ -444,7 +444,7 @@ pub(crate) fn init_vsched2() {
 #[cfg(feature = "smp")]
 pub(crate) fn init_vsched2_secondary() {
     let init_stack = Stack(TaskStack::new_init());
-    let init_task = block_on(KERNEL_EXECUTOR.new_ktask("boot".into(), Box::pin(async {})));
+    let init_task = KERNEL_EXECUTOR.new_ktask_init("boot".into(), Box::pin(async { 0 }));
     libvsched2::kernel_init_main(
         &mut init_stack as *mut Stack as _,
         Arc::into_raw(init_task) as _,

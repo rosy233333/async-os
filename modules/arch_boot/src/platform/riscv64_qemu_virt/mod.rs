@@ -8,7 +8,7 @@ pub unsafe extern "C" fn rust_entry(cpu_id: usize, dtb: usize) {
     axhal::mem::clear_bss();
     axhal::cpu::init_primary(cpu_id);
     axhal::platform::time::init_board_info(dtb);
-    // trampoline::init_interrupt();
+    trampoline::init_interrupt();
     axlog::init();
     axlog::set_max_level(option_env!("AX_LOG").unwrap_or("")); // no effect if set `log-level-*` features
 
@@ -21,8 +21,7 @@ pub unsafe extern "C" fn rust_entry(cpu_id: usize, dtb: usize) {
         core::hint::spin_loop();
     }
 
-    loop {}
-    // trampoline::thread_exit();
+    trampoline::thread_exit();
 }
 
 #[cfg(feature = "smp")]

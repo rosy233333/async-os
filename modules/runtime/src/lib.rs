@@ -98,7 +98,6 @@ pub fn is_init_ok() -> bool {
 #[no_mangle]
 pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
     ax_println!("{}", LOGO);
-    loop {}
     ax_println!(
         "\
         arch = {}\n\
@@ -141,7 +140,7 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
     info!("Initialize platform devices...");
     axhal::platform_init();
 
-    // trampoline::init_trampoline();
+    trampoline::init_trampoline();
 
     #[cfg(feature = "irq")]
     {
@@ -155,7 +154,7 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
         init_tls();
     }
 
-    // trampoline::spawn_raw(main_fut, "main".into());
+    trampoline::spawn_raw(main_fut, "main".into());
 
     info!("Primary CPU {} init OK.", cpu_id);
     INITED_CPUS.fetch_add(1, Ordering::Relaxed);

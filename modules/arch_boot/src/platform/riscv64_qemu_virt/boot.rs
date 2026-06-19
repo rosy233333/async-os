@@ -26,7 +26,7 @@ unsafe extern "C" fn _start() -> ! {
     // a0 = hartid
     // a1 = dtb
     core::arch::naked_asm!("
-        csrci   sstatus, 2              // disable interrupt
+        // csrci   sstatus, 2              // disable interrupt
         mv      s0, a0                  // save hartid
         mv      s1, a1                  // save DTB pointer
         la      sp, {boot_stack}
