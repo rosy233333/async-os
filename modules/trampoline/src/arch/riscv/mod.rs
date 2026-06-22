@@ -25,7 +25,8 @@ pub fn init_interrupt() {
 pub unsafe extern "C" fn trap_vector_base() {
     core::arch::naked_asm!(
         "
-        .include \"macros_rv64.S\"        
+        .include \"macros_rv64.S\"
+        j       .        
         csrrw   sp, sscratch, sp            // 交换 sp 以及 sscratch 寄存器
         addi    sp, sp, -{trapframe_size}   // 在当前的内核栈上预留出 TrapFrame 的空间
         STR     a7, sp, 16

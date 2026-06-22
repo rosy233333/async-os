@@ -66,8 +66,9 @@ pub fn wakeup_task(task_ptr: *const Task) {
         // 只有处于 Blocked 状态的任务才能被唤醒，这时候才会拿到任务的 Arc 指针
         TaskState::Blocked => {
             **state = TaskState::Runable;
-            let task_ref = unsafe { Arc::from_raw(task_ptr) };
-            task.scheduler.lock().lock().add_task(task_ref);
+            // let task_ref = unsafe { Arc::from_raw(task_ptr) };
+            // task.scheduler.lock().lock().add_task(task_ref);
+            libvsched2::api::push_task(task_ptr as _);
         }
         TaskState::Waked => panic!("cannot wakeup Waked {}", task.id_name()),
         // 无法唤醒已经退出的任务

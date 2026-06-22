@@ -17,13 +17,12 @@ async fn main() -> isize {
         let a = A.lock().await;
         async_std::println!("spawn Mutex locked: {:?}", *a);
         32
-    })
-    .join();
-    async_std::task::sleep(Duration::from_secs(1)).await;
+    });
+    // async_std::task::sleep(Duration::from_secs(1)).await;
     drop(b);
-    let res = j.await.unwrap();
+    let res = j.join().await.unwrap();
     async_std::println!("res {}", res);
-    async_std::task::sleep(Duration::from_secs(1)).await;
+    // async_std::task::sleep(Duration::from_secs(1)).await;
     for i in 0..100 {
         async_std::println!("for test preempt {}", i);
     }

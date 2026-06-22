@@ -3,14 +3,23 @@ use taskctx::TrapFrame;
 
 #[cfg(any(feature = "thread", feature = "preempt"))]
 pub fn resched() {
+    log::info!("call resched()");
     let _guard = kernel_guard::NoPreemptIrqSave::acquire();
+    log::info!("after acquire guard");
     TrapFrame::thread_ctx(set_tf_fn as usize, taskctx::CtxType::Thread);
 }
 
 #[cfg(any(feature = "thread", feature = "preempt"))]
 fn set_tf_fn(tf: &mut TrapFrame, ctx_type: taskctx::CtxType) {
+    log::info!("call set_tf_fn()");
     let curr = unsafe { &*(libvsched2::current_task_ptr() as *const taskctx::Task) };
+    log::info!("after get current task");
     curr.set_stack_ctx(tf as *const _, ctx_type);
+    log::info!("after set stack ctx");
     let raw_thread_entry = unsafe { libvsched2::VDSO_VTABLE.raw_thread_entry.as_ref().unwrap() };
+    log::info!(
+        "into raw_thread_entry: 0x{:#x}",
+        raw_thread_entry as *const _ as usize
+    );
     raw_thread_entry();
 }

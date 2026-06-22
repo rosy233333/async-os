@@ -70,7 +70,12 @@ impl Drop for TaskStack {
 // }
 
 pub fn pick_current_stack() -> TaskStack {
-    *unsafe { Box::from_raw(libvsched2::take_current_stack() as *mut TaskStack) }
+    // log::info!("1");
+    let stack_ptr = libvsched2::take_current_stack();
+    // log::info!("2");
+    let stack = *unsafe { Box::from_raw(stack_ptr as *mut TaskStack) };
+    // log::info!("3");
+    stack
 }
 
 // pub fn current_stack_top() -> usize {

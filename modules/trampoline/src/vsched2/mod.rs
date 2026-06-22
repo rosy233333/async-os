@@ -22,19 +22,23 @@ struct Task(taskctx::Task);
 impl libvsched2::Task for Task {
     #[doc = r" 任务状态"]
     fn state(&self) -> libvsched2::TaskState {
+        log::debug!("Calling Task::state.");
         let state = TaskInner::state(&self.0);
-        match state {
+        let res = match state {
             TaskState::Running => libvsched2::TaskState::Running,
             TaskState::Runable => libvsched2::TaskState::Ready,
             TaskState::Waked => libvsched2::TaskState::Running,
             TaskState::Blocked => libvsched2::TaskState::Blocked,
             TaskState::Blocking => libvsched2::TaskState::Blocking,
             TaskState::Exited => libvsched2::TaskState::Exited,
-        }
+        };
+        log::debug!("Returned from Task::state.");
+        res
     }
 
     #[doc = r" 设置任务状态"]
     fn set_state(&self, state: libvsched2::TaskState) -> libvsched2::TaskState {
+        log::debug!("Calling Task::set_state.");
         let prev_state = libvsched2::Task::state(self);
         let curr_state = match state {
             libvsched2::TaskState::Running => TaskState::Running,
@@ -44,11 +48,13 @@ impl libvsched2::Task for Task {
             libvsched2::TaskState::Blocking => TaskState::Blocking,
         };
         TaskInner::set_state(&self.0, curr_state);
+        log::debug!("Returned from Task::set_state.");
         prev_state
     }
 
     #[doc = r" 任务优先级"]
     fn priority(&self) -> isize {
+        log::debug!("Calling and returned from Task::priority.");
         0
     }
 
@@ -56,14 +62,13 @@ impl libvsched2::Task for Task {
     #[doc = r""]
     #[doc = r" 根据最新保存的上下文类型不同，线程和协程可以互相转化"]
     fn is_coroutine(&self) -> bool {
+        log::debug!("Calling Task::is_coroutine.");
         #[cfg(feature = "thread")]
-        {
-            self.0.have_stack_ctx()
-        }
+        let res = { !self.0.have_stack_ctx() };
         #[cfg(not(feature = "thread"))]
-        {
-            true
-        }
+        let res = { true };
+        log::debug!("Returned from Task::is_coroutine.");
+        res
     }
 
     #[doc = r" 获取任务所处的进程id，也就是任务所处地址空间的所属进程的id，"]
@@ -79,7 +84,10 @@ impl libvsched2::Task for Task {
     #[doc = r""]
     #[doc = r" 此处的进程id即为全局进程表`PROCESS_INFO_TABLE`的索引"]
     fn pid(&self) -> usize {
-        self.0.get_process_id() as usize
+        log::debug!("Calling Task::pid.");
+        let res = self.0.get_process_id() as usize;
+        log::debug!("Returned from Task::pid.");
+        res
     }
 
     #[doc = r" 设置任务的pid，也就是任务所处地址空间的所属进程的id，"]
@@ -88,7 +96,9 @@ impl libvsched2::Task for Task {
     #[doc = r" 目前仅对于由进程创建的内核态任务（如同步/异步trap处理任务）调用，"]
     #[doc = r" 因此只有对这些任务调用`pid`才能获得有效的值。"]
     fn set_pid(&self, pid: usize) {
+        log::debug!("Calling Task::set_pid.");
         self.0.set_process_id(pid as u64);
+        log::debug!("Returned from Task::set_pid.");
     }
 
     // #[doc = r" 保存线程上下文"]
@@ -105,11 +115,13 @@ impl libvsched2::Task for Task {
     fn restore_context(&self) {
         #[cfg(any(feature = "thread", feature = "preempt"))]
         {
+            log::debug!("Calling Task::restore_context.");
             use crate::restore_from_stack_ctx;
             // restore_from_stack_ctx接收的参数为&Arc类型，不涉及引用计数更改。此处用Arc包装只是为了适配已有的接口。
             let self_ref = unsafe {
                 ManuallyDrop::new(Arc::from_raw(self as *const Task as *const taskctx::Task))
             };
+            log::debug!("Task::restore_context: before restore");
             restore_from_stack_ctx(&self_ref);
         }
         #[cfg(not(any(feature = "thread", feature = "preempt")))]
@@ -120,18 +132,24 @@ impl libvsched2::Task for Task {
 
     #[doc = r" 恢复协程上下文，函数返回时自动保存了协程上下文"]
     fn poll(&self) -> Poll<isize> {
+        log::debug!("Calling Task::poll.");
         let waker = taskctx::waker_from_task(&self.0 as *const _);
         let cx = &mut Context::from_waker(&waker);
-        self.0.get_fut().as_mut().poll(cx)
+        let res = self.0.get_fut().as_mut().poll(cx);
+        log::debug!("Returned from Task::poll.");
+        res
     }
 
     #[doc = r" 设置协程运行返回值"]
     fn set_return_value(&self, value: isize) {
-        self.0.set_exit_code(value)
+        log::debug!("Calling Task::set_return_value.");
+        self.0.set_exit_code(value);
+        log::debug!("Returned from Task::set_return_value.");
     }
 
     #[doc = r" 判断任务是否为内核态任务"]
     fn is_kernel(&self) -> bool {
+        log::debug!("Calling and returned from Task::is_kernel.");
         true
     }
 
@@ -142,6 +160,7 @@ impl libvsched2::Task for Task {
     #[doc = r""]
     #[doc = r" 调用此函数时，`self`一定是当前任务。"]
     fn resched(&self) {
+        log::debug!("Calling Task::resched.");
         #[cfg(any(feature = "thread", feature = "preempt"))]
         task::resched();
         #[cfg(not(any(feature = "thread", feature = "preempt")))]
@@ -152,7 +171,10 @@ impl libvsched2::Task for Task {
     fn thread_stack(&self) -> *mut () {
         #[cfg(any(feature = "thread", feature = "preempt"))]
         {
-            self.0.stack() as *const _ as *const () as *mut ()
+            log::debug!("Calling Task::thread_stack.");
+            let res = self.0.stack() as *const _ as *const () as *mut ();
+            log::debug!("Returned from Task::thread_stack.");
+            res
         }
         #[cfg(not(any(feature = "thread", feature = "preempt")))]
         {
@@ -162,31 +184,50 @@ impl libvsched2::Task for Task {
 
     #[doc = r" 释放一个已经退出的任务"]
     fn dealloc(&self) {
+        log::debug!("Calling Task::dealloc.");
+
         // 释放一个引用计数
-        unsafe { Arc::from_raw(self as *const Task as *const taskctx::Task) };
+        let to_drop = unsafe { Arc::from_raw(self as *const Task as *const taskctx::Task) };
+        if to_drop.is_init() {
+            axhal::misc::terminate();
+        }
+        to_drop.notify_waker_for_exit();
+        drop(to_drop);
+        log::debug!("Returned from Task::dealloc.");
     }
 }
 
 /// 栈的分配和回收。
 ///
 /// 只会在栈所在的地址空间中调用。
+///
+/// 通过`Box`实现传指针，传入时先放入`Box`再`into_raw`转换为指针，传出时先`from_raw`转换为`Box`再根据需要使用`*`从`Box`中取出
 #[repr(transparent)]
 struct Stack(taskctx::TaskStack);
 
 impl libvsched2::Stack for Stack {
     /// 分配栈
     fn alloc() -> *mut () {
+        log::debug!("Calling Stack::alloc.");
         let stack = Box::new(Stack(TaskStack::alloc(axconfig::TASK_STACK_SIZE)));
-        Box::into_raw(stack) as *mut ()
+        let res = Box::into_raw(stack) as *mut ();
+        log::debug!("Returned from Stack::alloc.");
+        res
     }
     /// 回收栈
     fn dealloc(&mut self) {
-        unsafe { Box::from_raw(self as *mut Stack) };
+        log::debug!("Calling Stack::dealloc.");
+        let to_drop = unsafe { Box::from_raw(self as *mut Stack) };
+        drop(to_drop);
+        log::debug!("Returned from Stack::dealloc.");
     }
 
     #[doc = r" 栈底指针"]
     fn base(&self) -> *mut () {
-        self.0.top().as_mut_ptr() as *mut ()
+        log::debug!("Calling Stack::base.");
+        let res = self.0.top().as_mut_ptr() as *mut ();
+        log::debug!("Returned from Stack::base.");
+        res
     }
 }
 
@@ -204,6 +245,7 @@ impl libvsched2::Context for ContextImpl {
     ///
     /// 在内核态调度到用户协程后使用
     fn into_user(ustack: usize) {
+        log::debug!("Calling Context::into_user.");
         let vspace = libvsched2::current_vspace() as *mut ();
         assert!(!vspace.is_null());
         let memory_set = unsafe { &mut *(vspace as *mut Mutex<MemorySet>) };
@@ -216,6 +258,7 @@ impl libvsched2::Context for ContextImpl {
                 - kernel_vvar_base) as *const ();
 
         let tf = TrapFrame::init_user_context(user_run_task_ptr as usize, ustack);
+        log::debug!("Context::into_user: Before user return.");
         unsafe {
             tf.user_return();
         }
@@ -227,8 +270,10 @@ impl libvsched2::Context for ContextImpl {
     ///
     /// 在内核态调度到用户线程后使用
     fn into_user_context(task: *const ()) {
+        log::debug!("Calling Context::into_user_context.");
         let task_ref = unsafe { &*(task as *const taskctx::Task) };
         let tf = task_ref.utrap_frame().unwrap();
+        log::debug!("Context::into_user_context: Before user return.");
         unsafe {
             tf.user_return();
         }
@@ -244,24 +289,32 @@ impl libvsched2::TrapInfo for TrapInfo {
     #[doc = r""]
     #[doc = r" 传入的任务一定是被trap的任务，因此具有trap上下文类型的寄存器上下文。"]
     fn from_task(task: *const ()) -> *const Self {
+        log::debug!("Calling TrapInfo::from_task.");
         let task = unsafe { &*(task as *const taskctx::Task) };
         let frame = task.utrap_frame().unwrap();
-        Box::into_raw(Box::new(TrapInfo(frame.clone())))
+        let res = Box::into_raw(Box::new(TrapInfo(frame.clone())));
+        log::debug!("Returned from TrapInfo::from_task.");
+        res
     }
 
     #[doc = r" 处理trap。参数为被trap的任务。"]
     #[doc = r" 当被trap的任务与trap处理无关时（例如外部中断），参数为None。"]
     fn handle(&self, task: Option<*const ()>) {
+        log::debug!("Calling TrapInfo::handle.");
         block_on(vsched2_trap_handle(&self.0, task));
+        log::debug!("Returned from TrapInfo::handle.");
     }
 
     #[doc = r" 释放trap信息。"]
     #[doc = r""]
     #[doc = r" 在调度模块中，每个由`from_task`创建的`TrapInfo`实例都必须调用一次`dealloc`进行释放。"]
     fn dealloc(&self) {
-        unsafe {
+        log::debug!("Calling TrapInfo::dealloc.");
+        let to_drop = unsafe {
             Box::from_raw(self as *const TrapInfo as *mut TrapInfo);
-        }
+        };
+        drop(to_drop);
+        log::debug!("Returned from TrapInfo::dealloc.");
     }
 
     #[doc = r" 创建一个新的trap处理任务，并返回TCB地址"]
@@ -269,6 +322,7 @@ impl libvsched2::TrapInfo for TrapInfo {
     #[doc = r""]
     #[doc = r" trap处理任务使用`trap_handler`作为执行的函数，且将该函数的参数传入`trap_handler`中。"]
     fn new_handler(queue: *const ()) -> *const () {
+        log::debug!("Calling TrapInfo::new_handler.");
         let task_ref = block_on(KERNEL_EXECUTOR.new_ktask(
             "trap_handler".into(),
             Box::pin(async move {
@@ -276,7 +330,9 @@ impl libvsched2::TrapInfo for TrapInfo {
                 0
             }),
         ));
-        Arc::into_raw(task_ref) as *const ()
+        let res = Arc::into_raw(task_ref) as *const ();
+        log::debug!("Returned from TrapInfo::new_handler.");
+        res
     }
 }
 
@@ -357,7 +413,10 @@ struct SMPImpl;
 impl libvsched2::SMP for SMPImpl {
     /// 获取当前cpuid
     fn cpu_id() -> usize {
-        axhal::cpu::this_cpu_id()
+        log::debug!("Calling SMP::cpu_id.");
+        let res = axhal::cpu::this_cpu_id();
+        log::debug!("Returned from SMP::cpu_id.");
+        res
     }
 }
 
@@ -371,6 +430,7 @@ impl libvsched2::VSpace for VSpaceImpl {
     ///
     /// 地址空间使用`*mut ()`表示，即为`ProcessInfo`中的`vspace`中的内容。
     fn into_vspace(vspace: *mut ()) {
+        log::debug!("Calling VSPace::into_vspace.");
         let memset = unsafe { &mut *(vspace as *mut Mutex<MemorySet>) };
         let page_table_token = memset.lock().page_table_token();
         if page_table_token != 0 {
@@ -380,6 +440,7 @@ impl libvsched2::VSpace for VSpaceImpl {
                 riscv::register::sstatus::set_sum();
             };
         }
+        log::debug!("Returned from VSPace::into_vspace.");
     }
 }
 
@@ -400,6 +461,7 @@ impl libvsched2::UserData for UserDataImpl {
     /// - 外界实现的地址翻译必须保证返回的地址在用户态vDSO私有数据区内，且`[addr, addr + size_of::<T>())`完整可访问。
     /// - 因为访问的是用户态子空间的数据，因此不能在切换地址空间前后访问该函数返回的同一份引用。
     fn get_user_data(pos: usize, len: usize, vspace: Option<*mut ()>) -> *mut () {
+        log::debug!("Calling UserData::get_user_data.");
         let vspace = vspace.unwrap_or(libvsched2::current_vspace() as *mut ());
         assert!(!vspace.is_null());
         let memory_set = unsafe { &mut *(vspace as *mut Mutex<MemorySet>) };
@@ -408,7 +470,9 @@ impl libvsched2::UserData for UserDataImpl {
         let kernel_vvar_base = unsafe { &VVAR as *const _ as usize };
         let vaddr = VirtAddr::from(pos + vvar_base - kernel_vvar_base);
         let paddr = memory_set.lock().query(vaddr).unwrap().0;
-        phys_to_virt(paddr).as_mut_ptr() as *mut ()
+        let res = phys_to_virt(paddr).as_mut_ptr() as *mut ();
+        log::debug!("Returned from UserData::get_user_data.");
+        res
     }
 }
 
@@ -433,10 +497,10 @@ pub(crate) fn init_vsched2() {
     libvsched2::init_vtable_UserData::<UserDataImpl>();
     libvsched2::init_vtable_VSpace::<VSpaceImpl>();
 
-    let mut init_stack = Stack(TaskStack::new_init());
+    let mut init_stack = Box::new(Stack(TaskStack::new_init()));
     let init_task = KERNEL_EXECUTOR.new_ktask_init("boot".into(), Box::pin(async { 0 }));
     libvsched2::kernel_init_main(
-        &mut init_stack as *mut Stack as _,
+        Box::into_raw(init_stack) as _,
         Arc::into_raw(init_task) as _,
     );
 }

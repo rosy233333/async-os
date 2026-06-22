@@ -21,7 +21,11 @@ pub unsafe extern "C" fn rust_entry(cpu_id: usize, dtb: usize) {
         core::hint::spin_loop();
     }
 
+    // log::info!("1");
+    trampoline::current_task().set_state(trampoline::TaskState::Exited);
+    // log::info!("2");
     trampoline::thread_exit();
+    // log::info!("3");
 }
 
 #[cfg(feature = "smp")]
