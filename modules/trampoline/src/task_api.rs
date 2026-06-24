@@ -369,16 +369,13 @@ pub fn restore_from_stack_ctx(task: &TaskRef) {
         ctx_type,
     }) = task.get_stack_ctx()
     {
-        log::info!("switch to ctx:");
-        log::info!("{:?}", unsafe { &*trap_frame });
+        log::info!("restore_from_stack_ctx: {:#x}", trap_frame as usize);
+        log::info!("{:#x?}", unsafe { &*trap_frame });
         // taskctx::put_prev_stack(kstack);
         match ctx_type {
             CtxType::Thread => unsafe { &*trap_frame }.thread_return(),
             #[cfg(feature = "preempt")]
-            CtxType::Interrupt => {
-                log::info!("4");
-                unsafe { &*trap_frame }.preempt_return()
-            }
+            CtxType::Interrupt => unsafe { &*trap_frame }.preempt_return(),
         }
     }
 }

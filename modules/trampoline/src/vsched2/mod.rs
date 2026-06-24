@@ -208,18 +208,18 @@ struct Stack(taskctx::TaskStack);
 impl libvsched2::Stack for Stack {
     /// 分配栈
     fn alloc() -> *mut () {
-        log::debug!("Calling Stack::alloc.");
+        log::info!("Calling Stack::alloc.");
         let stack = Box::new(Stack(TaskStack::alloc(axconfig::TASK_STACK_SIZE)));
         let res = Box::into_raw(stack) as *mut ();
-        log::debug!("Returned from Stack::alloc.");
+        log::info!("Returned from Stack::alloc: {:#x}", res as usize);
         res
     }
     /// 回收栈
     fn dealloc(&mut self) {
-        log::debug!("Calling Stack::dealloc.");
+        log::info!("Calling Stack::dealloc: {:#x}.", self as *mut _ as usize);
         let to_drop = unsafe { Box::from_raw(self as *mut Stack) };
         drop(to_drop);
-        log::debug!("Returned from Stack::dealloc.");
+        log::info!("Returned from Stack::dealloc.");
     }
 
     #[doc = r" 栈底指针"]

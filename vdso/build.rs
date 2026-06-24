@@ -7,5 +7,6 @@ fn main() {
     config.out_dir = String::from("../vdso_output");
     config.toolchain = String::from("nightly-2026-05-26");
     config.features = vec![String::from("vdso_only")];
+    config.log = true;
     build_vdso(&config);
 }
