@@ -167,7 +167,7 @@ impl<T: Unpin> JoinHandle<T> {
     #[allow(unused_mut)]
     pub fn join(mut self) -> JoinFutureHandle<T> {
         let _inner = api::wait_for_exit(self.native);
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         {
             let res = _inner.map_or_else(
                 || Err(ax_err_type!(BadState)),
@@ -186,7 +186,7 @@ impl<T: Unpin> JoinHandle<T> {
                 _packet: self.packet,
             };
         }
-        #[cfg(not(feature = "thread"))]
+        #[cfg(not(feature = "thread-api"))]
         return JoinFutureHandle {
             res: None,
             _inner,
@@ -210,14 +210,9 @@ impl<T: Unpin> Future for JoinFutureHandle<T> {
             _inner,
             _packet,
         } = self.get_mut();
-        #[cfg(feature = "thread")]
-        {
-            assert!(res.is_some());
-            return Poll::Ready(res.take().unwrap());
-        }
-        #[cfg(not(feature = "thread"))]
-        {
-            assert!(res.is_none());
+        if res.is_some() {
+            Poll::Ready(res.take().unwrap())
+        } else {
             Pin::new(_inner).as_mut().poll(_cx).map(|res| {
                 res.map_or_else(
                     || Err(ax_err_type!(BadState)),
@@ -232,6 +227,28 @@ impl<T: Unpin> Future for JoinFutureHandle<T> {
                 )
             })
         }
+        // #[cfg(feature = "thread-api")]
+        // {
+        //     assert!(res.is_some());
+        //     return Poll::Ready(res.take().unwrap());
+        // }
+        // #[cfg(not(feature = "thread-api"))]
+        // {
+        //     assert!(res.is_none());
+        //     Pin::new(_inner).as_mut().poll(_cx).map(|res| {
+        //         res.map_or_else(
+        //             || Err(ax_err_type!(BadState)),
+        //             |_| {
+        //                 Arc::get_mut(_packet)
+        //                     .unwrap()
+        //                     .result
+        //                     .get_mut()
+        //                     .take()
+        //                     .ok_or_else(|| ax_err_type!(BadState))
+        //             },
+        //         )
+        //     })
+        // }
     }
 }
 

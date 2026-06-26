@@ -14,9 +14,9 @@ pub struct ExitFuture {
 impl ExitFuture {
     pub fn new() -> Self {
         // 这里获取中断状态，并且关中断
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         let _irq_state = Default::default();
-        #[cfg(not(feature = "thread"))]
+        #[cfg(not(feature = "thread-api"))]
         let _irq_state = NoPreemptIrqSave::acquire();
         Self { _irq_state }
     }
@@ -25,9 +25,9 @@ impl ExitFuture {
 impl Future for ExitFuture {
     type Output = ();
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         return Poll::Ready(());
-        #[cfg(not(feature = "thread"))]
+        #[cfg(not(feature = "thread-api"))]
         {
             self.get_mut()._irq_state = NoPreemptIrqSave::acquire();
             Poll::Pending

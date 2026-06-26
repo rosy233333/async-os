@@ -8,7 +8,7 @@ use core::{
 use alloc::{boxed::Box, sync::Arc};
 use async_mem::MemorySet;
 use axhal::mem::{phys_to_virt, VirtAddr};
-use executor::KERNEL_EXECUTOR;
+use executor::{current_task, current_task_may_uninit, KERNEL_EXECUTOR};
 use sync::Mutex;
 use taskctx::{TaskInner, TaskStack, TaskState, TrapFrame};
 use vdso::VVAR;
@@ -63,10 +63,10 @@ impl libvsched2::Task for Task {
     #[doc = r" 根据最新保存的上下文类型不同，线程和协程可以互相转化"]
     fn is_coroutine(&self) -> bool {
         log::debug!("Calling Task::is_coroutine.");
-        #[cfg(feature = "thread")]
+        // #[cfg(feature = "thread-api")]
         let res = { !self.0.have_stack_ctx() };
-        #[cfg(not(feature = "thread"))]
-        let res = { true };
+        // #[cfg(not(feature = "thread-api"))]
+        // let res = { true };
         log::debug!("Returned from Task::is_coroutine.");
         res
     }
@@ -113,21 +113,29 @@ impl libvsched2::Task for Task {
 
     #[doc = r" 恢复寄存器上下文（可能为线程上下文或trap上下文）"]
     fn restore_context(&self) {
-        #[cfg(any(feature = "thread", feature = "preempt"))]
-        {
-            log::debug!("Calling Task::restore_context.");
-            use crate::restore_from_stack_ctx;
-            // restore_from_stack_ctx接收的参数为&Arc类型，不涉及引用计数更改。此处用Arc包装只是为了适配已有的接口。
-            let self_ref = unsafe {
-                ManuallyDrop::new(Arc::from_raw(self as *const Task as *const taskctx::Task))
-            };
-            log::debug!("Task::restore_context: before restore");
-            restore_from_stack_ctx(&self_ref);
-        }
-        #[cfg(not(any(feature = "thread", feature = "preempt")))]
-        {
-            todo!()
-        }
+        // #[cfg(any(feature = "thread-api", feature = "preempt"))]
+        // {
+        //     log::debug!("Calling Task::restore_context.");
+        //     use crate::restore_from_stack_ctx;
+        //     // restore_from_stack_ctx接收的参数为&Arc类型，不涉及引用计数更改。此处用Arc包装只是为了适配已有的接口。
+        //     let self_ref = unsafe {
+        //         ManuallyDrop::new(Arc::from_raw(self as *const Task as *const taskctx::Task))
+        //     };
+        //     log::debug!("Task::restore_context: before restore");
+        //     restore_from_stack_ctx(&self_ref);
+        // }
+        // #[cfg(not(any(feature = "thread-api", feature = "preempt")))]
+        // {
+        //     todo!()
+        // }
+        log::debug!("Calling Task::restore_context.");
+        use crate::restore_from_stack_ctx;
+        // restore_from_stack_ctx接收的参数为&Arc类型，不涉及引用计数更改。此处用Arc包装只是为了适配已有的接口。
+        let self_ref = unsafe {
+            ManuallyDrop::new(Arc::from_raw(self as *const Task as *const taskctx::Task))
+        };
+        log::debug!("Task::restore_context: before restore");
+        restore_from_stack_ctx(&self_ref);
     }
 
     #[doc = r" 恢复协程上下文，函数返回时自动保存了协程上下文"]
@@ -161,25 +169,29 @@ impl libvsched2::Task for Task {
     #[doc = r" 调用此函数时，`self`一定是当前任务。"]
     fn resched(&self) {
         log::debug!("Calling Task::resched.");
-        #[cfg(any(feature = "thread", feature = "preempt"))]
+        // #[cfg(any(feature = "thread-api", feature = "preempt"))]
         task::resched();
-        #[cfg(not(any(feature = "thread", feature = "preempt")))]
-        panic!("Do not support thread reschedule!");
+        // #[cfg(not(any(feature = "thread-api", feature = "preempt")))]
+        // panic!("Do not support thread reschedule!");
     }
 
     #[doc = r" 获取线程上下文保存的`Stack`指针"]
     fn thread_stack(&self) -> *mut () {
-        #[cfg(any(feature = "thread", feature = "preempt"))]
-        {
-            log::debug!("Calling Task::thread_stack.");
-            let res = self.0.stack() as *const _ as *const () as *mut ();
-            log::debug!("Returned from Task::thread_stack.");
-            res
-        }
-        #[cfg(not(any(feature = "thread", feature = "preempt")))]
-        {
-            panic!("Do not support thread stack!");
-        }
+        // #[cfg(any(feature = "thread-api", feature = "preempt"))]
+        // {
+        //     log::debug!("Calling Task::thread_stack.");
+        //     let res = self.0.stack() as *const _ as *const () as *mut ();
+        //     log::debug!("Returned from Task::thread_stack.");
+        //     res
+        // }
+        // #[cfg(not(any(feature = "thread-api", feature = "preempt")))]
+        // {
+        //     panic!("Do not support thread stack!");
+        // }
+        log::debug!("Calling Task::thread_stack.");
+        let res = self.0.stack() as *const _ as *const () as *mut ();
+        log::debug!("Returned from Task::thread_stack.");
+        res
     }
 
     #[doc = r" 释放一个已经退出的任务"]
@@ -489,6 +501,7 @@ fn block_on<F: Future>(fut: F) -> F::Output {
 }
 
 pub(crate) fn init_vsched2() {
+    info!("into init_vsched2()");
     libvsched2::init_vtable_Context::<ContextImpl>();
     libvsched2::init_vtable_SMP::<SMPImpl>();
     libvsched2::init_vtable_Stack::<Stack>();

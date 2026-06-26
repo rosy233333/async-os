@@ -308,7 +308,7 @@ impl TrapFrame {
     }
 }
 
-#[cfg(feature = "thread")]
+// #[cfg(feature = "thread-api")]
 impl TrapFrame {
     /// 将线程上下文保存在栈上，之后跳转到set_tf_fn函数。
     ///

@@ -30,11 +30,11 @@ where
 }
 
 pub fn yield_now() -> impl Future<Output = ()> {
-    #[cfg(feature = "thread")]
+    #[cfg(feature = "thread-api")]
     {
         task_management::yield_current_to_local();
         poll_fn(|_cx| Poll::Ready(()))
     }
-    #[cfg(not(feature = "thread"))]
+    #[cfg(not(feature = "thread-api"))]
     task_management::yield_current_to_local_async()
 }

@@ -90,7 +90,7 @@ const IS_ASYNC: usize = 0x5f5f5f5f;
 //             riscv::register::sstatus::set_sum();
 //         };
 //     }
-//     #[cfg(any(feature = "thread", feature = "preempt"))]
+//     #[cfg(any(feature = "thread-api", feature = "preempt"))]
 //     restore_from_stack_ctx(curr.as_task_ref());
 //     // warn!("run task {} count {}", task.id_name(), Arc::strong_count(task));
 //     let res = curr.get_fut().as_mut().poll(cx);

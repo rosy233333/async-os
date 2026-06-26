@@ -12,5 +12,5 @@ crate_interface = "0.1"
 syscalls = { path = "../syscalls" }
 
 [features]
-thread = ["syscalls/thread"]
+thread-api = ["syscalls/thread-api"]
 blocking = ["syscalls/blocking"]

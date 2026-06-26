@@ -6,27 +6,27 @@ edition = "2021"
 [features]
 default = ["multitask"]
 
-thread = ["taskctx/thread", "sync/thread", "executor/thread", "task_api/thread"]
+thread-api = ["sync/thread-api", "executor/thread-api", "task_api/thread-api"]
 
 multitask = []
 
-monolithic = ["taskctx/thread", "irq", "multitask", "preempt"]
+monolithic = ["irq", "multitask"]
 
 irq = ["sync/irq", "executor/irq", "axhal/irq", "task_api/irq"]
 
 smp = ["spinlock/smp", "executor/smp"]
 
-preempt = [
-    "irq",
-    "percpu/preempt",
-    "kernel_guard/preempt",
-    "executor/preempt",
-    "taskctx/preempt",
-]
+# preempt = [
+#     "irq",
+#     "percpu/preempt",
+#     "kernel_guard/preempt",
+#     "executor/preempt",
+#     "taskctx/preempt",
+# ]
 
 sched_fifo = ["multitask", "executor/sched_fifo"]
-sched_rr = ["multitask", "executor/sched_rr", "preempt"]
-sched_cfs = ["multitask", "executor/sched_cfs", "preempt"]
+sched_rr = ["multitask", "executor/sched_rr"]
+sched_cfs = ["multitask", "executor/sched_cfs"]
 sched_taic = ["multitask", "executor/sched_taic", "syscall/sched_taic"]
 
 [dependencies]

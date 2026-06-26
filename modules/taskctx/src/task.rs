@@ -1,8 +1,8 @@
-#[cfg(feature = "thread")]
+// #[cfg(feature = "thread-api")]
 use crate::TaskStack;
 use crate::{stat::TimeStat, Scheduler, TrapFrame};
 use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, sync::Arc};
-#[cfg(feature = "preempt")]
+// #[cfg(feature = "preempt")]
 use core::sync::atomic::AtomicUsize;
 use core::{
     cell::UnsafeCell,
@@ -126,12 +126,12 @@ pub struct TaskInner {
     exit_code: AtomicIsize,
     set_child_tid: AtomicU64,
     clear_child_tid: AtomicU64,
-    #[cfg(feature = "preempt")]
+    // #[cfg(feature = "preempt")]
     /// Whether the task needs to be rescheduled
     ///
     /// When the time slice is exhausted, it needs to be rescheduled
     need_resched: AtomicBool,
-    #[cfg(feature = "preempt")]
+    // #[cfg(feature = "preempt")]
     /// The disable count of preemption
     ///
     /// When the task get a lock which need to disable preemption, it
@@ -141,7 +141,7 @@ pub struct TaskInner {
     /// Only when the count is zero, the task can be preempted.
     preempt_disable_count: AtomicUsize,
     /// 在内核中发生抢占或者使用线程接口时的上下文
-    #[cfg(feature = "thread")]
+    // #[cfg(feature = "thread-api")]
     stack_ctx: UnsafeCell<Option<StackCtx>>,
 
     /// 是否是所属进程下的主线程
@@ -179,14 +179,14 @@ impl TaskInner {
             time: UnsafeCell::new(TimeStat::new()),
             set_child_tid: AtomicU64::new(0),
             clear_child_tid: AtomicU64::new(0),
-            #[cfg(feature = "preempt")]
+            // #[cfg(feature = "preempt")]
             need_resched: AtomicBool::new(false),
-            #[cfg(feature = "preempt")]
+            // #[cfg(feature = "preempt")]
             preempt_disable_count: AtomicUsize::new(0),
             is_leader: AtomicBool::new(false),
             process_id: AtomicU64::new(process_id),
             page_table_token: UnsafeCell::new(page_table_token),
-            #[cfg(feature = "thread")]
+            // #[cfg(feature = "thread-api")]
             stack_ctx: UnsafeCell::new(None),
             sched_status: UnsafeCell::new(SchedStatus {
                 policy: SchedPolicy::SCHED_FIFO,
@@ -220,14 +220,14 @@ impl TaskInner {
             time: UnsafeCell::new(TimeStat::new()),
             set_child_tid: AtomicU64::new(0),
             clear_child_tid: AtomicU64::new(0),
-            #[cfg(feature = "preempt")]
+            // #[cfg(feature = "preempt")]
             need_resched: AtomicBool::new(false),
-            #[cfg(feature = "preempt")]
+            // #[cfg(feature = "preempt")]
             preempt_disable_count: AtomicUsize::new(0),
             is_leader: AtomicBool::new(false),
             process_id: AtomicU64::new(process_id),
             page_table_token: UnsafeCell::new(page_table_token),
-            #[cfg(feature = "thread")]
+            // #[cfg(feature = "thread-api")]
             stack_ctx: UnsafeCell::new(None),
             sched_status: UnsafeCell::new(SchedStatus {
                 policy: SchedPolicy::SCHED_FIFO,
@@ -527,7 +527,7 @@ impl TaskInner {
     }
 }
 
-#[cfg(feature = "preempt")]
+// #[cfg(feature = "preempt")]
 impl TaskInner {
     /// Set the task waiting for reschedule
     #[inline]
@@ -583,25 +583,25 @@ impl Drop for TaskInner {
     }
 }
 
-#[cfg(any(feature = "thread", feature = "preempt"))]
+// #[cfg(any(feature = "thread-api", feature = "preempt"))]
 #[repr(usize)]
 pub enum CtxType {
     /// 其中的 usize 是中断状态，在使用线程接口让权时，将当前的中断状态保存至此，并且关闭中断
     /// 在线程恢复执行后，需要恢复原来的中断状态
-    #[cfg(feature = "thread")]
+    // #[cfg(feature = "thread-api")]
     Thread = 0,
-    #[cfg(feature = "preempt")]
+    // #[cfg(feature = "preempt")]
     Interrupt,
 }
 
-#[cfg(any(feature = "thread", feature = "preempt"))]
+// #[cfg(any(feature = "thread-api", feature = "preempt"))]
 pub struct StackCtx {
     pub kstack: TaskStack,
     pub trap_frame: *const TrapFrame,
     pub ctx_type: CtxType,
 }
 
-#[cfg(any(feature = "thread", feature = "preempt"))]
+// #[cfg(any(feature = "thread-api", feature = "preempt"))]
 /// 线程的接口需要根据任务的状态来进行不同的操作
 impl TaskInner {
     pub fn set_stack_ctx(&self, trap_frame: *const TrapFrame, ctx_type: CtxType) -> usize {

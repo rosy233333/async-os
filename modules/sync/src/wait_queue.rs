@@ -3,7 +3,7 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll, Waker};
 use spinlock::SpinNoIrq;
-#[cfg(feature = "thread")]
+#[cfg(feature = "thread-api")]
 use task_api::{block_current, current_task};
 use task_api::{cancel_alarm, set_alarm_wakeup, WaitTaskList, WaitWakerNode};
 
@@ -28,7 +28,7 @@ impl WaitQueue {
 
     /// 当前任务进入阻塞状态，将 cx 注册到等待队列中
     pub fn wait<'a>(&'a self) -> WaitFuture<'a> {
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         {
             let waker = current_task().waker();
             let waker_node = Arc::new(WaitWakerNode::new(waker));
@@ -47,7 +47,7 @@ impl WaitQueue {
     where
         F: Fn() -> bool + Unpin,
     {
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         {
             let waker = current_task().waker();
             let waker_node = Arc::new(WaitWakerNode::new(waker));
@@ -71,7 +71,7 @@ impl WaitQueue {
     /// 从而导致一直无法唤醒
     #[cfg(feature = "irq")]
     pub fn wait_timeout<'a>(&'a self, _deadline: TimeValue) -> WaitTimeoutFuture<'a> {
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         {
             let waker = current_task().waker();
             let waker_node = Arc::new(WaitWakerNode::new(waker.clone()));
@@ -88,7 +88,7 @@ impl WaitQueue {
                 _flag: false,
             };
         }
-        #[cfg(not(feature = "thread"))]
+        #[cfg(not(feature = "thread-api"))]
         WaitTimeoutFuture {
             res: None,
             _wq: self,
@@ -107,7 +107,7 @@ impl WaitQueue {
     where
         F: Fn() -> bool + Unpin,
     {
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         {
             let waker = current_task().waker();
             let waker_node = Arc::new(WaitWakerNode::new(waker.clone()));
@@ -135,7 +135,7 @@ impl WaitQueue {
                 res: Some(timeout),
             };
         }
-        #[cfg(not(feature = "thread"))]
+        #[cfg(not(feature = "thread-api"))]
         WaitTimeoutUntilFuture {
             _wq: self,
             _deadline,
@@ -170,9 +170,9 @@ impl<'a> Future for WaitFuture<'a> {
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         cfg_if::cfg_if! {
-            if #[cfg(feature = "thread")] {
+            if #[cfg(feature = "thread-api")] {
                 return Poll::Ready(());
-            } else if #[cfg(not(feature = "thread"))] {
+            } else if #[cfg(not(feature = "thread-api"))] {
                 let waker_node = Arc::new(WaitWakerNode::new(_cx.waker().clone()));
                 let Self { _wq, _flag } = self.get_mut();
                 if !*_flag {
@@ -197,9 +197,9 @@ impl<'a, F: Fn() -> bool + Unpin> Future for WaitUntilFuture<'a, F> {
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         cfg_if::cfg_if! {
-            if #[cfg(feature = "thread")] {
+            if #[cfg(feature = "thread-api")] {
                 return Poll::Ready(());
-            } else if #[cfg(not(feature = "thread"))] {
+            } else if #[cfg(not(feature = "thread-api"))] {
                 let Self { _wq, _condition } = self.get_mut();
                 let waker_node = Arc::new(WaitWakerNode::new(_cx.waker().clone()));
                 if _condition() {
@@ -234,10 +234,10 @@ impl<'a> Future for WaitTimeoutFuture<'a> {
             _flag,
         } = self.get_mut();
         cfg_if::cfg_if! {
-            if #[cfg(feature = "thread")] {
+            if #[cfg(feature = "thread-api")] {
                 assert!(res.is_some());
                 return Poll::Ready(res.unwrap());
-            } else if #[cfg(not(feature = "thread"))] {
+            } else if #[cfg(not(feature = "thread-api"))] {
                 if res.is_some() {
                     Poll::Ready(res.unwrap())
                 } else {
@@ -277,10 +277,10 @@ impl<'a, F: Fn() -> bool + Unpin> Future for WaitTimeoutUntilFuture<'a, F> {
             res,
         } = self.get_mut();
         cfg_if::cfg_if! {
-            if #[cfg(feature = "thread")] {
+            if #[cfg(feature = "thread-api")] {
                 assert!(res.is_some());
                 return Poll::Ready(res.unwrap());
-            } else if #[cfg(not(feature = "thread"))] {
+            } else if #[cfg(not(feature = "thread-api"))] {
                 if res.is_some() {
                     Poll::Ready(res.unwrap())
                 } else {

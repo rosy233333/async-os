@@ -12,7 +12,7 @@ keywords = ["arceos", "synchronization", "preemption"]
 categories = ["os", "no-std"]
 
 [features]
-preempt = []
+# preempt = []
 default = []
 
 [dependencies]

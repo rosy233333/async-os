@@ -17,6 +17,7 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
+use log::info;
 use task_api::current_task;
 
 /// A mutual exclusion primitive useful for protecting shared data, similar to
@@ -87,7 +88,7 @@ impl<T: ?Sized> Mutex<T> {
     /// and the lock will be dropped when the guard falls out of scope.
     pub fn lock(&self) -> MutexGuard<T> {
         cfg_if::cfg_if! {
-            if #[cfg(feature = "thread")] {
+            if #[cfg(feature = "thread-api")] {
                 let curr = current_task();
                 let waker = curr.waker();
                 let current_task = waker.data() as usize;
@@ -113,7 +114,7 @@ impl<T: ?Sized> Mutex<T> {
                     lock: self,
                     data: Some(self.data.get()),
                 };
-            } else if #[cfg(not(feature = "thread"))] {
+            } else if #[cfg(not(feature = "thread-api"))] {
                 return MutexGuard {
                     lock: self,
                     data: None,
@@ -158,12 +159,14 @@ impl<T: ?Sized> Mutex<T> {
         assert_eq!(
             owner_task,
             current_task,
-            "{} tried to release mutex it doesn't own, which belong to {}",
-            curr.id_name(),
-            (owner_task as *const task_api::Task)
-                .as_ref()
-                .unwrap()
-                .id_name()
+            "{:#x} tried to release mutex it doesn't own, which belong to {:#x}",
+            // curr.id_name(),
+            // (owner_task as *const task_api::Task)
+            //     .as_ref()
+            //     .unwrap()
+            //     .id_name()
+            current_task,
+            owner_task
         );
         self.wq.notify_one();
     }
@@ -247,45 +250,87 @@ impl<'a, T: ?Sized + 'a> Future for MutexGuard<'a, T> {
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let Self { lock, data } = self.get_mut();
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "thread")] {
-                assert!(data.is_some());
-                Poll::Ready(MutexGuard {
-                    lock,
-                    data: data.take(),
-                })
-            } else if #[cfg(not(feature = "thread"))] {
-                assert!(data.is_none());
-                let curr = current_task();
-                let current_task = _cx.waker().data() as usize;
-                loop {
-                    match lock.owner_task.compare_exchange_weak(
-                        0,
-                        current_task,
-                        Ordering::Acquire,
-                        Ordering::Relaxed,
-                    ) {
-                        Ok(_) => {
-                            return Poll::Ready(MutexGuard {
-                                lock,
-                                data: Some(lock.data.get()),
-                            });
-                        },
-                        Err(owner_task) => {
-                            assert_ne!(
-                                owner_task, current_task,
-                                "{} tried to acquire mutex it already owns.",
-                                curr.id_name(),
-                            );
 
-                            // 当前线程让权，并将 cx 注册到等待队列上
-                            let a = core::task::ready!(Pin::new(&mut lock.wq.wait_until(|| !lock.is_locked())).poll(_cx));
-                            assert_eq!(a, ());
-                        }
+        if data.is_some() {
+            Poll::Ready(MutexGuard {
+                lock,
+                data: data.take(),
+            })
+        } else {
+            let curr = current_task();
+            let current_task = curr.waker().data() as usize;
+            info!("current task: {:#x}", current_task);
+            loop {
+                match lock.owner_task.compare_exchange_weak(
+                    0,
+                    current_task,
+                    Ordering::Acquire,
+                    Ordering::Relaxed,
+                ) {
+                    Ok(_) => {
+                        return Poll::Ready(MutexGuard {
+                            lock,
+                            data: Some(lock.data.get()),
+                        });
+                    }
+                    Err(owner_task) => {
+                        assert_ne!(
+                            owner_task,
+                            current_task,
+                            "{} tried to acquire mutex it already owns.",
+                            curr.id_name(),
+                        );
+
+                        // 当前线程让权，并将 cx 注册到等待队列上
+                        let a = core::task::ready!(Pin::new(
+                            &mut lock.wq.wait_until(|| !lock.is_locked())
+                        )
+                        .poll(_cx));
+                        assert_eq!(a, ());
                     }
                 }
-
             }
         }
+
+        // cfg_if::cfg_if! {
+        //     if #[cfg(feature = "thread-api")] {
+        //         assert!(data.is_some());
+        //         Poll::Ready(MutexGuard {
+        //             lock,
+        //             data: data.take(),
+        //         })
+        //     } else if #[cfg(not(feature = "thread-api"))] {
+        //         assert!(data.is_none());
+        //         let curr = current_task();
+        //         let current_task = _cx.waker().data() as usize;
+        //         loop {
+        //             match lock.owner_task.compare_exchange_weak(
+        //                 0,
+        //                 current_task,
+        //                 Ordering::Acquire,
+        //                 Ordering::Relaxed,
+        //             ) {
+        //                 Ok(_) => {
+        //                     return Poll::Ready(MutexGuard {
+        //                         lock,
+        //                         data: Some(lock.data.get()),
+        //                     });
+        //                 },
+        //                 Err(owner_task) => {
+        //                     assert_ne!(
+        //                         owner_task, current_task,
+        //                         "{} tried to acquire mutex it already owns.",
+        //                         curr.id_name(),
+        //                     );
+
+        //                     // 当前线程让权，并将 cx 注册到等待队列上
+        //                     let a = core::task::ready!(Pin::new(&mut lock.wq.wait_until(|| !lock.is_locked())).poll(_cx));
+        //                     assert_eq!(a, ());
+        //                 }
+        //             }
+        //         }
+
+        //     }
+        // }
     }
 }

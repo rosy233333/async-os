@@ -9,10 +9,10 @@ use core::{
 #[crate_interface::def_interface]
 pub trait TaskOps {
     /// 线程的让出函数
-    #[cfg(feature = "thread")]
+    #[cfg(feature = "thread-api")]
     fn yield_now();
 
     /// 修改协程的任务状态，使得协程在返回Pending时视为让出，直接放回就绪队列。
-    #[cfg(not(feature = "thread"))]
+    #[cfg(not(feature = "thread-api"))]
     fn set_state_yield();
 }

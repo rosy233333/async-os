@@ -9,7 +9,7 @@ keywords = ["Synchronization"]
 
 [features]
 irq = []
-thread = ["task_api/thread"]
+thread-api = ["task_api/thread-api"]
 
 [dependencies]
 cfg-if = "1.0"
@@ -21,4 +21,3 @@ timer_list = { git = "https://github.com/Starry-OS/timer_list.git" }
 axhal = { path = "../axhal" }
 task_api = { path = "../task_api" }
 async_utils = { path = "../async_utils" }
-

@@ -11,7 +11,7 @@ crate_interface = "0.1"
 
 [features]
 # 对外提供non-await的接口；若禁用，则为await式的接口
-thread = []
+thread-api = []
 # 向内核发起阻塞式系统调用；若禁用，则为非阻塞式调用
 blocking = []
 # 在SyscallFuture的唤醒机制还未实现时使用。使SyscallFuture在返回Pending时视为yield而非wait。

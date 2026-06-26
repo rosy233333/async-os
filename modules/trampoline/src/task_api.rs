@@ -8,10 +8,10 @@ use syscall::trap::{handle_page_fault, MappingFlags};
 #[cfg(feature = "sched_taic")]
 use syscall::LQS;
 
-#[cfg(feature = "thread")]
+#[cfg(feature = "thread-api")]
 use kernel_guard::BaseGuard;
 
-#[cfg(feature = "preempt")]
+// #[cfg(feature = "preempt")]
 /// Checks if the current task should be preempted.
 /// This api called after handle irq,it may be on a
 /// disable_preempt ctx
@@ -37,7 +37,7 @@ pub fn current_check_preempt_pending(tf: &mut TrapFrame) {
     // }
 }
 
-#[cfg(feature = "preempt")]
+// #[cfg(feature = "preempt")]
 /// Checks if the current task should be preempted.
 /// This api called after handle irq,it may be on a
 /// disable_preempt ctx
@@ -231,61 +231,61 @@ impl task_api::TaskApi for TaskApiImpl {
     }
 
     fn yield_now() -> YieldFuture {
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         thread_yield();
         YieldFuture::new()
     }
 
     fn block_current() -> BlockFuture {
         current_task().set_state(TaskState::Blocking);
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         thread_blocked();
         BlockFuture::new()
     }
 
     fn exit_current() -> ExitFuture {
         current_task().set_state(TaskState::Exited);
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         thread_exit();
         ExitFuture::new()
     }
 
     fn sleep(dur: Duration) -> SleepFuture {
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         thread_sleep(dur + current_time());
         SleepFuture::new(current_time() + dur)
     }
 
     fn sleep_until(deadline: TimeValue) -> SleepFuture {
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         thread_sleep(deadline);
         SleepFuture::new(deadline)
     }
 
     fn join(task: &TaskRef) -> JoinFuture {
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         let res = thread_join(task);
-        #[cfg(not(feature = "thread"))]
+        #[cfg(not(feature = "thread-api"))]
         let res = None;
         JoinFuture::new(task.clone(), res)
     }
 }
 
-#[cfg(feature = "thread")]
+// #[cfg(feature = "thread-api")]
 pub fn thread_yield() {
     // let _guard = kernel_guard::NoPreemptIrqSave::acquire();
     // TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
     crate::vsched2::task::resched();
 }
 
-#[cfg(feature = "thread")]
+// #[cfg(feature = "thread-api")]
 pub fn thread_blocked() {
     // let _guard = kernel_guard::NoPreemptIrqSave::acquire();
     // TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
     crate::vsched2::task::resched();
 }
 
-#[cfg(feature = "thread")]
+// #[cfg(feature = "thread-api")]
 pub fn thread_sleep(deadline: TimeValue) {
     let waker = current_task().waker();
     task_api::set_alarm_wakeup(deadline, waker.clone());
@@ -293,14 +293,14 @@ pub fn thread_sleep(deadline: TimeValue) {
     task_api::cancel_alarm(&waker);
 }
 
-#[cfg(feature = "thread")]
+// #[cfg(feature = "thread-api")]
 pub fn thread_exit() {
     // let _guard = kernel_guard::NoPreemptIrqSave::acquire();
     // TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
     crate::vsched2::task::resched();
 }
 
-#[cfg(feature = "thread")]
+// #[cfg(feature = "thread-api")]
 pub fn thread_join(_task: &TaskRef) -> Option<i32> {
     loop {
         if _task.state() == TaskState::Exited {
@@ -312,7 +312,7 @@ pub fn thread_join(_task: &TaskRef) -> Option<i32> {
     }
 }
 
-// #[cfg(any(feature = "thread", feature = "preempt"))]
+// #[cfg(any(feature = "thread-api", feature = "preempt"))]
 // pub fn set_task_tf(tf: &mut TrapFrame, ctx_type: CtxType) {
 //     let curr = current_task();
 //     let mut state = curr.state_lock_manual();
@@ -361,7 +361,7 @@ pub fn thread_join(_task: &TaskRef) -> Option<i32> {
 //     }
 // }
 
-#[cfg(any(feature = "thread", feature = "preempt"))]
+// #[cfg(any(feature = "thread-api", feature = "preempt"))]
 pub fn restore_from_stack_ctx(task: &TaskRef) {
     if let Some(StackCtx {
         kstack,
@@ -374,7 +374,7 @@ pub fn restore_from_stack_ctx(task: &TaskRef) {
         // taskctx::put_prev_stack(kstack);
         match ctx_type {
             CtxType::Thread => unsafe { &*trap_frame }.thread_return(),
-            #[cfg(feature = "preempt")]
+            // #[cfg(feature = "preempt")]
             CtxType::Interrupt => unsafe { &*trap_frame }.preempt_return(),
         }
     }

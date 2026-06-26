@@ -1,7 +1,7 @@
 use kernel_guard::BaseGuard;
 use taskctx::TrapFrame;
 
-#[cfg(any(feature = "thread", feature = "preempt"))]
+// #[cfg(any(feature = "thread-api", feature = "preempt"))]
 pub fn resched() {
     log::info!("call resched()");
     let _guard = kernel_guard::NoPreemptIrqSave::acquire();
@@ -9,7 +9,7 @@ pub fn resched() {
     TrapFrame::thread_ctx(set_tf_fn as usize, taskctx::CtxType::Thread);
 }
 
-#[cfg(any(feature = "thread", feature = "preempt"))]
+// #[cfg(any(feature = "thread-api", feature = "preempt"))]
 fn set_tf_fn(tf: &mut TrapFrame, ctx_type: taskctx::CtxType) {
     log::info!("set_tf_fn: {:#x}", tf as *mut _ as usize);
     tf.trap_status = taskctx::TrapStatus::Done;

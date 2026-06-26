@@ -1174,7 +1174,6 @@ version = "0.1.0"
 source = "git+https://github.com/Starry-OS/percpu.git#85e6d8a74f19ac54004e64d42cda07d14042e3ee"
 dependencies = [
  "cfg-if",
- "kernel_guard 0.1.1",
  "percpu_macros",
  "spin 0.9.8",
  "x86",
@@ -1967,6 +1966,7 @@ dependencies = [
 [[package]]
 name = "vdso_helper"
 version = "0.1.0"
+source = "git+https://github.com/rosy233333/vdso_crate_template.git#3d5cd539449c778f8d7a7b22c72d9683ac342add"
 dependencies = [
  "lazyinit",
  "log",

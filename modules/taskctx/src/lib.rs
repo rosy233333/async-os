@@ -26,7 +26,7 @@ pub use scheduler::BaseScheduler;
 pub use task::{SchedPolicy, SchedStatus, TaskId, TaskInner, TaskState};
 pub use waker::waker_from_task;
 
-#[cfg(any(feature = "thread", feature = "preempt"))]
+// #[cfg(any(feature = "thread-api", feature = "preempt"))]
 pub use task::{CtxType, StackCtx};
 
 cfg_if::cfg_if! {
@@ -77,13 +77,13 @@ pub fn wakeup_task(task_ptr: *const Task) {
     drop(core::mem::ManuallyDrop::into_inner(state));
 }
 
-#[cfg(feature = "preempt")]
+// #[cfg(feature = "preempt")]
 use kernel_guard::KernelGuardIf;
 
-#[cfg(feature = "preempt")]
+// #[cfg(feature = "preempt")]
 struct KernelGuardIfImpl;
 
-#[cfg(feature = "preempt")]
+// #[cfg(feature = "preempt")]
 #[crate_interface::impl_interface]
 impl KernelGuardIf for KernelGuardIfImpl {
     fn enable_preempt() {

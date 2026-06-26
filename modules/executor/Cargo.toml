@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-thread = ["taskctx/thread", "sync/thread", "task_api/thread"]
+thread-api = ["sync/thread-api", "task_api/thread-api"]
 irq = ["sync/irq"]
 smp = ["spinlock/smp"]
 
-preempt = ["irq", "percpu/preempt", "kernel_guard/preempt", "taskctx/preempt"]
+# preempt = ["irq", "percpu/preempt", "kernel_guard/preempt", "taskctx/preempt"]
 
 sched_fifo = ["taskctx/sched_fifo"]
 sched_rr = ["taskctx/sched_rr"]

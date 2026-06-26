@@ -51,39 +51,59 @@ pub unsafe extern "C" fn trap_vector_base() {
 }
 
 fn fast_path_entry() -> ! {
-    #[cfg(any(feature = "thread", feature = "preempt"))]
-    {
-        let raw_trap_entry = unsafe {
-            &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
-                as *const fn(usize, usize) -> !)
-        };
-        raw_trap_entry(2, 0);
-    }
-    #[cfg(not(any(feature = "thread", feature = "preempt")))]
-    panic!("`thread` or `preempt` feature is not enabled!");
+    // #[cfg(any(feature = "thread-api", feature = "preempt"))]
+    // {
+    //     let raw_trap_entry = unsafe {
+    //         &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
+    //             as *const fn(usize, usize) -> !)
+    //     };
+    //     raw_trap_entry(2, 0);
+    // }
+    // #[cfg(not(any(feature = "thread-api", feature = "preempt")))]
+    // panic!("`thread` or `preempt` feature is not enabled!");
+    let raw_trap_entry = unsafe {
+        &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
+            as *const fn(usize, usize) -> !)
+    };
+    raw_trap_entry(2, 0);
 }
 
 fn slow_path_entry(tf: &TrapFrame) -> ! {
-    #[cfg(any(feature = "thread", feature = "preempt"))]
-    {
-        use alloc::boxed::Box;
+    // #[cfg(any(feature = "thread-api", feature = "preempt"))]
+    // {
+    //     use alloc::boxed::Box;
 
-        let tf_c = Box::new(tf.clone()); // 需要clone的原因是当前trapframe存储于内核栈上，该内核栈在出调度器时就会被回收。
-                                         // 任务释放时，`tf_c`释放不掉，会内存泄漏。先这么实现吧。
-        current_task().set_stack_ctx(Box::into_raw(tf_c), taskctx::CtxType::Interrupt);
-        let raw_trap_entry = unsafe {
-            &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
-                as *const fn(usize, usize) -> !)
-        };
-        // 判断是否为外部中断
-        if tf.get_scause_type() == Trap::Interrupt(SupervisorExternal) {
-            raw_trap_entry(1, 0);
-        } else {
-            raw_trap_entry(0, 0);
-        }
+    //     let tf_c = Box::new(tf.clone()); // 需要clone的原因是当前trapframe存储于内核栈上，该内核栈在出调度器时就会被回收。
+    //                                      // 任务释放时，`tf_c`释放不掉，会内存泄漏。先这么实现吧。
+    //     current_task().set_stack_ctx(Box::into_raw(tf_c), taskctx::CtxType::Interrupt);
+    //     let raw_trap_entry = unsafe {
+    //         &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
+    //             as *const fn(usize, usize) -> !)
+    //     };
+    //     // 判断是否为外部中断
+    //     if tf.get_scause_type() == Trap::Interrupt(SupervisorExternal) {
+    //         raw_trap_entry(1, 0);
+    //     } else {
+    //         raw_trap_entry(0, 0);
+    //     }
+    // }
+    // #[cfg(not(any(feature = "thread-api", feature = "preempt")))]
+    // panic!("`thread` or `preempt` feature is not enabled!");
+    use alloc::boxed::Box;
+
+    let tf_c = Box::new(tf.clone()); // 需要clone的原因是当前trapframe存储于内核栈上，该内核栈在出调度器时就会被回收。
+                                     // 任务释放时，`tf_c`释放不掉，会内存泄漏。先这么实现吧。
+    current_task().set_stack_ctx(Box::into_raw(tf_c), taskctx::CtxType::Interrupt);
+    let raw_trap_entry = unsafe {
+        &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
+            as *const fn(usize, usize) -> !)
+    };
+    // 判断是否为外部中断
+    if tf.get_scause_type() == Trap::Interrupt(SupervisorExternal) {
+        raw_trap_entry(1, 0);
+    } else {
+        raw_trap_entry(0, 0);
     }
-    #[cfg(not(any(feature = "thread", feature = "preempt")))]
-    panic!("`thread` or `preempt` feature is not enabled!");
 }
 
 // macro_rules! include_save_regs_macros {

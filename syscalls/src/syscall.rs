@@ -24,7 +24,7 @@ pub fn sys_write(fd: i32, buf: &[u8]) -> SyscallFuture {
 /// 用于预处理新建的`SyscallFuture`，使系统调用接口支持async/non-async、await/non-await、blocking/non-blocking的不同组合。
 fn fut_adapter(mut sf: SyscallFuture) -> SyscallFuture {
     cfg_if! {
-        if #[cfg(feature = "thread")] {
+        if #[cfg(feature = "thread-api")] {
             // non-await式调用
             cfg_if! {
                 if #[cfg(feature = "blocking")] {

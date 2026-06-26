@@ -29,9 +29,9 @@ impl Future for JoinFuture {
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         return Poll::Ready(this.res.take());
-        #[cfg(not(feature = "thread"))]
+        #[cfg(not(feature = "thread-api"))]
         {
             if this.res.is_none() {
                 if this._task.state() == taskctx::TaskState::Exited {

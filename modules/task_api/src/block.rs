@@ -15,9 +15,9 @@ pub struct BlockFuture {
 impl BlockFuture {
     pub fn new() -> Self {
         // 这里获取中断状态，并且关中断
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         let _irq_state = Default::default();
-        #[cfg(not(feature = "thread"))]
+        #[cfg(not(feature = "thread-api"))]
         let _irq_state = NoPreemptIrqSave::acquire();
         Self {
             _has_polled: false,
@@ -29,9 +29,9 @@ impl BlockFuture {
 impl Future for BlockFuture {
     type Output = ();
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         return Poll::Ready(());
-        #[cfg(not(feature = "thread"))]
+        #[cfg(not(feature = "thread-api"))]
         {
             let this = self.get_mut();
             if this._has_polled {

@@ -9,11 +9,11 @@ keywords = ["Task Switching"]
 
 [features]
 
-thread = []
-preempt = ["thread"]
+# thread-api = []
+# preempt = []
 sched_fifo = []
-sched_rr = ["preempt"]
-sched_cfs = ["preempt"]
+sched_rr = []
+sched_cfs = []
 sched_taic = []
 
 [dependencies]

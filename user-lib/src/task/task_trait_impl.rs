@@ -10,12 +10,12 @@ struct TaskOpsImpl;
 
 #[crate_interface::impl_interface]
 impl TaskOps for TaskOpsImpl {
-    #[cfg(feature = "thread")]
+    #[cfg(feature = "thread-api")]
     fn yield_now() {
         task_management::yield_current_to_local();
     }
 
-    #[cfg(not(feature = "thread"))]
+    #[cfg(not(feature = "thread-api"))]
     fn set_state_yield() {
         task_management::set_current_state_yield();
     }

@@ -8,7 +8,7 @@ user-lib = { path = "../../user-lib" }
 
 [features]
 async-await = []
-async-non-await = ["user-lib/thread"]
-non-async-non-await = ["user-lib/thread"]
+async-non-await = ["user-lib/thread-api"]
+non-async-non-await = ["user-lib/thread-api"]
 blocking = ["user-lib/blocking"]
 default = ["non-async-non-await"]

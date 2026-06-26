@@ -17,7 +17,7 @@ pub struct SleepFuture {
 
 impl SleepFuture {
     pub fn new(deadline: axhal::time::TimeValue) -> Self {
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         return Self {
             #[cfg(feature = "irq")]
             _has_sleep: false,
@@ -25,7 +25,7 @@ impl SleepFuture {
             _irq_state: Default::default(),
             deadline,
         };
-        #[cfg(not(feature = "thread"))]
+        #[cfg(not(feature = "thread-api"))]
         Self {
             #[cfg(feature = "irq")]
             _has_sleep: false,
@@ -41,9 +41,9 @@ impl Future for SleepFuture {
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
         let deadline = this.deadline;
-        #[cfg(feature = "thread")]
+        #[cfg(feature = "thread-api")]
         return Poll::Ready(axhal::time::current_time() >= deadline);
-        #[cfg(not(feature = "thread"))]
+        #[cfg(not(feature = "thread-api"))]
         {
             #[cfg(feature = "irq")]
             if !this._has_sleep {
