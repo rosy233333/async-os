@@ -296,13 +296,17 @@ fn init_interrupt() {
         axhal::time::set_oneshot_timer(deadline);
     }
 
+    // info!("1");
     axhal::irq::register_handler(TIMER_IRQ_NUM, || {
+        info!("into timer irq handler");
         update_timer();
-        // trampoline::on_timer_tick();
+        trampoline::on_timer_tick();
     });
+    // info!("2");
 
     // Enable IRQs before starting app
-    // axhal::arch::enable_irqs();
+    axhal::arch::enable_irqs();
+    // info!("3");
 }
 
 #[cfg(all(feature = "tls", not(feature = "multitask")))]

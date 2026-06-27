@@ -143,7 +143,9 @@ impl libvsched2::Task for Task {
         log::debug!("Calling Task::poll.");
         let waker = taskctx::waker_from_task(&self.0 as *const _);
         let cx = &mut Context::from_waker(&waker);
+        axhal::arch::enable_irqs();
         let res = self.0.get_fut().as_mut().poll(cx);
+        axhal::arch::disable_irqs();
         log::debug!("Returned from Task::poll.");
         res
     }
@@ -303,7 +305,7 @@ impl libvsched2::TrapInfo for TrapInfo {
     fn from_task(task: *const ()) -> *const Self {
         log::debug!("Calling TrapInfo::from_task.");
         let task = unsafe { &*(task as *const taskctx::Task) };
-        let frame = task.utrap_frame().unwrap();
+        let frame = task.trap_frame().unwrap();
         let res = Box::into_raw(Box::new(TrapInfo(frame.clone())));
         log::debug!("Returned from TrapInfo::from_task.");
         res
@@ -348,60 +350,107 @@ impl libvsched2::TrapInfo for TrapInfo {
     }
 }
 
-// TODO: 目前只支持用户trap_frame，还不支持内核trap_frame。
+// TODO: 目前只支持内核trap_frame，还不支持用户trap_frame。
 async fn vsched2_trap_handle(tf: &TrapFrame, task: Option<*const ()>) {
     #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
     {
         use riscv::register::scause::{Exception, Trap};
         use syscall::trap::{handle_page_fault, MappingFlags};
 
+        axhal::arch::disable_irqs();
+        info!("into vsched2 trap handle");
         let trap = tf.get_scause_type();
         let stval = tf.stval;
         match trap {
             Trap::Interrupt(_interrupt) => {
+                info!("into interrupt handle");
                 crate::handle_user_irq(tf.get_scause_code()).await;
             }
             Trap::Exception(Exception::UserEnvCall) => {
-                axhal::arch::enable_irqs();
+                info!("into syscall handle");
+                // axhal::arch::enable_irqs();
                 // tf.sepc += 4;
-                let task = unsafe { &*(task.unwrap() as *const taskctx::Task) };
-                let task_tf = task.utrap_frame().unwrap();
-                task_tf.sepc += 4;
-                // 简单的方式是根据参数的值进行不同的处理，根据参数进行不同的处理
-                let result = syscall::trap::handle_syscall(
-                    tf.regs.a7,
-                    [
-                        tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
-                    ],
-                )
-                .await;
-                // 判断任务是否退出
-                // if curr.is_exited() {
-                // // 任务结束，需要切换至其他任务，关中断
-                //      axhal::arch::disable_irqs();
-                //      return curr.get_exit_code() as isize;
-                // }
-                if -result == syscall::SyscallError::ERESTART as isize {
-                    // Restart the syscall
-                    task_tf.rewind_pc();
+                let task = unsafe { &*(task.unwrap() as *const Task) };
+                if libvsched2::Task::is_kernel(task) {
+                    panic!(
+                        "Unhandled trap {:?} @ {:#x}:\n{:#x?}",
+                        tf.get_scause_type(),
+                        tf.sepc,
+                        tf
+                    );
                 } else {
-                    task_tf.regs.a0 = result as usize;
+                    let task_tf = task.0.utrap_frame().unwrap();
+                    task_tf.sepc += 4;
+                    // 简单的方式是根据参数的值进行不同的处理，根据参数进行不同的处理
+                    let result = syscall::trap::handle_syscall(
+                        tf.regs.a7,
+                        [
+                            tf.regs.a0, tf.regs.a1, tf.regs.a2, tf.regs.a3, tf.regs.a4, tf.regs.a5,
+                        ],
+                    )
+                    .await;
+                    // 判断任务是否退出
+                    // if curr.is_exited() {
+                    // // 任务结束，需要切换至其他任务，关中断
+                    //      axhal::arch::disable_irqs();
+                    //      return curr.get_exit_code() as isize;
+                    // }
+                    if -result == syscall::SyscallError::ERESTART as isize {
+                        // Restart the syscall
+                        task_tf.rewind_pc();
+                    } else {
+                        task_tf.regs.a0 = result as usize;
+                    }
+                    // axhal::arch::disable_irqs();
                 }
-                axhal::arch::disable_irqs();
             }
             Trap::Exception(Exception::InstructionPageFault) => {
                 // warn!("tf {:#X?}", tf);
-                handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::EXECUTE).await;
+                info!("into InstructionPageFault handle");
+                let task = unsafe { &*(task.unwrap() as *const Task) };
+                if libvsched2::Task::is_kernel(task) {
+                    panic!(
+                        "Unhandled trap {:?} @ {:#x}:\n{:#x?}",
+                        tf.get_scause_type(),
+                        tf.sepc,
+                        tf
+                    );
+                } else {
+                    handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::EXECUTE)
+                        .await;
+                }
             }
 
             Trap::Exception(Exception::LoadPageFault) => {
                 // warn!("tf {:#X?}", tf);
-                handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::READ).await;
+                info!("into LoadPageFault handle");
+                let task = unsafe { &*(task.unwrap() as *const Task) };
+                if libvsched2::Task::is_kernel(task) {
+                    panic!(
+                        "Unhandled trap {:?} @ {:#x}:\n{:#x?}",
+                        tf.get_scause_type(),
+                        tf.sepc,
+                        tf
+                    );
+                } else {
+                    handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::READ).await;
+                }
             }
 
             Trap::Exception(Exception::StorePageFault) => {
                 // warn!("tf {:#X?}", tf);
-                handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::WRITE).await;
+                info!("into StorePageFault handle");
+                let task = unsafe { &*(task.unwrap() as *const Task) };
+                if libvsched2::Task::is_kernel(task) {
+                    panic!(
+                        "Unhandled trap {:?} @ {:#x}:\n{:#x?}",
+                        tf.get_scause_type(),
+                        tf.sepc,
+                        tf
+                    );
+                } else {
+                    handle_page_fault(stval.into(), MappingFlags::USER | MappingFlags::WRITE).await;
+                }
             }
 
             _ => {
@@ -413,7 +462,11 @@ async fn vsched2_trap_handle(tf: &TrapFrame, task: Option<*const ()>) {
                 );
             }
         }
-        syscall::trap::handle_signals().await;
+        // TODO: 在被中断的是用户进程时，处理信号。
+        // info!("before signal handle");
+        // syscall::trap::handle_signals().await;
+
+        axhal::arch::disable_irqs();
     }
 }
 

@@ -26,8 +26,8 @@ pub fn handle_irq(_irq_num: usize, tf: &mut TrapFrame) {
         drop(guard); // rescheduling may occur when preemption is re-enabled.
         tf.trap_status = TrapStatus::Done;
 
-        #[cfg(feature = "preempt")]
-        crate::current_check_preempt_pending(tf);
+        // #[cfg(feature = "preempt")]
+        // crate::current_check_preempt_pending(tf);
     }
 }
 

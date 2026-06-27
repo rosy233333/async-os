@@ -26,7 +26,7 @@ pub unsafe extern "C" fn trap_vector_base() {
     core::arch::naked_asm!(
         "
         .include \"macros_rv64.S\"
-        j       .        
+        // j       .        
         csrrw   sp, sscratch, sp            // 交换 sp 以及 sscratch 寄存器
         addi    sp, sp, -{trapframe_size}   // 在当前的内核栈上预留出 TrapFrame 的空间
         STR     a7, sp, 16
@@ -61,6 +61,7 @@ fn fast_path_entry() -> ! {
     // }
     // #[cfg(not(any(feature = "thread-api", feature = "preempt")))]
     // panic!("`thread` or `preempt` feature is not enabled!");
+    info!("trap into fast_path_entry.",);
     let raw_trap_entry = unsafe {
         &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
             as *const fn(usize, usize) -> !)
@@ -91,8 +92,13 @@ fn slow_path_entry(tf: &TrapFrame) -> ! {
     // panic!("`thread` or `preempt` feature is not enabled!");
     use alloc::boxed::Box;
 
+    info!(
+        "trap into slow_path_entry, scause: {:?}, stval: {:#x}",
+        tf.get_scause_type(),
+        tf.stval
+    );
     let tf_c = Box::new(tf.clone()); // 需要clone的原因是当前trapframe存储于内核栈上，该内核栈在出调度器时就会被回收。
-                                     // 任务释放时，`tf_c`释放不掉，会内存泄漏。先这么实现吧。
+                                     // TODO: 任务释放时，`tf_c`释放不掉，会内存泄漏。先这么实现吧。
     current_task().set_stack_ctx(Box::into_raw(tf_c), taskctx::CtxType::Interrupt);
     let raw_trap_entry = unsafe {
         &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()

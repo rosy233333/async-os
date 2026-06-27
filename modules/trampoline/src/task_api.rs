@@ -362,6 +362,12 @@ pub fn thread_join(_task: &TaskRef) -> Option<i32> {
 // }
 
 // #[cfg(any(feature = "thread-api", feature = "preempt"))]
+/// 恢复上下文
+///
+/// 打开中断的时机：
+///
+/// - 线程返回时，在恢复的线程上下文中开中断。
+/// - 中断返回时，在恢复上下文的同时打开了中断。
 pub fn restore_from_stack_ctx(task: &TaskRef) {
     if let Some(StackCtx {
         kstack,

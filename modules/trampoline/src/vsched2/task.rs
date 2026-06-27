@@ -4,9 +4,11 @@ use taskctx::TrapFrame;
 // #[cfg(any(feature = "thread-api", feature = "preempt"))]
 pub fn resched() {
     log::info!("call resched()");
-    let _guard = kernel_guard::NoPreemptIrqSave::acquire();
+    let guard = kernel_guard::NoPreemptIrqSave::acquire();
     log::info!("after acquire guard");
     TrapFrame::thread_ctx(set_tf_fn as usize, taskctx::CtxType::Thread);
+    log::info!("after restore ctx");
+    drop(guard);
 }
 
 // #[cfg(any(feature = "thread-api", feature = "preempt"))]

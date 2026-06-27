@@ -638,4 +638,9 @@ impl TaskInner {
         let stack_ctx = unsafe { &*self.stack_ctx.get() };
         &stack_ctx.as_ref().unwrap().kstack
     }
+
+    pub fn trap_frame(&self) -> Option<&TrapFrame> {
+        let stack_ctx = unsafe { &*self.stack_ctx.get() };
+        stack_ctx.as_ref().map(|ctx| unsafe { &*ctx.trap_frame })
+    }
 }
