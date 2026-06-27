@@ -305,7 +305,7 @@ fn init_interrupt() {
     // info!("2");
 
     // Enable IRQs before starting app
-    axhal::arch::enable_irqs();
+    // axhal::arch::enable_irqs();
     // info!("3");
 }
 

@@ -69,12 +69,12 @@ impl Drop for TaskStack {
 //     stack_pool.pick_current_stack()
 // }
 
-pub fn pick_current_stack() -> TaskStack {
-    log::info!("1");
+pub fn pick_current_stack() -> Box<TaskStack> {
+    // log::info!("1");
     let stack_ptr = libvsched2::take_current_stack();
-    log::info!("2");
-    let stack = *unsafe { Box::from_raw(stack_ptr as *mut TaskStack) };
-    log::info!("3");
+    // log::info!("2");
+    let stack = unsafe { Box::from_raw(stack_ptr as *mut TaskStack) };
+    // log::info!("3");
     stack
 }
 

@@ -596,7 +596,7 @@ pub enum CtxType {
 
 // #[cfg(any(feature = "thread-api", feature = "preempt"))]
 pub struct StackCtx {
-    pub kstack: TaskStack,
+    pub kstack: Option<Box<TaskStack>>,
     pub trap_frame: *const TrapFrame,
     pub ctx_type: CtxType,
 }
@@ -605,19 +605,19 @@ pub struct StackCtx {
 /// 线程的接口需要根据任务的状态来进行不同的操作
 impl TaskInner {
     pub fn set_stack_ctx(&self, trap_frame: *const TrapFrame, ctx_type: CtxType) -> usize {
-        log::info!("call set_stack_ctx()");
+        // log::info!("call set_stack_ctx()");
         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
         assert!(
             stack_ctx.is_none(),
             "{} cannot use thread api to do task switch",
             self.id_name()
         );
-        log::info!("before pick current stack");
+        // log::info!("before pick current stack");
         let kstack = crate::pick_current_stack();
-        log::info!("after pick current stack");
+        // log::info!("after pick current stack");
         let top = kstack.top();
         stack_ctx.replace(StackCtx {
-            kstack,
+            kstack: Some(kstack),
             trap_frame,
             ctx_type,
         });
@@ -634,9 +634,9 @@ impl TaskInner {
         stack_ctx.is_some()
     }
 
-    pub fn stack(&self) -> &TaskStack {
-        let stack_ctx = unsafe { &*self.stack_ctx.get() };
-        &stack_ctx.as_ref().unwrap().kstack
+    pub fn get_stack(&self) -> Box<TaskStack> {
+        let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
+        stack_ctx.as_mut().unwrap().kstack.take().unwrap()
     }
 
     pub fn trap_frame(&self) -> Option<&TrapFrame> {

@@ -191,7 +191,7 @@ impl libvsched2::Task for Task {
         //     panic!("Do not support thread stack!");
         // }
         log::debug!("Calling Task::thread_stack.");
-        let res = self.0.stack() as *const _ as *const () as *mut ();
+        let res = Box::into_raw(self.0.get_stack()) as *mut _;
         log::debug!("Returned from Task::thread_stack.");
         res
     }
@@ -222,18 +222,18 @@ struct Stack(taskctx::TaskStack);
 impl libvsched2::Stack for Stack {
     /// 分配栈
     fn alloc() -> *mut () {
-        log::info!("Calling Stack::alloc.");
+        log::debug!("Calling Stack::alloc.");
         let stack = Box::new(Stack(TaskStack::alloc(axconfig::TASK_STACK_SIZE)));
         let res = Box::into_raw(stack) as *mut ();
-        log::info!("Returned from Stack::alloc: {:#x}", res as usize);
+        log::debug!("Returned from Stack::alloc: {:#x}", res as usize);
         res
     }
     /// 回收栈
     fn dealloc(&mut self) {
-        log::info!("Calling Stack::dealloc: {:#x}.", self as *mut _ as usize);
+        log::debug!("Calling Stack::dealloc: {:#x}.", self as *mut _ as usize);
         let to_drop = unsafe { Box::from_raw(self as *mut Stack) };
         drop(to_drop);
-        log::info!("Returned from Stack::dealloc.");
+        log::debug!("Returned from Stack::dealloc.");
     }
 
     #[doc = r" 栈底指针"]
