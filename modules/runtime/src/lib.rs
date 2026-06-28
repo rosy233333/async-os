@@ -299,13 +299,13 @@ fn init_interrupt() {
     // info!("1");
     axhal::irq::register_handler(TIMER_IRQ_NUM, || {
         info!("into timer irq handler");
-        update_timer();
+        // update_timer();
         trampoline::on_timer_tick();
     });
     // info!("2");
 
     // Enable IRQs before starting app
-    // axhal::arch::enable_irqs();
+    axhal::arch::enable_irqs();
     // info!("3");
 }
 

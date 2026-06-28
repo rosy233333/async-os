@@ -143,6 +143,13 @@ impl libvsched2::Task for Task {
         log::debug!("Calling Task::poll.");
         let waker = taskctx::waker_from_task(&self.0 as *const _);
         let cx = &mut Context::from_waker(&waker);
+        // let sip = riscv::register::sip::read();
+        // log::info!(
+        //     "poll: \nsip: timer: {}, software: {}, external: {}",
+        //     sip.stimer(),
+        //     sip.ssoft(),
+        //     sip.sext()
+        // );
         axhal::arch::enable_irqs();
         let res = self.0.get_fut().as_mut().poll(cx);
         axhal::arch::disable_irqs();

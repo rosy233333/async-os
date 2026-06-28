@@ -62,6 +62,9 @@ fn fast_path_entry() -> ! {
     // #[cfg(not(any(feature = "thread-api", feature = "preempt")))]
     // panic!("`thread` or `preempt` feature is not enabled!");
     // info!("trap into fast_path_entry.",);
+
+    // 因为任务调度的接口，会在时钟中断处理前打开中断，而此时`sip.STIP`位还未清除，因此需要使用以下方法清除该位。
+    axhal::time::set_oneshot_timer(u64::MAX);
     let raw_trap_entry = unsafe {
         &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
             as *const fn(usize, usize) -> !)
@@ -96,6 +99,16 @@ fn slow_path_entry(tf: &TrapFrame) -> ! {
     //     "trap into slow_path_entry, scause: {:?}, stval: {:#x}",
     //     tf.get_scause_type(),
     //     tf.stval
+    // );
+
+    // 因为任务调度的接口，会在时钟中断处理前打开中断，而此时`sip.STIP`位还未清除，因此需要使用以下方法清除该位。
+    axhal::time::set_oneshot_timer(u64::MAX);
+    // let sip = riscv::register::sip::read();
+    // log::info!(
+    //     "slow_path_entry: \nsip: timer: {}, software: {}, external: {}",
+    //     sip.stimer(),
+    //     sip.ssoft(),
+    //     sip.sext()
     // );
     let tf_c = Box::new(tf.clone()); // 需要clone的原因是当前trapframe存储于内核栈上，该内核栈在出调度器时就会被回收。
                                      // TODO: 任务释放时，`tf_c`释放不掉，会内存泄漏。先这么实现吧。

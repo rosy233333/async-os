@@ -4,20 +4,20 @@ use taskctx::TrapFrame;
 // #[cfg(any(feature = "thread-api", feature = "preempt"))]
 pub fn resched() {
     log::info!("call resched()");
-    let guard = kernel_guard::NoPreemptIrqSave::acquire();
-    log::info!("after acquire guard");
+    axhal::arch::disable_irqs();
+    // log::info!("after disable irq");
     TrapFrame::thread_ctx(set_tf_fn as usize, taskctx::CtxType::Thread);
-    log::info!("after restore ctx");
-    drop(guard);
+    // log::info!("after restore ctx");
+    axhal::arch::enable_irqs();
 }
 
 // #[cfg(any(feature = "thread-api", feature = "preempt"))]
 fn set_tf_fn(tf: &mut TrapFrame, ctx_type: taskctx::CtxType) {
     log::info!("set_tf_fn: {:#x}", tf as *mut _ as usize);
     tf.trap_status = taskctx::TrapStatus::Done;
-    log::info!("{:#x?}", tf);
+    // log::info!("{:#x?}", tf);
     let curr = unsafe { &*(libvsched2::current_task_ptr() as *const taskctx::Task) };
-    log::info!("after get current task");
+    // log::info!("after get current task");
     curr.set_stack_ctx(tf as *const _, ctx_type);
     // log::info!("tf in task:");
     // log::info!("{:#x?}", unsafe {

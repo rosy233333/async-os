@@ -377,7 +377,21 @@ pub fn restore_from_stack_ctx(task: &TaskRef) {
     {
         // log::info!("restore_from_stack_ctx: {:#x}", trap_frame as usize);
         // log::info!("{:#x?}", unsafe { &*trap_frame });
+
         // taskctx::put_prev_stack(kstack);
+
+        // let sip = riscv::register::sip::read();
+        // let type_str = match ctx_type {
+        //     CtxType::Thread => "Thread",
+        //     CtxType::Interrupt => "Interrupt",
+        // };
+        // log::info!(
+        //     "restore_from_stack_ctx: \nctx_type: {},\nsip: timer: {}, software: {}, external: {}",
+        //     type_str,
+        //     sip.stimer(),
+        //     sip.ssoft(),
+        //     sip.sext()
+        // );
         match ctx_type {
             CtxType::Thread => unsafe { &*trap_frame }.thread_return(),
             // #[cfg(feature = "preempt")]
