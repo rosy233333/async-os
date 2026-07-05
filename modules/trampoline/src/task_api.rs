@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, format, sync::Arc};
 use axhal::time::{current_time, TimeValue};
-use core::{future::poll_fn, task::Poll, time::Duration};
+use core::{future::poll_fn, mem::ManuallyDrop, task::Poll, time::Duration};
 pub use executor::*;
 use riscv::register::scause::{Exception, Trap};
 use spin::Mutex;
@@ -64,7 +64,11 @@ pub async fn current_check_user_preempt_pending(_tf: &mut TrapFrame) {
 
 /// 这个接口还没有统一，后续还需要统一成两种接口都可以使用的形式
 pub async fn wait(task: &TaskRef) -> Option<i32> {
-    JoinFuture::new(task.clone(), None).await
+    #[cfg(feature = "thread-api")]
+    let res = thread_join(task);
+    #[cfg(not(feature = "thread-api"))]
+    let res = None;
+    JoinFuture::new(task.clone(), res).await
 }
 
 pub async fn user_task_top() -> isize {
@@ -237,16 +241,16 @@ impl task_api::TaskApi for TaskApiImpl {
     }
 
     fn block_current() -> BlockFuture {
-        current_task().set_state(TaskState::Blocking);
         #[cfg(feature = "thread-api")]
         thread_blocked();
         BlockFuture::new()
     }
 
     fn exit_current() -> ExitFuture {
-        current_task().set_state(TaskState::Exited);
         #[cfg(feature = "thread-api")]
         thread_exit();
+        #[cfg(not(feature = "thread-api"))]
+        current_task().set_state(TaskState::Exited);
         ExitFuture::new()
     }
 
@@ -275,9 +279,13 @@ impl task_api::TaskApi for TaskApiImpl {
 pub fn thread_yield() {
     // let _guard = kernel_guard::NoPreemptIrqSave::acquire();
     // TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
+    current_task().set_state(TaskState::Runable);
     crate::vsched2::task::resched();
 }
 
+/// 注意：该函数不会设置任务状态。应该先将任务状态设置为Blocking再调用该函数。
+///
+/// 这样设计的目的是保证任务在加入等待队列前就已经设置为Blocking。
 // #[cfg(feature = "thread-api")]
 pub fn thread_blocked() {
     // let _guard = kernel_guard::NoPreemptIrqSave::acquire();
@@ -297,17 +305,29 @@ pub fn thread_sleep(deadline: TimeValue) {
 pub fn thread_exit() {
     // let _guard = kernel_guard::NoPreemptIrqSave::acquire();
     // TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
+    current_task().set_state(TaskState::Exited);
     crate::vsched2::task::resched();
 }
 
 // #[cfg(feature = "thread-api")]
-pub fn thread_join(_task: &TaskRef) -> Option<i32> {
+pub fn thread_join(task: &TaskRef) -> Option<i32> {
     loop {
-        if _task.state() == TaskState::Exited {
-            return Some(_task.get_exit_code() as i32);
+        let task_ptr = Arc::into_raw(task.clone());
+        warn!(
+            "joined task {:#x} state: {:?}",
+            task_ptr as usize,
+            task.state()
+        );
+        let _to_drop = unsafe { Arc::from_raw(task_ptr) };
+        // 在将waker放入任务的waker队列期间，保持任务状态不变。
+        let guard = task.state_lock_manual();
+        if **guard == TaskState::Exited {
+            drop(ManuallyDrop::into_inner(guard));
+            return Some(task.get_exit_code() as i32);
         }
-        _task.join(current_task().waker());
-        current_task().set_state(TaskState::Blocking);
+        task.join(current_task().waker());
+        drop(ManuallyDrop::into_inner(guard));
+        // current_task().set_state(TaskState::Blocking);
         thread_blocked();
     }
 }

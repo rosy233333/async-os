@@ -27,7 +27,7 @@ impl libvsched2::Task for Task {
         let res = match state {
             TaskState::Running => libvsched2::TaskState::Running,
             TaskState::Runable => libvsched2::TaskState::Ready,
-            TaskState::Waked => libvsched2::TaskState::Running,
+            TaskState::Waked => libvsched2::TaskState::Ready,
             TaskState::Blocked => libvsched2::TaskState::Blocked,
             TaskState::Blocking => libvsched2::TaskState::Blocking,
             TaskState::Exited => libvsched2::TaskState::Exited,
@@ -494,17 +494,17 @@ impl libvsched2::SMP for SMPImpl {
 
 /// 地址空间相关接口
 ///
-/// `*mut ()`为指向`Executor`中`Mutex<MemorySet>`的指针。
-struct VSpaceImpl;
+/// `*mut ()`为指向`Executor`中`Mutex<MemorySet>`的指针，且由`Arc::into_raw`产生。
+#[repr(transparent)]
+struct VSpaceImpl(Mutex<MemorySet>);
 
 impl libvsched2::VSpace for VSpaceImpl {
     /// 切换地址空间
     ///
     /// 地址空间使用`*mut ()`表示，即为`ProcessInfo`中的`vspace`中的内容。
-    fn into_vspace(vspace: *mut ()) {
+    fn into_vspace(&self) {
         log::debug!("Calling VSPace::into_vspace.");
-        let memset = unsafe { &mut *(vspace as *mut Mutex<MemorySet>) };
-        let page_table_token = memset.lock().page_table_token();
+        let page_table_token = self.0.lock().page_table_token();
         if page_table_token != 0 {
             unsafe {
                 axhal::arch::write_page_table_root0(page_table_token.into());
@@ -513,6 +513,20 @@ impl libvsched2::VSpace for VSpaceImpl {
             };
         }
         log::debug!("Returned from VSPace::into_vspace.");
+    }
+
+    #[doc = r" 释放表示地址空间的相应数据结构"]
+    #[doc = r""]
+    #[doc = r" 该数据结构在`process_init`中传入vDSO并存储于`PROCESS_INFO_TABLE`中，"]
+    #[doc = r" 并在`process_drop`函数中释放。"]
+    #[doc = r""]
+    #[doc = r" 不一定要释放页表，例如可能只是降低了引用计数"]
+    fn dealloc(&self) {
+        log::debug!("Calling VSPace::dealloc.");
+        let to_drop =
+            unsafe { Arc::from_raw(self as *const _ as *const () as *const Mutex<MemorySet>) };
+        drop(to_drop);
+        log::debug!("Returned from VSPace::dealloc.");
     }
 }
 
@@ -580,10 +594,10 @@ pub(crate) fn init_vsched2() {
 
 #[cfg(feature = "smp")]
 pub(crate) fn init_vsched2_secondary() {
-    let init_stack = Stack(TaskStack::new_init());
+    let mut init_stack = Box::new(Stack(TaskStack::new_init()));
     let init_task = KERNEL_EXECUTOR.new_ktask_init("boot".into(), Box::pin(async { 0 }));
-    libvsched2::kernel_init_main(
-        &mut init_stack as *mut Stack as _,
+    libvsched2::kernel_init_secondary(
+        Box::into_raw(init_stack) as _,
         Arc::into_raw(init_task) as _,
     );
 }

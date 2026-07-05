@@ -1,5 +1,6 @@
-use alloc::sync::Arc;
+use alloc::{rc::Weak, sync::Arc};
 use core::task::Waker;
+use log::error;
 
 use linked_list::{GetLinks, Links, List};
 
@@ -97,6 +98,17 @@ impl WaitTaskList {
         loop {
             if !self.notify_one() {
                 break;
+            }
+        }
+    }
+}
+
+impl Drop for WaitTaskList {
+    fn drop(&mut self) {
+        if !self.list.is_empty() {
+            error!("wait queue dropped with following task inside:");
+            while let Some(node) = self.list.pop_front() {
+                error!("    {:#x}", node.waker.data() as usize);
             }
         }
     }

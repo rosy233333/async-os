@@ -44,7 +44,7 @@ pub static UTRAP_HANDLER: LazyInit<fn() -> Pin<Box<dyn Future<Output = isize> + 
 
 pub static KERNEL_EXECUTOR: LazyInit<Arc<Executor>> = LazyInit::new();
 pub static KERNEL_PAGE_TABLE_TOKEN: LazyInit<usize> = LazyInit::new();
-pub static KERNEL_SCHEDULER: LazyInit<Arc<SpinNoIrq<Scheduler>>> = LazyInit::new();
+// pub static KERNEL_SCHEDULER: LazyInit<Arc<SpinNoIrq<Scheduler>>> = LazyInit::new();
 
 extern "C" {
     fn start_signal_trampoline();
@@ -449,10 +449,12 @@ impl Executor {
                 flags: Mutex::new(OpenFlags::empty()),
             })),
         ]));
+        let memory_set = Arc::new(Mutex::new(memory_set));
+        let pid = libvsched2::process_init(Arc::into_raw(memory_set.clone()) as *mut _);
         let new_executor = Arc::new(Executor::new(
-            TaskId::new().as_u64(),
+            pid as u64,
             KERNEL_EXECUTOR_ID,
-            Arc::new(Mutex::new(memory_set)),
+            memory_set,
             heap_bottom.as_usize() as u64,
             new_fd_table,
             Arc::new(Mutex::new(String::from("/").into())),
@@ -481,7 +483,12 @@ impl Executor {
             )),
         )));
         new_executor.tasks.lock().await.push(new_task.clone());
-        new_task.get_scheduler().lock().add_task(new_task.clone());
+        // new_task.get_scheduler().lock().add_task(new_task.clone());
+        let res = libvsched2::push_task_into_process(
+            Arc::into_raw(new_task.clone()) as *const _,
+            pid as usize,
+        );
+        assert!(res);
         TID2TASK
             .lock()
             .await
@@ -519,6 +526,8 @@ impl Executor {
 
     /// 实现简易的clone系统调用
     /// 返回值为新产生的任务的id
+    ///
+    /// TODO: clone和exec对调度器中数据的处理
     pub async fn clone_task(
         &self,
         flags: usize,
@@ -529,6 +538,10 @@ impl Executor {
         exit_signal: Option<SignalNo>,
     ) -> AxResult<u64> {
         let clone_flags = CloneFlags::from_bits((flags & !0x3f) as u32).unwrap();
+        // clone只能创建不共享地址空间的进程；
+        // 其它的任务创建在用户态进行。
+        assert!(!clone_flags.contains(CloneFlags::CLONE_VM));
+        assert!(!clone_flags.contains(CloneFlags::CLONE_THREAD));
         // 是否共享虚拟地址空间
         let new_memory_set = if clone_flags.contains(CloneFlags::CLONE_VM) {
             Arc::clone(&self.memory_set)
@@ -556,13 +569,15 @@ impl Executor {
             memory_set
         };
 
+        let new_pid = libvsched2::process_init(Arc::into_raw(new_memory_set.clone()) as *mut _);
+
         // 在生成新的进程前，需要决定其所属进程是谁
         let process_id = if clone_flags.contains(CloneFlags::CLONE_THREAD) {
             // 当前clone生成的是线程，那么以self作为进程
             self.pid
         } else {
             // 新建一个进程，并且设计进程之间的父子关系
-            TaskId::new().as_u64()
+            new_pid as u64
         };
         // 决定父进程是谁
         let parent_id = if clone_flags.contains(CloneFlags::CLONE_PARENT) {
@@ -808,7 +823,12 @@ impl Executor {
             //     trap_frame.sepc, trap_frame.regs.sp
             // );
         }
-        new_task.get_scheduler().lock().add_task(new_task.clone());
+        // new_task.get_scheduler().lock().add_task(new_task.clone());
+        let res = libvsched2::push_task_into_process(
+            Arc::into_raw(new_task.clone()) as *const _,
+            process_id as usize,
+        );
+        assert!(res);
         // 判断是否为VFORK
         if clone_flags.contains(CloneFlags::CLONE_VFORK) {
             self.set_vfork_block(true).await;

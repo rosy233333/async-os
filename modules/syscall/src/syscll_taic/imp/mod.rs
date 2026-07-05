@@ -116,10 +116,11 @@ pub async fn syscall_init_async_batch(_waker: usize, res_ptr: usize) -> SyscallR
     // 这个内核任务直接进入阻塞状态，需要通过 taic 来唤醒
     ktask.set_state(executor::TaskState::Blocked);
     // 将这个任务注册为系统调用处理流程，注册为接收方，获取内核的调度器
-    use executor::KERNEL_SCHEDULER;
+    // use executor::KERNEL_SCHEDULER;
     let handler = Arc::into_raw(ktask) as *const _ as usize;
     let pid = current_executor.pid() as usize;
-    KERNEL_SCHEDULER.lock().register_receiver(1, pid, handler);
+    unreachable!();
+    // KERNEL_SCHEDULER.lock().register_receiver(1, pid, handler);
 
     // 注册用户态任务为发送方
     let lqs = LQS.lock().await;

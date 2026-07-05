@@ -425,6 +425,9 @@ impl TaskInner {
         }
     }
 
+    /// 将waker注册进waker队列。
+    ///
+    /// 不进行resched，因此调用后需要单独resched。
     pub fn join(&self, waker: Waker) {
         let task = waker.data() as *const crate::Task;
         unsafe { &*task }.set_state(TaskState::Blocking);

@@ -17,7 +17,7 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
-use log::info;
+use log::{info, warn};
 use task_api::current_task;
 
 /// A mutual exclusion primitive useful for protecting shared data, similar to
@@ -106,6 +106,7 @@ impl<T: ?Sized> Mutex<T> {
                                 "{} tried to acquire mutex it already owns.",
                                 curr.id_name(),
                             );
+                            warn!("Mutex: {:#x} try to acquire a lock that {:#x} holds, waiting...", current_task, owner_task);
                             self.wq.wait_until(|| !self.is_locked());
                         }
                     }
@@ -259,7 +260,7 @@ impl<'a, T: ?Sized + 'a> Future for MutexGuard<'a, T> {
         } else {
             let curr = current_task();
             let current_task = curr.waker().data() as usize;
-            info!("current task: {:#x}", current_task);
+            // info!("current task: {:#x}", current_task);
             loop {
                 match lock.owner_task.compare_exchange_weak(
                     0,

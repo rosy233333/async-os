@@ -62,6 +62,9 @@ pub trait TaskApi {
 
     fn yield_now() -> YieldFuture;
 
+    /// 注意：该函数不会设置任务状态。应该先将任务状态设置为Blocking再调用该函数。
+    ///
+    /// 这样设计的目的是保证任务在加入等待队列前就已经设置为Blocking。
     fn block_current() -> BlockFuture;
 
     fn exit_current() -> ExitFuture;
@@ -81,6 +84,9 @@ pub fn yield_now() -> YieldFuture {
     crate_interface::call_interface!(TaskApi::yield_now)
 }
 
+/// 注意：该函数不会设置任务状态。应该先将任务状态设置为Blocking再调用该函数。
+///
+/// 这样设计的目的是保证任务在加入等待队列前就已经设置为Blocking。
 pub fn block_current() -> BlockFuture {
     crate_interface::call_interface!(TaskApi::block_current)
 }

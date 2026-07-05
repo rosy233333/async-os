@@ -30,7 +30,7 @@ pub fn init(utrap_handler: fn() -> Pin<Box<dyn Future<Output = isize> + 'static>
 /// Initializes the executor for secondary CPUs.
 pub fn init_secondary() {
     assert!(KERNEL_EXECUTOR.is_init());
-    taskctx::init();
+    // taskctx::init();
     let kexecutor = KERNEL_EXECUTOR.clone();
     unsafe { CurrentExecutor::init_current(kexecutor) };
 }
