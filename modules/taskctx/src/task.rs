@@ -607,6 +607,7 @@ pub struct StackCtx {
 // #[cfg(any(feature = "thread-api", feature = "preempt"))]
 /// 线程的接口需要根据任务的状态来进行不同的操作
 impl TaskInner {
+    /// 需要在关中断条件下调用
     pub fn set_stack_ctx(&self, trap_frame: *const TrapFrame, ctx_type: CtxType) -> usize {
         // log::info!("call set_stack_ctx()");
         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };

@@ -106,7 +106,7 @@ impl<T: ?Sized> Mutex<T> {
                                 "{} tried to acquire mutex it already owns.",
                                 curr.id_name(),
                             );
-                            warn!("Mutex: {:#x} try to acquire a lock that {:#x} holds, waiting...", current_task, owner_task);
+                            // warn!("Mutex: {:#x} try to acquire a lock that {:#x} holds, waiting...", current_task, owner_task);
                             self.wq.wait_until(|| !self.is_locked());
                         }
                     }

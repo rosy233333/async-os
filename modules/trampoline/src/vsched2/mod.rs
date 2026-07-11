@@ -39,7 +39,8 @@ impl libvsched2::Task for Task {
     #[doc = r" 设置任务状态"]
     fn set_state(&self, state: libvsched2::TaskState) -> libvsched2::TaskState {
         log::debug!("Calling Task::set_state.");
-        let prev_state = libvsched2::Task::state(self);
+        let mut guard = self.0.state_lock_manual();
+        let prev_state = **guard;
         let curr_state = match state {
             libvsched2::TaskState::Running => TaskState::Running,
             libvsched2::TaskState::Ready => TaskState::Runable,
@@ -47,9 +48,17 @@ impl libvsched2::Task for Task {
             libvsched2::TaskState::Exited => TaskState::Exited,
             libvsched2::TaskState::Blocking => TaskState::Blocking,
         };
-        TaskInner::set_state(&self.0, curr_state);
+        **guard = curr_state;
+        drop(ManuallyDrop::into_inner(guard));
         log::debug!("Returned from Task::set_state.");
-        prev_state
+        match prev_state {
+            TaskState::Running => libvsched2::TaskState::Running,
+            TaskState::Runable => libvsched2::TaskState::Ready,
+            TaskState::Waked => libvsched2::TaskState::Ready,
+            TaskState::Blocked => libvsched2::TaskState::Blocked,
+            TaskState::Blocking => libvsched2::TaskState::Blocking,
+            TaskState::Exited => libvsched2::TaskState::Exited,
+        }
     }
 
     #[doc = r" 任务优先级"]

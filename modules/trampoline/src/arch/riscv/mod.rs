@@ -95,11 +95,12 @@ fn slow_path_entry(tf: &TrapFrame) -> ! {
     // panic!("`thread` or `preempt` feature is not enabled!");
     use alloc::boxed::Box;
 
-    // info!(
-    //     "trap into slow_path_entry, scause: {:?}, stval: {:#x}",
-    //     tf.get_scause_type(),
-    //     tf.stval
-    // );
+    warn!(
+        "trap into slow_path_entry, scause: {:?}, stval: {:#x}, sepc: {:#x}",
+        tf.get_scause_type(),
+        tf.stval,
+        tf.sepc
+    );
 
     // 因为任务调度的接口，会在时钟中断处理前打开中断，而此时`sip.STIP`位还未清除，因此需要使用以下方法清除该位。
     axhal::time::set_oneshot_timer(u64::MAX);
@@ -112,7 +113,10 @@ fn slow_path_entry(tf: &TrapFrame) -> ! {
     // );
     let tf_c = Box::new(tf.clone()); // 需要clone的原因是当前trapframe存储于内核栈上，该内核栈在出调度器时就会被回收。
                                      // TODO: 任务释放时，`tf_c`释放不掉，会内存泄漏。先这么实现吧。
+
+    // warn!("slow_path_entry: before setting stack ctx");
     current_task().set_stack_ctx(Box::into_raw(tf_c), taskctx::CtxType::Interrupt);
+    // warn!("slow_path_entry: after setting stack ctx");
     let raw_trap_entry = unsafe {
         &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
             as *const fn(usize, usize) -> !)

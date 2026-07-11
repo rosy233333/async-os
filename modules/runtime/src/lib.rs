@@ -121,7 +121,7 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
 
     info!("Found physcial memory regions:");
     for r in axhal::mem::memory_regions() {
-        info!(
+        warn!(
             "  [{:x?}, {:x?}) {} ({:?})",
             r.paddr,
             r.paddr + r.size,
@@ -280,7 +280,8 @@ fn init_interrupt() {
 
     // Setup timer interrupt handler
     const PERIODIC_INTERVAL_NANOS: u64 =
-        axhal::time::NANOS_PER_SEC / axconfig::TICKS_PER_SEC as u64;
+        // axhal::time::NANOS_PER_SEC / axconfig::TICKS_PER_SEC as u64;
+        axhal::time::NANOS_PER_SEC * 10 as u64;
 
     #[percpu::def_percpu]
     static NEXT_DEADLINE: u64 = 0;
@@ -299,7 +300,7 @@ fn init_interrupt() {
     // info!("1");
     axhal::irq::register_handler(TIMER_IRQ_NUM, || {
         info!("into timer irq handler");
-        // update_timer();
+        update_timer();
         trampoline::on_timer_tick();
     });
     // info!("2");

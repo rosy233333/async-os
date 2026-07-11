@@ -313,11 +313,11 @@ pub fn thread_exit() {
 pub fn thread_join(task: &TaskRef) -> Option<i32> {
     loop {
         let task_ptr = Arc::into_raw(task.clone());
-        warn!(
-            "joined task {:#x} state: {:?}",
-            task_ptr as usize,
-            task.state()
-        );
+        // warn!(
+        //     "joined task {:#x} state: {:?}",
+        //     task_ptr as usize,
+        //     task.state()
+        // );
         let _to_drop = unsafe { Arc::from_raw(task_ptr) };
         // 在将waker放入任务的waker队列期间，保持任务状态不变。
         let guard = task.state_lock_manual();
@@ -417,5 +417,7 @@ pub fn restore_from_stack_ctx(task: &TaskRef) {
             // #[cfg(feature = "preempt")]
             CtxType::Interrupt => unsafe { &*trap_frame }.preempt_return(),
         }
+    } else {
+        panic!("cannot get stack ctx!");
     }
 }

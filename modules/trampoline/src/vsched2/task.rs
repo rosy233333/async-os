@@ -18,7 +18,9 @@ fn set_tf_fn(tf: &mut TrapFrame, ctx_type: taskctx::CtxType) {
     // log::info!("{:#x?}", tf);
     let curr = unsafe { &*(libvsched2::current_task_ptr() as *const taskctx::Task) };
     // log::info!("after get current task");
+    // warn!("set_tf_fn: before setting stack ctx");
     curr.set_stack_ctx(tf as *const _, ctx_type);
+    // warn!("set_tf_fn: after setting stack ctx");
     // log::info!("tf in task:");
     // log::info!("{:#x?}", unsafe {
     //     *curr.get_stack_ctx().unwrap().trap_frame
