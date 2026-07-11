@@ -425,7 +425,7 @@ impl TaskInner {
         }
     }
 
-    /// 将waker注册进waker队列。
+    /// 将waker注册进waker队列，并设置任务状态为Blocking。
     ///
     /// 不进行resched，因此调用后需要单独resched。
     pub fn join(&self, waker: Waker) {

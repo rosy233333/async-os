@@ -96,10 +96,11 @@ fn slow_path_entry(tf: &TrapFrame) -> ! {
     use alloc::boxed::Box;
 
     warn!(
-        "trap into slow_path_entry, scause: {:?}, stval: {:#x}, sepc: {:#x}",
+        "trap into slow_path_entry, scause: {:?}, stval: {:#x}, sepc: {:#x}, trap_stack_base: {:#x}",
         tf.get_scause_type(),
         tf.stval,
-        tf.sepc
+        tf.sepc,
+        tf as *const _ as usize + core::mem::size_of::<TrapFrame>(),
     );
 
     // 因为任务调度的接口，会在时钟中断处理前打开中断，而此时`sip.STIP`位还未清除，因此需要使用以下方法清除该位。
@@ -122,7 +123,7 @@ fn slow_path_entry(tf: &TrapFrame) -> ! {
             as *const fn(usize, usize) -> !)
     };
     // 判断是否为外部中断
-    if tf.get_scause_type() == Trap::Interrupt(SupervisorExternal) {
+    if let Trap::Interrupt(_) = tf.get_scause_type() {
         raw_trap_entry(1, 0);
     } else {
         raw_trap_entry(0, 0);
