@@ -319,7 +319,7 @@ impl libvsched2::TrapInfo for TrapInfo {
     #[doc = r""]
     #[doc = r" 传入的任务一定是被trap的任务，因此具有trap上下文类型的寄存器上下文。"]
     fn from_task(task: *const ()) -> *const Self {
-        log::debug!("Calling TrapInfo::from_task.");
+        log::debug!("Calling TrapInfo::from_task with task {:#x}", task as usize);
         let task = unsafe { &*(task as *const taskctx::Task) };
         let frame = task.trap_frame().unwrap();
         let res = Box::into_raw(Box::new(TrapInfo(frame.clone())));

@@ -1,10 +1,11 @@
 use kernel_guard::BaseGuard;
+use libvsched2::current_task_ptr;
 use taskctx::TrapFrame;
 
 // #[cfg(any(feature = "thread-api", feature = "preempt"))]
 pub fn resched() {
-    log::info!("call resched()");
     axhal::arch::disable_irqs();
+    // log::warn!("call resched() for task {:#x}", current_task_ptr() as usize);
     // log::info!("after disable irq");
     TrapFrame::thread_ctx(set_tf_fn as usize, taskctx::CtxType::Thread);
     // log::info!("after restore ctx");

@@ -1,4 +1,5 @@
 use crate::trampoline;
+use libvsched2::current_task_ptr;
 use riscv::register::{
     scause::{Interrupt::SupervisorExternal, Trap},
     sie, sstatus, stvec,
@@ -95,13 +96,14 @@ fn slow_path_entry(tf: &TrapFrame) -> ! {
     // panic!("`thread` or `preempt` feature is not enabled!");
     use alloc::boxed::Box;
 
-    warn!(
-        "trap into slow_path_entry, scause: {:?}, stval: {:#x}, sepc: {:#x}, trap_stack_base: {:#x}",
-        tf.get_scause_type(),
-        tf.stval,
-        tf.sepc,
-        tf as *const _ as usize + core::mem::size_of::<TrapFrame>(),
-    );
+    // warn!(
+    //     "trap into slow_path_entry, scause: {:?}, stval: {:#x}, sepc: {:#x}, trap_stack_base: {:#x}, current_task: {:#x}",
+    //     tf.get_scause_type(),
+    //     tf.stval,
+    //     tf.sepc,
+    //     tf as *const _ as usize + core::mem::size_of::<TrapFrame>(),
+    //     current_task_ptr() as usize
+    // );
 
     // 因为任务调度的接口，会在时钟中断处理前打开中断，而此时`sip.STIP`位还未清除，因此需要使用以下方法清除该位。
     axhal::time::set_oneshot_timer(u64::MAX);

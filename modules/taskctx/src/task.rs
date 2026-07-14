@@ -587,6 +587,7 @@ impl Drop for TaskInner {
 }
 
 // #[cfg(any(feature = "thread-api", feature = "preempt"))]
+#[derive(Debug)]
 #[repr(usize)]
 pub enum CtxType {
     /// 其中的 usize 是中断状态，在使用线程接口让权时，将当前的中断状态保存至此，并且关闭中断
@@ -609,7 +610,11 @@ pub struct StackCtx {
 impl TaskInner {
     /// 需要在关中断条件下调用
     pub fn set_stack_ctx(&self, trap_frame: *const TrapFrame, ctx_type: CtxType) -> usize {
-        // log::info!("call set_stack_ctx()");
+        // log::warn!(
+        //     "call set_stack_ctx() for task {:#x}, type {:?}",
+        //     self as *const _ as usize,
+        //     ctx_type
+        // );
         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
         assert!(
             stack_ctx.is_none(),
@@ -629,6 +634,10 @@ impl TaskInner {
     }
 
     pub fn get_stack_ctx(&self) -> Option<StackCtx> {
+        // log::warn!(
+        //     "call get_stack_ctx() for task {:#x}",
+        //     self as *const _ as usize,
+        // );
         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
         stack_ctx.take()
     }
@@ -639,6 +648,7 @@ impl TaskInner {
     }
 
     pub fn get_stack(&self) -> Box<TaskStack> {
+        // log::warn!("call get_stack() for task {:#x}", self as *const _ as usize,);
         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
         stack_ctx.as_mut().unwrap().kstack.take().unwrap()
     }
