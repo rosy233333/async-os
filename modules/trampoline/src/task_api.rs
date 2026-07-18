@@ -2,6 +2,7 @@ use alloc::{boxed::Box, format, sync::Arc};
 use axhal::time::{current_time, TimeValue};
 use core::{future::poll_fn, mem::ManuallyDrop, task::Poll, time::Duration};
 pub use executor::*;
+use kernel_guard::{BaseGuard, NoPreemptIrqSave};
 use riscv::register::scause::{Exception, Trap};
 use spin::Mutex;
 use syscall::trap::{handle_page_fault, MappingFlags};
@@ -64,11 +65,12 @@ pub async fn current_check_user_preempt_pending(_tf: &mut TrapFrame) {
 
 /// 这个接口还没有统一，后续还需要统一成两种接口都可以使用的形式
 pub async fn wait(task: &TaskRef) -> Option<i32> {
-    #[cfg(feature = "thread-api")]
-    let res = thread_join(task);
-    #[cfg(not(feature = "thread-api"))]
-    let res = None;
-    JoinFuture::new(task.clone(), res).await
+    // #[cfg(feature = "thread-api")]
+    // let res = thread_join(task);
+    // #[cfg(not(feature = "thread-api"))]
+    // let res = None;
+    // JoinFuture::new(task.clone(), res).await
+    TaskApiImpl::join(task).await
 }
 
 pub async fn user_task_top() -> isize {
@@ -235,43 +237,91 @@ impl task_api::TaskApi for TaskApiImpl {
     }
 
     fn yield_now() -> YieldFuture {
+        debug!("before yield_now");
+        // 关中断需要在设置任务状态前进行
+        let state = NoPreemptIrqSave::acquire();
         #[cfg(feature = "thread-api")]
-        thread_yield();
-        YieldFuture::new()
+        {
+            thread_yield();
+            NoPreemptIrqSave::release(state);
+            YieldFuture::new(Default::default())
+        }
+        #[cfg(not(feature = "thread-api"))]
+        {
+            current_task().set_state(TaskState::Runable);
+            YieldFuture::new(state)
+        }
     }
 
     fn block_current() -> BlockFuture {
+        debug!("before block_current");
         #[cfg(feature = "thread-api")]
         thread_blocked();
         BlockFuture::new()
     }
 
     fn exit_current() -> ExitFuture {
+        debug!("before exit_current");
+        // 关中断需要在设置任务状态前进行
+        let _state = NoPreemptIrqSave::acquire();
         #[cfg(feature = "thread-api")]
-        thread_exit();
+        {
+            thread_exit();
+            ExitFuture::new()
+        }
         #[cfg(not(feature = "thread-api"))]
-        current_task().set_state(TaskState::Exited);
-        ExitFuture::new()
+        {
+            current_task().set_state(TaskState::Exited);
+            ExitFuture::new()
+        }
     }
 
     fn sleep(dur: Duration) -> SleepFuture {
+        debug!("before sleep");
+        // 关中断需要在设置任务状态前进行
+        let state = NoPreemptIrqSave::acquire();
         #[cfg(feature = "thread-api")]
-        thread_sleep(dur + current_time());
-        SleepFuture::new(current_time() + dur)
+        {
+            thread_sleep(dur + current_time());
+            NoPreemptIrqSave::release(state);
+            SleepFuture::new(current_time() + dur, Default::default())
+        }
+        #[cfg(not(feature = "thread-api"))]
+        {
+            SleepFuture::new(current_time() + dur, state)
+        }
     }
 
     fn sleep_until(deadline: TimeValue) -> SleepFuture {
+        debug!("before sleep_until");
+        // 关中断需要在设置任务状态前进行
+        let state = NoPreemptIrqSave::acquire();
         #[cfg(feature = "thread-api")]
-        thread_sleep(deadline);
-        SleepFuture::new(deadline)
+        {
+            thread_sleep(deadline);
+            NoPreemptIrqSave::release(state);
+            SleepFuture::new(deadline, Default::default())
+        }
+        #[cfg(not(feature = "thread-api"))]
+        {
+            SleepFuture::new(deadline, state)
+        }
     }
 
     fn join(task: &TaskRef) -> JoinFuture {
+        debug!("before join");
+        // 关中断需要在设置任务状态前进行
+        let state = NoPreemptIrqSave::acquire();
         #[cfg(feature = "thread-api")]
-        let res = thread_join(task);
+        {
+            let res = thread_join(task);
+            NoPreemptIrqSave::release(state);
+            JoinFuture::new(task.clone(), res, Default::default())
+        }
         #[cfg(not(feature = "thread-api"))]
-        let res = None;
-        JoinFuture::new(task.clone(), res)
+        {
+            JoinFuture::new(task.clone(), None, state)
+        }
     }
 }
 
@@ -283,7 +333,9 @@ pub fn thread_yield() {
     crate::vsched2::task::resched();
 }
 
-/// 注意：该函数不会设置任务状态。应该先将任务状态设置为Blocking再调用该函数。
+/// 注意：该函数不会设置任务状态，也不会关中断。
+///
+/// 应该先关中断、再将任务状态设置为Blocking、再调用该函数。
 ///
 /// 这样设计的目的是保证任务在加入等待队列前就已经设置为Blocking。
 // #[cfg(feature = "thread-api")]
@@ -305,7 +357,11 @@ pub fn thread_sleep(deadline: TimeValue) {
 pub fn thread_exit() {
     // let _guard = kernel_guard::NoPreemptIrqSave::acquire();
     // TrapFrame::thread_ctx(set_task_tf as usize, CtxType::Thread);
+    // let state = current_task().state();
+    // warn!("before set_state, state: {:?}", state);
     current_task().set_state(TaskState::Exited);
+    // let state = current_task().state();
+    // warn!("after set_state, state: {:?}", state);
     crate::vsched2::task::resched();
 }
 

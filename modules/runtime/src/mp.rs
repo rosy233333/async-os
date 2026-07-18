@@ -32,6 +32,7 @@ pub fn rust_main_secondary(cpu_id: usize) -> ! {
     #[cfg(all(feature = "tls", not(feature = "multitask")))]
     super::init_tls();
 
+    axhal::arch::disable_irqs();
     trampoline::thread_exit();
 
     unreachable!()

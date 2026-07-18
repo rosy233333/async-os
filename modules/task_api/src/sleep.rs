@@ -10,27 +10,37 @@ use kernel_guard::{BaseGuard, NoPreemptIrqSave};
 pub struct SleepFuture {
     #[cfg(feature = "irq")]
     _has_sleep: bool,
-    #[cfg(feature = "irq")]
+    // #[cfg(feature = "irq")]
     _irq_state: <NoPreemptIrqSave as BaseGuard>::State,
     deadline: axhal::time::TimeValue,
 }
 
 impl SleepFuture {
-    pub fn new(deadline: axhal::time::TimeValue) -> Self {
-        #[cfg(feature = "thread-api")]
-        return Self {
-            #[cfg(feature = "irq")]
-            _has_sleep: false,
-            #[cfg(feature = "irq")]
-            _irq_state: Default::default(),
-            deadline,
-        };
-        #[cfg(not(feature = "thread-api"))]
+    pub fn new(
+        deadline: axhal::time::TimeValue,
+        _irq_state: <NoPreemptIrqSave as BaseGuard>::State,
+    ) -> Self {
+        // #[cfg(feature = "thread-api")]
+        // return Self {
+        //     #[cfg(feature = "irq")]
+        //     _has_sleep: false,
+        //     // #[cfg(feature = "irq")]
+        //     _irq_state: Default::default(),
+        //     deadline,
+        // };
+        // #[cfg(not(feature = "thread-api"))]
+        // Self {
+        //     #[cfg(feature = "irq")]
+        //     _has_sleep: false,
+        //     // #[cfg(feature = "irq")]
+        //     _irq_state: NoPreemptIrqSave::acquire(),
+        //     deadline,
+        // }
         Self {
             #[cfg(feature = "irq")]
             _has_sleep: false,
-            #[cfg(feature = "irq")]
-            _irq_state: NoPreemptIrqSave::acquire(),
+            // #[cfg(feature = "irq")]
+            _irq_state,
             deadline,
         }
     }
@@ -58,6 +68,7 @@ impl Future for SleepFuture {
             }
             #[cfg(not(feature = "irq"))]
             {
+                NoPreemptIrqSave::release(this._irq_state);
                 axhal::time::busy_wait_until(deadline);
                 Poll::Ready(true)
             }

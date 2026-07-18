@@ -2,6 +2,8 @@
 use crate::TaskStack;
 use crate::{stat::TimeStat, Scheduler, TrapFrame};
 use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, sync::Arc};
+use axhal::arch::{disable_irqs, enable_irqs};
+use log::warn;
 // #[cfg(feature = "preempt")]
 use core::sync::atomic::AtomicUsize;
 use core::{
@@ -171,7 +173,13 @@ impl TaskInner {
             name: UnsafeCell::new(name),
             is_init,
             exit_code: AtomicIsize::new(0),
-            fut: UnsafeCell::new(fut),
+            fut: UnsafeCell::new(Box::pin(async {
+                // warn!("before enable irq in task future");
+                enable_irqs();
+                let res = fut.await;
+                disable_irqs();
+                res
+            })),
             utrap_frame: UnsafeCell::new(None),
             wait_wakers: UnsafeCell::new(VecDeque::new()),
             scheduler: SpinNoIrq::new(scheduler),

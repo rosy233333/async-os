@@ -9,19 +9,19 @@ use kernel_guard::{BaseGuard, NoPreemptIrqSave};
 #[derive(Debug)]
 pub struct BlockFuture {
     _has_polled: bool,
-    _irq_state: <NoPreemptIrqSave as BaseGuard>::State,
+    // _irq_state: <NoPreemptIrqSave as BaseGuard>::State,
 }
 
 impl BlockFuture {
     pub fn new() -> Self {
-        // 这里获取中断状态，并且关中断
-        #[cfg(feature = "thread-api")]
-        let _irq_state = Default::default();
-        #[cfg(not(feature = "thread-api"))]
-        let _irq_state = NoPreemptIrqSave::acquire();
+        // // 这里获取中断状态，并且关中断
+        // #[cfg(feature = "thread-api")]
+        // let _irq_state = Default::default();
+        // #[cfg(not(feature = "thread-api"))]
+        // let _irq_state = NoPreemptIrqSave::acquire();
         Self {
             _has_polled: false,
-            _irq_state,
+            // _irq_state,
         }
     }
 }
@@ -35,12 +35,12 @@ impl Future for BlockFuture {
         {
             let this = self.get_mut();
             if this._has_polled {
-                // 恢复原来的中断状态
-                NoPreemptIrqSave::release(this._irq_state);
+                // // 恢复原来的中断状态
+                // NoPreemptIrqSave::release(this._irq_state);
                 Poll::Ready(())
             } else {
                 this._has_polled = true;
-                this._irq_state = NoPreemptIrqSave::acquire();
+                // this._irq_state = NoPreemptIrqSave::acquire();
                 Poll::Pending
             }
         }

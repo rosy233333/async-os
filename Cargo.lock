@@ -1652,6 +1652,7 @@ dependencies = [
  "async_utils",
  "axhal",
  "cfg-if",
+ "kernel_guard 0.1.1",
  "lazy_init",
  "linked_list",
  "log",

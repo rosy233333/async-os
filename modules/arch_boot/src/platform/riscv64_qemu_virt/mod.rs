@@ -22,7 +22,10 @@ pub unsafe extern "C" fn rust_entry(cpu_id: usize, dtb: usize) {
     }
 
     // log::info!("1");
-    trampoline::current_task().set_state(trampoline::TaskState::Exited);
+    // trampoline::current_task().set_state(trampoline::TaskState::Exited);
+    axhal::arch::disable_irqs();
+    // let state = trampoline::current_task().state();
+    // assert!(state == trampoline::TaskState::Running);
     // log::info!("2");
     trampoline::thread_exit();
     // log::info!("3");

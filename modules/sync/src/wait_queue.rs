@@ -2,6 +2,7 @@ use alloc::sync::Arc;
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll, Waker};
+use kernel_guard::{BaseGuard, NoPreemptIrqSave};
 use spinlock::SpinNoIrq;
 #[cfg(feature = "thread-api")]
 use task_api::{block_current, current_task};
@@ -30,15 +31,20 @@ impl WaitQueue {
     pub fn wait<'a>(&'a self) -> WaitFuture<'a> {
         #[cfg(feature = "thread-api")]
         {
+            use kernel_guard::{BaseGuard, NoPreemptIrqSave};
+
             let waker = current_task().waker();
             let waker_node = Arc::new(WaitWakerNode::new(waker));
+            let state = NoPreemptIrqSave::acquire();
             self.queue.lock().prepare_to_wait(waker_node.clone());
             block_current();
+            NoPreemptIrqSave::release(state);
             self.queue.lock().remove(&waker_node);
         }
         WaitFuture {
             _wq: self,
             _flag: false,
+            _irq_state: Default::default(),
         }
     }
 
@@ -55,14 +61,17 @@ impl WaitQueue {
                 if _condition() {
                     break;
                 }
+                let state = NoPreemptIrqSave::acquire();
                 self.queue.lock().prepare_to_wait(waker_node.clone());
                 block_current();
+                NoPreemptIrqSave::release(state);
             }
             self.queue.lock().remove(&waker_node);
         }
         WaitUntilFuture {
             _wq: self,
             _condition,
+            _irq_state: None,
         }
     }
 
@@ -75,9 +84,11 @@ impl WaitQueue {
         {
             let waker = current_task().waker();
             let waker_node = Arc::new(WaitWakerNode::new(waker.clone()));
+            let state = NoPreemptIrqSave::acquire();
             self.queue.lock().prepare_to_wait(waker_node.clone());
             set_alarm_wakeup(_deadline, waker.clone());
             block_current();
+            NoPreemptIrqSave::release(state);
 
             cancel_alarm(&waker);
             self.queue.lock().remove(&waker_node);
@@ -86,6 +97,7 @@ impl WaitQueue {
                 _wq: self,
                 _deadline,
                 _flag: false,
+                _irq_state: Default::default(),
             };
         }
         #[cfg(not(feature = "thread-api"))]
@@ -94,6 +106,7 @@ impl WaitQueue {
             _wq: self,
             _deadline,
             _flag: false,
+            _irq_state: Default::default(),
         }
     }
 
@@ -116,9 +129,11 @@ impl WaitQueue {
                 if _condition() {
                     break;
                 }
+                let state = NoPreemptIrqSave::acquire();
                 self.queue.lock().prepare_to_wait(waker_node.clone());
                 set_alarm_wakeup(_deadline, waker.clone());
                 block_current();
+                NoPreemptIrqSave::release(state);
 
                 cancel_alarm(&waker);
                 if current_time() >= _deadline {
@@ -133,6 +148,7 @@ impl WaitQueue {
                 _deadline,
                 _condition,
                 res: Some(timeout),
+                _irq_state: None,
             };
         }
         #[cfg(not(feature = "thread-api"))]
@@ -141,6 +157,7 @@ impl WaitQueue {
             _deadline,
             _condition,
             res: None,
+            _irq_state: None,
         }
     }
 
@@ -163,6 +180,7 @@ impl WaitQueue {
 pub struct WaitFuture<'a> {
     _wq: &'a WaitQueue,
     _flag: bool,
+    _irq_state: <NoPreemptIrqSave as BaseGuard>::State,
 }
 
 impl<'a> Future for WaitFuture<'a> {
@@ -174,11 +192,14 @@ impl<'a> Future for WaitFuture<'a> {
                 return Poll::Ready(());
             } else if #[cfg(not(feature = "thread-api"))] {
                 let waker_node = Arc::new(WaitWakerNode::new(_cx.waker().clone()));
-                let Self { _wq, _flag } = self.get_mut();
+                let Self { _wq, _flag, _irq_state } = self.get_mut();
                 if !*_flag {
+                    *_irq_state = NoPreemptIrqSave::acquire();
+                    *_flag = !*_flag;
                     _wq.queue.lock().prepare_to_wait(waker_node);
                     Poll::Pending
                 } else {
+                    NoPreemptIrqSave::release(*_irq_state);
                     _wq.queue.lock().remove(&waker_node);
                     Poll::Ready(())
                 }
@@ -190,6 +211,7 @@ impl<'a> Future for WaitFuture<'a> {
 pub struct WaitUntilFuture<'a, F> {
     _wq: &'a WaitQueue,
     _condition: F,
+    _irq_state: Option<<NoPreemptIrqSave as BaseGuard>::State>,
 }
 
 impl<'a, F: Fn() -> bool + Unpin> Future for WaitUntilFuture<'a, F> {
@@ -200,12 +222,18 @@ impl<'a, F: Fn() -> bool + Unpin> Future for WaitUntilFuture<'a, F> {
             if #[cfg(feature = "thread-api")] {
                 return Poll::Ready(());
             } else if #[cfg(not(feature = "thread-api"))] {
-                let Self { _wq, _condition } = self.get_mut();
+                let Self { _wq, _condition, _irq_state } = self.get_mut();
                 let waker_node = Arc::new(WaitWakerNode::new(_cx.waker().clone()));
                 if _condition() {
+                    // 该分支有可能在阻塞前进入（开中断状态）或阻塞后进入（关中断状态），
+                    // 因此需要判断是否阻塞过来决定是否开中断。
+                    if let Some(state) = *_irq_state {
+                        NoPreemptIrqSave::release(state);
+                    }
                     _wq.queue.lock().remove(&waker_node);
                     Poll::Ready(())
                 } else {
+                    *_irq_state = Some(NoPreemptIrqSave::acquire());
                     _wq.queue.lock().prepare_to_wait(waker_node);
                     Poll::Pending
                 }
@@ -220,6 +248,7 @@ pub struct WaitTimeoutFuture<'a> {
     _wq: &'a WaitQueue,
     _deadline: TimeValue,
     _flag: bool,
+    _irq_state: <NoPreemptIrqSave as BaseGuard>::State,
 }
 
 #[cfg(feature = "irq")]
@@ -232,6 +261,7 @@ impl<'a> Future for WaitTimeoutFuture<'a> {
             _wq,
             _deadline,
             _flag,
+            _irq_state,
         } = self.get_mut();
         cfg_if::cfg_if! {
             if #[cfg(feature = "thread-api")] {
@@ -239,14 +269,18 @@ impl<'a> Future for WaitTimeoutFuture<'a> {
                 return Poll::Ready(res.unwrap());
             } else if #[cfg(not(feature = "thread-api"))] {
                 if res.is_some() {
+                    // 此处直接返回，不需要关中断或开中断。
                     Poll::Ready(res.unwrap())
                 } else {
                     let waker_node = Arc::new(WaitWakerNode::new(_cx.waker().clone()));
                     if !*_flag {
+                        *_irq_state = NoPreemptIrqSave::acquire();
+                        *_flag = !*_flag;
                         _wq.queue.lock().prepare_to_wait(waker_node);
                         set_alarm_wakeup(*_deadline, _cx.waker().clone());
                         Poll::Pending
                     } else {
+                        NoPreemptIrqSave::release(*_irq_state);
                         cancel_alarm(_cx.waker());
                         _wq.queue.lock().remove(&waker_node);
                         Poll::Ready(current_time() >= *_deadline)
@@ -263,6 +297,7 @@ pub struct WaitTimeoutUntilFuture<'a, F> {
     _wq: &'a WaitQueue,
     _deadline: TimeValue,
     _condition: F,
+    _irq_state: Option<<NoPreemptIrqSave as BaseGuard>::State>,
 }
 
 #[cfg(feature = "irq")]
@@ -275,6 +310,7 @@ impl<'a, F: Fn() -> bool + Unpin> Future for WaitTimeoutUntilFuture<'a, F> {
             _deadline,
             _condition,
             res,
+            _irq_state,
         } = self.get_mut();
         cfg_if::cfg_if! {
             if #[cfg(feature = "thread-api")] {
@@ -282,19 +318,31 @@ impl<'a, F: Fn() -> bool + Unpin> Future for WaitTimeoutUntilFuture<'a, F> {
                 return Poll::Ready(res.unwrap());
             } else if #[cfg(not(feature = "thread-api"))] {
                 if res.is_some() {
+                    // 此处直接返回，不需要关中断或开中断。
                     Poll::Ready(res.unwrap())
                 } else {
                     let waker_node = Arc::new(WaitWakerNode::new(_cx.waker().clone()));
                     let current_time = current_time();
                     if _condition() {
+                        // 该分支有可能在阻塞前进入（开中断状态）或阻塞后进入（关中断状态），
+                        // 因此需要判断是否阻塞过来决定是否开中断。
+                        if let Some(state) = *_irq_state {
+                            NoPreemptIrqSave::release(state);
+                        }
                         _wq.queue.lock().remove(&waker_node);
                         Poll::Ready(current_time >= *_deadline)
                     } else {
                         if current_time >= *_deadline {
+                            // 该分支有可能在阻塞前进入（开中断状态）或阻塞后进入（关中断状态），
+                            // 因此需要判断是否阻塞过来决定是否开中断。
+                            if let Some(state) = *_irq_state {
+                                NoPreemptIrqSave::release(state);
+                            }
                             cancel_alarm(_cx.waker());
                             _wq.queue.lock().remove(&waker_node);
                             Poll::Ready(true)
                         } else {
+                            *_irq_state = Some(NoPreemptIrqSave::acquire());
                             _wq.queue.lock().prepare_to_wait(waker_node);
                             set_alarm_wakeup(*_deadline, _cx.waker().clone());
                             Poll::Pending

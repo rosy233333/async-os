@@ -14,8 +14,11 @@ pub struct JoinFuture {
 }
 
 impl JoinFuture {
-    pub fn new(_task: TaskRef, res: Option<i32>) -> Self {
-        let _irq_state = Default::default();
+    pub fn new(
+        _task: TaskRef,
+        res: Option<i32>,
+        _irq_state: <NoPreemptIrqSave as BaseGuard>::State,
+    ) -> Self {
         Self {
             _task,
             res,
@@ -47,7 +50,7 @@ impl Future for JoinFuture {
                 } else {
                     this._task.join(_cx.waker().clone());
                     drop(ManuallyDrop::into_inner(guard));
-                    this._irq_state = NoPreemptIrqSave::acquire();
+                    // this._irq_state = NoPreemptIrqSave::acquire();
                     Poll::Pending
                 }
             } else {

@@ -1,15 +1,18 @@
+use executor::current_task;
 use kernel_guard::BaseGuard;
 use libvsched2::current_task_ptr;
 use taskctx::TrapFrame;
 
 // #[cfg(any(feature = "thread-api", feature = "preempt"))]
 pub fn resched() {
-    axhal::arch::disable_irqs();
+    // axhal::arch::disable_irqs();
     // log::warn!("call resched() for task {:#x}", current_task_ptr() as usize);
     // log::info!("after disable irq");
+    // let state = current_task().state();
+    // warn!("before thread_ctx, state: {:?}", state);
     TrapFrame::thread_ctx(set_tf_fn as usize, taskctx::CtxType::Thread);
     // log::info!("after restore ctx");
-    axhal::arch::enable_irqs();
+    // axhal::arch::enable_irqs();
 }
 
 // #[cfg(any(feature = "thread-api", feature = "preempt"))]
@@ -27,6 +30,8 @@ fn set_tf_fn(tf: &mut TrapFrame, ctx_type: taskctx::CtxType) {
     //     *curr.get_stack_ctx().unwrap().trap_frame
     // });
     // loop {}
+    // let state = curr.state();
+    // warn!("before raw_thread_entry, state: {:?}", state);
     let raw_thread_entry = unsafe { libvsched2::VDSO_VTABLE.raw_thread_entry.as_ref().unwrap() };
     log::info!(
         "into raw_thread_entry: 0x{:#x}",

@@ -13,12 +13,16 @@ pub struct YieldFuture {
 }
 
 impl YieldFuture {
-    pub fn new() -> Self {
-        // 这里获取中断状态，并且关中断
-        #[cfg(feature = "thread-api")]
-        let _irq_state = Default::default();
-        #[cfg(not(feature = "thread-api"))]
-        let _irq_state = NoPreemptIrqSave::acquire();
+    /// 关中断需要在设置任务状态前进行，因此在new函数外部完成。
+    ///
+    /// 协程：关中断操作获取到的状态传入new函数中。
+    /// 线程：new函数直接传入default就绪。
+    pub fn new(_irq_state: <NoPreemptIrqSave as BaseGuard>::State) -> Self {
+        // // 这里获取中断状态，并且关中断
+        // #[cfg(feature = "thread-api")]
+        // let _irq_state = Default::default();
+        // #[cfg(not(feature = "thread-api"))]
+        // let _irq_state = NoPreemptIrqSave::acquire();
         Self {
             _has_polled: false,
             _irq_state,

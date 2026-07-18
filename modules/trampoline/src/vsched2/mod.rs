@@ -61,6 +61,47 @@ impl libvsched2::Task for Task {
         }
     }
 
+    #[doc = r" 根据任务当前的状态，修改任务状态为参数中的对应值。返回任务的旧状态。"]
+    #[doc = r""]
+    #[doc = r" 该接口对任务状态的所有比较和修改需要实现为一个原子操作，从而防止多核下任务阻塞和唤醒相关的同步问题。"]
+    fn match_set_state(
+        &self,
+        state_from_ready: libvsched2::TaskState,
+        state_from_running: libvsched2::TaskState,
+        state_from_blocked: libvsched2::TaskState,
+        state_from_exited: libvsched2::TaskState,
+        state_from_blocking: libvsched2::TaskState,
+    ) -> libvsched2::TaskState {
+        log::debug!("Calling Task::match_set_state.");
+        let mut guard = self.0.state_lock_manual();
+        let prev_state = **guard;
+        let state = match prev_state {
+            TaskState::Running => state_from_running,
+            TaskState::Runable => state_from_ready,
+            TaskState::Blocked => state_from_blocked,
+            TaskState::Exited => state_from_exited,
+            TaskState::Blocking => state_from_blocking,
+            TaskState::Waked => state_from_ready,
+        };
+        let curr_state = match state {
+            libvsched2::TaskState::Running => TaskState::Running,
+            libvsched2::TaskState::Ready => TaskState::Runable,
+            libvsched2::TaskState::Blocked => TaskState::Blocked,
+            libvsched2::TaskState::Exited => TaskState::Exited,
+            libvsched2::TaskState::Blocking => TaskState::Blocking,
+        };
+        **guard = curr_state;
+        drop(ManuallyDrop::into_inner(guard));
+        log::debug!("Returned from Task::set_state.");
+        match prev_state {
+            TaskState::Running => libvsched2::TaskState::Running,
+            TaskState::Runable => libvsched2::TaskState::Ready,
+            TaskState::Waked => libvsched2::TaskState::Ready,
+            TaskState::Blocked => libvsched2::TaskState::Blocked,
+            TaskState::Blocking => libvsched2::TaskState::Blocking,
+            TaskState::Exited => libvsched2::TaskState::Exited,
+        }
+    }
     #[doc = r" 任务优先级"]
     fn priority(&self) -> isize {
         log::debug!("Calling and returned from Task::priority.");
@@ -159,9 +200,9 @@ impl libvsched2::Task for Task {
         //     sip.ssoft(),
         //     sip.sext()
         // );
-        axhal::arch::enable_irqs();
+        // axhal::arch::enable_irqs();
         let res = self.0.get_fut().as_mut().poll(cx);
-        axhal::arch::disable_irqs();
+        // axhal::arch::disable_irqs();
         log::debug!("Returned from Task::poll.");
         res
     }

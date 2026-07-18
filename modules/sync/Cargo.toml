@@ -21,3 +21,4 @@ timer_list = { git = "https://github.com/Starry-OS/timer_list.git" }
 axhal = { path = "../axhal" }
 task_api = { path = "../task_api" }
 async_utils = { path = "../async_utils" }
+kernel_guard = { path = "../kernel_guard" }
