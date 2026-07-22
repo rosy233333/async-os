@@ -9,9 +9,6 @@ use syscall::trap::{handle_page_fault, MappingFlags};
 #[cfg(feature = "sched_taic")]
 use syscall::LQS;
 
-#[cfg(feature = "thread-api")]
-use kernel_guard::BaseGuard;
-
 // #[cfg(feature = "preempt")]
 /// Checks if the current task should be preempted.
 /// This api called after handle irq,it may be on a

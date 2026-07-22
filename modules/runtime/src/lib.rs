@@ -159,6 +159,7 @@ pub extern "C" fn rust_main(cpu_id: usize, dtb: usize) {
     info!("Primary CPU {} init OK.", cpu_id);
     INITED_CPUS.fetch_add(1, Ordering::Relaxed);
 
+    #[cfg(feature = "irq")]
     axhal::arch::enable_irqs();
 }
 
@@ -283,8 +284,8 @@ fn init_interrupt() {
     // Setup timer interrupt handler
     const PERIODIC_INTERVAL_NANOS: u64 =
         // axhal::time::NANOS_PER_SEC / axconfig::TICKS_PER_SEC as u64;
-        // axhal::time::NANOS_PER_SEC * 10 as u64;
-        axhal::time::NANOS_PER_SEC as u64;
+        axhal::time::NANOS_PER_SEC / 10 as u64;
+    // axhal::time::NANOS_PER_SEC as u64;
 
     #[percpu::def_percpu]
     static NEXT_DEADLINE: u64 = 0;

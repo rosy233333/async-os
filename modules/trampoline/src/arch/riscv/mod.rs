@@ -114,6 +114,12 @@ fn slow_path_entry(tf: &TrapFrame) -> ! {
     //     sip.ssoft(),
     //     sip.sext()
     // );
+    // if let Trap::Exception(e) = tf.get_scause_type() {
+    //     panic!(
+    //         "slow_path_entry: exception: {:?}, stval: {:#x}, sepc: {:#x}",
+    //         e, tf.stval, tf.sepc
+    //     );
+    // }
     let tf_c = Box::new(tf.clone()); // 需要clone的原因是当前trapframe存储于内核栈上，该内核栈在出调度器时就会被回收。
                                      // TODO: 任务释放时，`tf_c`释放不掉，会内存泄漏。先这么实现吧。
 
