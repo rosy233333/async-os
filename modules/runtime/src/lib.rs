@@ -284,7 +284,7 @@ fn init_interrupt() {
     // Setup timer interrupt handler
     const PERIODIC_INTERVAL_NANOS: u64 =
         // axhal::time::NANOS_PER_SEC / axconfig::TICKS_PER_SEC as u64;
-        axhal::time::NANOS_PER_SEC / 10 as u64;
+        axhal::time::NANOS_PER_SEC / 100 as u64;
     // axhal::time::NANOS_PER_SEC as u64;
 
     #[percpu::def_percpu]

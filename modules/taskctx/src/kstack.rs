@@ -4,6 +4,7 @@ use lazy_init::LazyInit;
 use memory_addr::VirtAddr;
 use spinlock::SpinNoIrq;
 
+#[derive(Debug)]
 pub struct TaskStack {
     ptr: NonNull<u8>,
     layout: Layout,

@@ -470,6 +470,10 @@ pub fn restore_from_stack_ctx(task: &TaskRef) {
             // #[cfg(feature = "preempt")]
             CtxType::Interrupt => unsafe { &*trap_frame }.preempt_return(),
         }
+        panic!(
+            "task ctx restore failed, kstack: {:?}, trap_frame: {:?}, ctx_type: {:?}",
+            kstack, trap_frame, ctx_type
+        );
     } else {
         panic!("cannot get stack ctx!");
     }

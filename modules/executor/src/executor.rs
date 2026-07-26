@@ -31,7 +31,7 @@ use lazy_init::LazyInit;
 use spinlock::SpinNoIrq;
 use sync::Mutex;
 use task_api::yield_now;
-use taskctx::{BaseScheduler, Task, TaskInner, TaskRef, TrapFrame};
+use taskctx::{BaseScheduler, Task, TaskInner, TaskRef, TaskState, TrapFrame};
 use taskctx::{Scheduler, TaskId};
 
 const FD_LIMIT_ORIGIN: usize = 1025;
@@ -1005,6 +1005,8 @@ impl Executor {
     /// 用于在初始化期间创建每个核心的初始任务
     ///
     /// 避免使用Mutex，因为此时current_task还未初始化，Mutex无法正常使用。
+    ///
+    /// 这个初始任务创建时的状态为Running，因为在调用该函数时初始任务已经运行了。
     pub fn new_ktask_init(
         &self,
         name: String,
@@ -1020,6 +1022,7 @@ impl Executor {
             page_table_token,
             fut,
         )));
+        ktask.set_state(TaskState::Running);
         // 初始任务不需要signal_module
         // self.signal_modules
         //     .lock()
