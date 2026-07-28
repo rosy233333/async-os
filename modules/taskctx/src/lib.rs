@@ -52,7 +52,6 @@ cfg_if::cfg_if! {
 /// 这里直接使用 Arc，会存在问题，导致任务的引用计数减一，从而直接被释放掉
 /// 因此使用任务的原始指针，只在确实需要唤醒时，才会拿到任务的 Arc 指针
 pub fn wakeup_task(task_ptr: *const Task) {
-    warn!("wakeup task: {:#x}", task_ptr as usize);
     let task = unsafe { &*task_ptr };
     let mut state = task.state_lock_manual();
     match **state {
@@ -73,8 +72,8 @@ pub fn wakeup_task(task_ptr: *const Task) {
             libvsched2::api::push_task(task_ptr as _);
         }
         TaskState::Waked => panic!("cannot wakeup Waked {}", task.id_name()),
-        // 无法唤醒已经退出的任务
-        TaskState::Exited => panic!("cannot wakeup Exited {}", task.id_name()),
+        // 可能不止一个其他的任务在唤醒这个任务，因此被唤醒的任务可能是处于 Exited 状态的
+        TaskState::Exited => (),
     };
     drop(core::mem::ManuallyDrop::into_inner(state));
 }

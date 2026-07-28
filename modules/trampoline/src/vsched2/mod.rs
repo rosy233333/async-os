@@ -186,6 +186,7 @@ impl libvsched2::Task for Task {
         };
         log::debug!("Task::restore_context: before restore");
         restore_from_stack_ctx(&self_ref);
+        panic!("`restore_context`: unreachable!");
     }
 
     #[doc = r" 恢复协程上下文，函数返回时自动保存了协程上下文"]
