@@ -20,8 +20,23 @@ async fn main() -> isize {
 }
 
 async fn accept_loop() -> io::Result<()> {
-    let listener = TcpListener::bind((LOCAL_IP, LOCAL_PORT)).await?;
-    println!("listen on: {}", listener.local_addr().unwrap());
+    let listener = TcpListener::bind((LOCAL_IP, 5555)).await?;
+    let local_addr = listener.local_addr().unwrap();
+    println!("listen on: {}", local_addr);
+    // for i in 0..10 {
+    //     async_std::task::spawn(async move {
+    //         let buf = [0u8, 1u8, 2u8, 3u8, 4u8, 5u8, 6u8, 7u8];
+    //         let mut stream = TcpStream::connect(local_addr).await.unwrap();
+    //         println!("client {} connect ok!", i);
+    //         stream.write_all(&buf).await;
+    //         println!("client {} write ok!", i);
+    //         let mut res: Vec<u8> = Vec::new();
+    //         stream.read_to_end(&mut res).await;
+    //         println!("client {} read ok!", i);
+    //         assert_eq!(&res, reverse(&buf).as_slice());
+    //         println!("client {} test ok!", i);
+    //     });
+    // }
 
     let mut i = 0;
     loop {

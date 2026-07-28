@@ -135,6 +135,7 @@ impl<'a> SocketSetWrapper<'a> {
                 Socket::Tcp(s) => {
                     let local_addr = s.get_bound_endpoint();
                     if local_addr.addr == Some(addr) {
+                        // error!("addr {:?} already in use!", addr);
                         return Err(AxError::AddrInUse);
                     }
                 }

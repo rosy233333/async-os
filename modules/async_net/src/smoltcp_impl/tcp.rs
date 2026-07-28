@@ -226,7 +226,7 @@ impl TcpSocket {
         .unwrap_or_else(|_| ax_err!(AlreadyExists, "socket connect() failed: already connected"))?; // EISCONN
 
         // HACK: yield() to let server to listen
-        yield_now();
+        yield_now().await;
 
         // Here our state must be `CONNECTING`, and only one thread can run here.
         if self.is_nonblocking() {

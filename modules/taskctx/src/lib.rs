@@ -22,6 +22,7 @@ pub use kstack::TaskStack;
 
 pub type TaskRef = Arc<Task>;
 pub use kstack::*;
+use log::warn;
 pub use scheduler::BaseScheduler;
 pub use task::{SchedPolicy, SchedStatus, TaskId, TaskInner, TaskState};
 pub use waker::waker_from_task;
@@ -51,6 +52,7 @@ cfg_if::cfg_if! {
 /// 这里直接使用 Arc，会存在问题，导致任务的引用计数减一，从而直接被释放掉
 /// 因此使用任务的原始指针，只在确实需要唤醒时，才会拿到任务的 Arc 指针
 pub fn wakeup_task(task_ptr: *const Task) {
+    warn!("wakeup task: {:#x}", task_ptr as usize);
     let task = unsafe { &*task_ptr };
     let mut state = task.state_lock_manual();
     match **state {
