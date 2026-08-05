@@ -624,11 +624,18 @@ impl TaskInner {
         //     ctx_type
         // );
         let stack_ctx = unsafe { &mut *self.stack_ctx.get() };
-        assert!(
-            stack_ctx.is_none(),
-            "{} cannot use thread api to do task switch",
-            self.id_name()
-        );
+        // 更改了“已有线程上下文”的判定标准，需要有栈才会判定为已有。
+        // 因为调度器使用的SCHEDULER_WAIT_CONTEXT在使用时只会取走栈，不会取走寄存器上下文，而会在此状态下继续覆盖新的上下文。
+        if let Some(ctx) = stack_ctx {
+            if ctx.kstack.is_some() {
+                panic!("{} cannot use thread api to do task switch", self.id_name())
+            }
+        }
+        // assert!(
+        //     stack_ctx.is_none(),
+        //     "{} cannot use thread api to do task switch",
+        //     self.id_name()
+        // );
         // log::info!("before pick current stack");
         let kstack = crate::pick_current_stack();
         // log::info!("after pick current stack");

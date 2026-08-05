@@ -7,7 +7,10 @@ use core::{
 
 use alloc::{boxed::Box, sync::Arc};
 use async_mem::MemorySet;
-use axhal::mem::{phys_to_virt, VirtAddr};
+use axhal::{
+    arch::send_ipi,
+    mem::{phys_to_virt, VirtAddr},
+};
 use executor::{current_task, current_task_may_uninit, KERNEL_EXECUTOR};
 use sync::Mutex;
 use taskctx::{TaskInner, TaskStack, TaskState, TrapFrame};
@@ -540,6 +543,11 @@ impl libvsched2::SMP for SMPImpl {
         let res = axhal::cpu::this_cpu_id();
         log::debug!("Returned from SMP::cpu_id.");
         res
+    }
+
+    #[doc = r" 发送核间中断，用于唤醒正在睡眠的核心"]
+    fn send_ipi(target_cpu: usize) {
+        send_ipi(target_cpu);
     }
 }
 

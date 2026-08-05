@@ -26,10 +26,11 @@ pub const MAX_IRQ_COUNT: usize = 1024;
 pub const TIMER_IRQ_NUM: usize = S_TIMER;
 
 macro_rules! with_cause {
-    ($cause: expr, @TIMER => $timer_op: expr, @EXT => $ext_op: expr $(,)?) => {
+    ($cause: expr, @TIMER => $timer_op: expr, @EXT => $ext_op: expr, @SOFTWARE => $software_op: expr $(,)?) => {
         match $cause {
             S_TIMER => $timer_op,
             S_EXT => $ext_op,
+            S_SOFTWARE => $software_op,
             _ => panic!("invalid trap cause: {:#x}", $cause),
         }
     };
@@ -56,6 +57,9 @@ pub fn register_handler(scause: usize, handler: IrqHandler) -> bool {
             false
         },
         @EXT => crate::irq::register_handler_common(scause & !INTC_IRQ_BASE, handler),
+        @SOFTWARE => {
+            panic!("don't support software irq handler, the default op receiving software irq is noop!");
+        }
     )
 }
 
@@ -72,6 +76,9 @@ pub fn dispatch_irq(scause: usize) {
             TIMER_HANDLER();
         },
         @EXT => crate::irq::dispatch_irq_common(0), // TODO: get IRQ number from PLIC
+        @SOFTWARE => {
+            // noop
+        },
     );
 }
 

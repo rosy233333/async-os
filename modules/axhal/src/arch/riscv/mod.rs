@@ -5,6 +5,7 @@ mod context;
 
 pub use self::context::{GeneralRegisters, TrapFrame};
 
+use axconfig::SMP;
 #[cfg(feature = "monolithic")]
 pub use context::first_into_user;
 
@@ -13,6 +14,7 @@ pub use context::first_into_user;
 use memory_addr::{PhysAddr, VirtAddr};
 use riscv::asm;
 use riscv::register::{satp, sstatus};
+use sbi_rt::HartMask;
 
 /// Allows the current CPU to respond to interrupts.
 #[inline]
@@ -108,5 +110,12 @@ pub unsafe fn write_thread_pointer(tp: usize) {
 }
 
 // include_asm_marcos!();
+
+#[inline]
+pub fn send_ipi(target_cpu: usize) {
+    assert!(target_cpu < SMP);
+    let hart_mask: usize = 1 << target_cpu;
+    sbi_rt::send_ipi(HartMask::from_mask_base(hart_mask, 0)).unwrap();
+}
 
 core::arch::global_asm!(include_str!("signal.S"));
