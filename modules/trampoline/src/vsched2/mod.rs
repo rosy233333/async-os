@@ -12,6 +12,7 @@ use axhal::{
     mem::{phys_to_virt, VirtAddr},
 };
 use executor::{current_task, current_task_may_uninit, KERNEL_EXECUTOR};
+use kernel_guard::{BaseGuard, NoPreemptIrqSave};
 use sync::Mutex;
 use taskctx::{TaskInner, TaskStack, TaskState, TrapFrame};
 use vdso::VVAR;
@@ -204,9 +205,11 @@ impl libvsched2::Task for Task {
         //     sip.ssoft(),
         //     sip.sext()
         // );
-        // axhal::arch::enable_irqs();
+
+        // // 目前还未考虑如何进行开关中断的设置，以兼容“处理了开关中断的Future”和“未处理开关中断的Future”。
+        // let state = NoPreemptIrqSave::acquire();
         let res = self.0.get_fut().as_mut().poll(cx);
-        // axhal::arch::disable_irqs();
+        // NoPreemptIrqSave::release(state);
         log::debug!("Returned from Task::poll.");
         res
     }

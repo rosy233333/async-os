@@ -7,6 +7,8 @@ use riscv::register::{
 use task_api::current_task;
 use taskctx::TrapFrame;
 
+mod backtrace;
+
 /// Writes Supervisor Trap Vector Base Address Register (`stvec`).
 #[inline]
 pub fn set_trap_vector_base(stvec: usize) {
@@ -115,9 +117,13 @@ fn slow_path_entry(tf: &TrapFrame) -> ! {
     //     sip.sext()
     // );
     if let Trap::Exception(e) = tf.get_scause_type() {
+        backtrace::dump_trap_backtrace(tf);
         panic!(
-            "slow_path_entry: exception: {:?}, stval: {:#x}, sepc: {:#x}",
-            e, tf.stval, tf.sepc
+            "slow_path_entry: exception: {:?}, stval: {:#x}, sepc: {:#x}, current_task: {:?}",
+            e,
+            tf.stval,
+            tf.sepc,
+            current_task().id_name()
         );
     }
     let tf_c = Box::new(tf.clone()); // 需要clone的原因是当前trapframe存储于内核栈上，该内核栈在出调度器时就会被回收。

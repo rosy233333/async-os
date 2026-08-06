@@ -11,6 +11,7 @@ strip = false
 [profile.release]
 lto = true
 strip = false
+# debug = 2
 
 [workspace]
 members = [
