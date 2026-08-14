@@ -438,6 +438,8 @@ impl TaskInner {
     /// 不进行resched，因此调用后需要单独resched。
     pub fn join(&self, waker: Waker) {
         let task = waker.data() as *const crate::Task;
+        assert!(!task.is_null());
+        assert!(unsafe { &*task }.id().as_u64() != 0); // 测试任务指针有效
         unsafe { &*task }.set_state(TaskState::Blocking);
         let wait_wakers = unsafe { &mut *self.wait_wakers.get() };
         wait_wakers.push_back(waker);

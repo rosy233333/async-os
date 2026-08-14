@@ -303,7 +303,23 @@ impl libvsched2::Stack for Stack {
     #[doc = r" 栈底指针"]
     fn base(&self) -> *mut () {
         log::debug!("Calling Stack::base.");
-        let res = self.0.top().as_mut_ptr() as *mut ();
+        // 栈的范围是[down, top)
+        #[cfg(any(
+            target_arch = "riscv32",
+            target_arch = "riscv64",
+            target_arch = "x86",
+            target_arch = "x86_64"
+        ))]
+        // riscv和x86下sp指向最底端的有内容位置，因此没有内容时指向栈外是合理的。
+        let res = self.0.top().as_usize() as *mut ();
+
+        #[cfg(not(any(
+            target_arch = "riscv32",
+            target_arch = "riscv64",
+            target_arch = "x86",
+            target_arch = "x86_64"
+        )))]
+        unimplemented!();
         log::debug!("Returned from Stack::base.");
         res
     }

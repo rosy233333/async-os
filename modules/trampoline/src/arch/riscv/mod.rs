@@ -1,3 +1,5 @@
+use core::arch::asm;
+
 use crate::trampoline;
 use libvsched2::current_task_ptr;
 use riscv::register::{
@@ -7,7 +9,7 @@ use riscv::register::{
 use task_api::current_task;
 use taskctx::TrapFrame;
 
-mod backtrace;
+pub(crate) mod backtrace;
 
 /// Writes Supervisor Trap Vector Base Address Register (`stvec`).
 #[inline]
@@ -66,8 +68,10 @@ fn fast_path_entry() -> ! {
     // panic!("`thread` or `preempt` feature is not enabled!");
     // info!("trap into fast_path_entry.",);
 
-    // 因为任务调度的接口，会在时钟中断处理前打开中断，而此时`sip.STIP`位还未清除，因此需要使用以下方法清除该位。
-    axhal::time::set_oneshot_timer(u64::MAX);
+    // 进入fast_path一定不是时钟中断，因此这里不需要设置timer？
+    // // 因为任务调度的接口，会在时钟中断处理前打开中断，而此时`sip.STIP`位还未清除，因此需要使用以下方法清除该位。
+    // #[cfg(feature = "irq")]
+    // axhal::time::set_oneshot_timer(u64::MAX);
     let raw_trap_entry = unsafe {
         &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
             as *const fn(usize, usize) -> !)
@@ -108,6 +112,7 @@ fn slow_path_entry(tf: &TrapFrame) -> ! {
     // );
 
     // 因为任务调度的接口，会在时钟中断处理前打开中断，而此时`sip.STIP`位还未清除，因此需要使用以下方法清除该位。
+    #[cfg(feature = "irq")]
     axhal::time::set_oneshot_timer(u64::MAX);
     // let sip = riscv::register::sip::read();
     // log::info!(
@@ -116,14 +121,23 @@ fn slow_path_entry(tf: &TrapFrame) -> ! {
     //     sip.ssoft(),
     //     sip.sext()
     // );
-    if let Trap::Exception(e) = tf.get_scause_type() {
+    #[cfg(not(feature = "irq"))]
+    if let Trap::Interrupt(i) = tf.get_scause_type() {
         backtrace::dump_trap_backtrace(tf);
         panic!(
-            "slow_path_entry: exception: {:?}, stval: {:#x}, sepc: {:#x}, current_task: {:?}",
-            e,
-            tf.stval,
-            tf.sepc,
-            current_task().id_name()
+            "slow_path_entry: current_task: {:?}, scause: {:?}, trap_frame: {:#x?}",
+            current_task().id_name(),
+            tf.get_scause_type(),
+            tf
+        );
+    }
+    if let Trap::Exception(e) = tf.get_scause_type() {
+        // backtrace::dump_trap_backtrace(tf);
+        panic!(
+            "slow_path_entry: current_task: {:?}, scause: {:?}, trap_frame: {:#x?}",
+            current_task().id_name(),
+            tf.get_scause_type(),
+            tf
         );
     }
     let tf_c = Box::new(tf.clone()); // 需要clone的原因是当前trapframe存储于内核栈上，该内核栈在出调度器时就会被回收。
@@ -132,14 +146,26 @@ fn slow_path_entry(tf: &TrapFrame) -> ! {
     // warn!("slow_path_entry: before setting stack ctx");
     current_task().set_stack_ctx(Box::into_raw(tf_c), taskctx::CtxType::Interrupt);
     // warn!("slow_path_entry: after setting stack ctx");
-    let raw_trap_entry = unsafe {
-        &*(libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
+    let raw_trap_entry_ptr = unsafe {
+        (libvsched2::VDSO_VTABLE.raw_trap_entry.as_ref().unwrap() as *const _ as *const ()
             as *const fn(usize, usize) -> !)
     };
+    assert!(raw_trap_entry_ptr.is_null() == false);
+    let raw_trap_entry = unsafe { &*raw_trap_entry_ptr };
     // 判断是否为外部中断
     if let Trap::Interrupt(_) = tf.get_scause_type() {
+        // // 恢复sp至栈底，栈底即为tf+size_of::<TrapFrame>()。
+        // let stack_base = tf as *const _ as usize + core::mem::size_of::<TrapFrame>();
+        // unsafe {
+        //     asm!("mv sp, {}", in(reg) stack_base);
+        // }
         raw_trap_entry(1, 0);
     } else {
+        // // 恢复sp至栈底，栈底即为tf+size_of::<TrapFrame>()。
+        // let stack_base = tf as *const _ as usize + core::mem::size_of::<TrapFrame>();
+        // unsafe {
+        //     asm!("mv sp, {}", in(reg) stack_base);
+        // }
         raw_trap_entry(0, 0);
     }
 }

@@ -571,6 +571,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "crate_interface"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51e5c7109dea31fc91ab584e99752baa997f76d46e49bab0a17b5e9679248df7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
 name = "critical-section"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -986,6 +997,16 @@ version = "0.1.1"
 dependencies = [
  "cfg-if",
  "crate_interface 0.1.4",
+]
+
+[[package]]
+name = "kernel_guard"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfacac34d77b445f5ad7522174fb0846fb82015c64b574fbe4be07b1b4eb6302"
+dependencies = [
+ "cfg-if",
+ "crate_interface 0.3.0",
 ]
 
 [[package]]
@@ -2031,6 +2052,7 @@ name = "vsched2"
 version = "0.1.0"
 dependencies = [
  "heapless 0.9.3",
+ "kernel_guard 0.2.0",
  "lazyinit",
  "spin 0.10.0",
  "vdso_helper",

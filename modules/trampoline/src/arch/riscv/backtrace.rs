@@ -9,7 +9,8 @@ const MAX_FRAMES: usize = 64;
 /// Kernel image text range symbols, defined by `linker_riscv64-qemu-virt.lds`.
 extern "C" {
     fn _stext();
-    fn _etext();
+    fn _evdso();
+    fn boot_stack();
 }
 
 /// Prints the interrupted kernel execution flow's call chain via a
@@ -18,6 +19,7 @@ extern "C" {
 /// User-mode exceptions only print the saved register context; the walk is
 /// kernel-mode only. Every stack read is validated beforehand so a corrupt
 /// frame chain cannot cause a nested page fault inside the panic path.
+#[unsafe(no_mangle)]
 pub(crate) fn dump_trap_backtrace(tf: &TrapFrame) {
     let from_user = tf.sstatus & (1 << 8) == 0;
     log::error!(
@@ -37,7 +39,7 @@ pub(crate) fn dump_trap_backtrace(tf: &TrapFrame) {
     }
 
     let text_start = _stext as usize;
-    let text_end = _etext as usize;
+    let text_end = _evdso as usize;
     let sp0 = tf.regs.sp;
     let mut fp = tf.regs.s0;
     let mut pc = tf.sepc;
@@ -51,7 +53,7 @@ pub(crate) fn dump_trap_backtrace(tf: &TrapFrame) {
         // RISC-V psABI frame layout: `[fp - XLEN]` holds the return address and
         // `[fp - 2 * XLEN]` holds the previous frame pointer. Keep every read
         // inside the interrupted stack window `[sp0, sp0 + TASK_STACK_SIZE)`.
-        if fp == 0 || fp % 16 != 0 || fp < sp0 + 16 || fp >= sp0 + TASK_STACK_SIZE {
+        if fp == 0 || fp % 8 != 0 || fp < sp0 + 16 || fp >= sp0 + TASK_STACK_SIZE {
             log::error!("[trap backtrace] stop: invalid frame pointer {:#x}", fp);
             return;
         }
@@ -69,4 +71,23 @@ pub(crate) fn dump_trap_backtrace(tf: &TrapFrame) {
         pc = next_pc;
     }
     log::error!("[trap backtrace] stop: frame limit {} reached", MAX_FRAMES);
+}
+
+pub(crate) fn check_trapframe(tf: &TrapFrame, trapped: bool) -> bool {
+    let ra = tf.regs.ra;
+    let sepc = tf.sepc;
+    let sp = tf.regs.sp;
+    let fp = tf.regs.s0;
+
+    let text_start = _stext as usize;
+    let text_end = _evdso as usize;
+    let boot_stack = boot_stack as usize;
+
+    let res = ra >= text_start && ra < text_end && sp >= boot_stack && fp >= boot_stack;
+
+    if trapped {
+        res && sepc >= text_start && sepc < text_end
+    } else {
+        res
+    }
 }

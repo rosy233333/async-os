@@ -19,13 +19,19 @@ use sbi_rt::HartMask;
 /// Allows the current CPU to respond to interrupts.
 #[inline]
 pub fn enable_irqs() {
-    unsafe { sstatus::set_sie() }
+    #[cfg(feature = "irq")]
+    unsafe {
+        sstatus::set_sie()
+    }
 }
 
 /// Makes the current CPU to ignore interrupts.
 #[inline]
 pub fn disable_irqs() {
-    unsafe { sstatus::clear_sie() }
+    #[cfg(feature = "irq")]
+    unsafe {
+        sstatus::clear_sie()
+    }
 }
 
 /// Returns whether the current CPU is allowed to respond to interrupts.

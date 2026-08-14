@@ -53,6 +53,8 @@ cfg_if::cfg_if! {
 /// 因此使用任务的原始指针，只在确实需要唤醒时，才会拿到任务的 Arc 指针
 pub fn wakeup_task(task_ptr: *const Task) {
     let task = unsafe { &*task_ptr };
+    assert!(!task_ptr.is_null());
+    assert!(task.id().as_u64() != 0); // 测试任务指针有效
     let mut state = task.state_lock_manual();
     match **state {
         // 任务正在运行，且没有让权，不必唤醒

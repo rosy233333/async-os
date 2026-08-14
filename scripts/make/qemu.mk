@@ -69,7 +69,7 @@ ifeq ($(GRAPHIC), n)
 endif
 
 ifeq ($(QEMU_LOG), y)
-  qemu_args-y += -D qemu.log -d in_asm,int,mmu,pcall,cpu_reset,guest_errors
+  qemu_args-y += -D qemu_%d.log -d in_asm,int,mmu,pcall,cpu_reset,guest_errors,tid
 endif
 
 qemu_args-debug := $(qemu_args-y) -s -S

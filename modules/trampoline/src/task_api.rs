@@ -9,6 +9,8 @@ use syscall::trap::{handle_page_fault, MappingFlags};
 #[cfg(feature = "sched_taic")]
 use syscall::LQS;
 
+use crate::arch::check_trapframe;
+
 // #[cfg(feature = "preempt")]
 /// Checks if the current task should be preempted.
 /// This api called after handle irq,it may be on a
@@ -466,9 +468,23 @@ pub fn restore_from_stack_ctx(task: &TaskRef) {
         //     sip.sext()
         // );
         match ctx_type {
-            CtxType::Thread => unsafe { &*trap_frame }.thread_return(),
+            CtxType::Thread => {
+                // let base = kstack.as_ref().unwrap().top().as_usize();
+                let tf = unsafe { &*trap_frame };
+                if check_trapframe(tf, false) == false {
+                    panic!("thread return trapframe invalid: trapframe {:#x?}", tf);
+                }
+                tf.thread_return()
+            }
             // #[cfg(feature = "preempt")]
-            CtxType::Interrupt => unsafe { &*trap_frame }.preempt_return(),
+            CtxType::Interrupt => {
+                // let base = kstack.as_ref().unwrap().top().as_usize();
+                let tf = unsafe { &*trap_frame };
+                if check_trapframe(tf, true) == false {
+                    panic!("interrupt return trapframe invalid: trapframe {:#x?}", tf);
+                }
+                tf.preempt_return()
+            }
         }
         panic!(
             "task ctx restore failed, kstack: {:?}, trap_frame: {:?}, ctx_type: {:?}",

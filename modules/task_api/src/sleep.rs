@@ -3,14 +3,12 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
-#[cfg(feature = "irq")]
 use kernel_guard::{BaseGuard, NoPreemptIrqSave};
 
 #[derive(Debug)]
 pub struct SleepFuture {
     #[cfg(feature = "irq")]
     _has_sleep: bool,
-    // #[cfg(feature = "irq")]
     _irq_state: <NoPreemptIrqSave as BaseGuard>::State,
     deadline: axhal::time::TimeValue,
 }
@@ -39,7 +37,6 @@ impl SleepFuture {
         Self {
             #[cfg(feature = "irq")]
             _has_sleep: false,
-            // #[cfg(feature = "irq")]
             _irq_state,
             deadline,
         }
