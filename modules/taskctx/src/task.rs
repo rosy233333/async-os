@@ -3,6 +3,7 @@ use crate::TaskStack;
 use crate::{stat::TimeStat, Scheduler, TrapFrame};
 use alloc::{boxed::Box, collections::vec_deque::VecDeque, string::String, sync::Arc};
 use axhal::arch::{disable_irqs, enable_irqs};
+use kernel_guard::{BaseGuard, IrqSave};
 use log::warn;
 // #[cfg(feature = "preempt")]
 use core::sync::atomic::AtomicUsize;
@@ -159,6 +160,55 @@ pub struct TaskInner {
 unsafe impl Send for TaskInner {}
 unsafe impl Sync for TaskInner {}
 
+/// 用于为Future维护中断状态的Wrapper。
+///
+/// 无论内部Future的叶子Future是否维护了中断状态，都保证在进入调度器前先关中断。
+///
+/// 对于init_state为true的情况（一般任务）：
+///
+/// - 如果内部Future的叶子Future已经维护了中断状态，则release不会开中断；
+/// - 如果内部Future的叶子Future没有维护中断状态，则release会开中断。
+///
+/// 对于init_state为false的情况（trap handler）：
+///
+/// - 如果内部Future的叶子Future已经维护了中断状态，则按照内部Future的逻辑处理；
+/// - 如果内部Future的叶子Future没有维护中断状态，则全程不会开中断。
+struct IrqWrapper {
+    init_state: bool, // true：开中断，false：关中断
+    state: Option<<IrqSave as BaseGuard>::State>,
+    fut: Pin<Box<dyn Future<Output = isize> + 'static>>,
+}
+
+impl IrqWrapper {
+    fn new(fut: Pin<Box<dyn Future<Output = isize> + 'static>>, init_state: bool) -> Self {
+        Self {
+            init_state,
+            state: None,
+            fut,
+        }
+    }
+}
+
+impl Future for IrqWrapper {
+    type Output = isize;
+
+    fn poll(
+        mut self: Pin<&mut Self>,
+        cx: &mut core::task::Context<'_>,
+    ) -> core::task::Poll<Self::Output> {
+        if let Some(state) = self.state.take() {
+            IrqSave::release(state);
+        } else {
+            if self.init_state {
+                enable_irqs();
+            }
+        }
+        let res = self.fut.as_mut().poll(cx);
+        self.state = Some(IrqSave::acquire());
+        res
+    }
+}
+
 impl TaskInner {
     pub fn new(
         name: String,
@@ -168,18 +218,17 @@ impl TaskInner {
         fut: Pin<Box<dyn Future<Output = isize> + 'static>>,
     ) -> Self {
         let is_init = &name == "main";
+        let is_handler = &name == "trap_handler";
         let t = Self {
             id: TaskId::new(),
             name: UnsafeCell::new(name),
             is_init,
             exit_code: AtomicIsize::new(0),
-            fut: UnsafeCell::new(Box::pin(async {
-                // warn!("before enable irq in task future");
-                enable_irqs();
-                let res = fut.await;
-                disable_irqs();
-                res
-            })),
+            fut: if is_handler {
+                UnsafeCell::new(Box::pin(IrqWrapper::new(fut, false)))
+            } else {
+                UnsafeCell::new(Box::pin(IrqWrapper::new(fut, true)))
+            }, // trap_handler不要开中断，正常的任务需要开中断
             utrap_frame: UnsafeCell::new(None),
             wait_wakers: UnsafeCell::new(VecDeque::new()),
             scheduler: SpinNoIrq::new(scheduler),
@@ -427,6 +476,7 @@ impl TaskInner {
 /// Methods for task switch
 impl TaskInner {
     pub fn notify_waker_for_exit(&self) {
+        warn!("{}: notify waker for exit", self.id_name());
         let wait_wakers = unsafe { &mut *self.wait_wakers.get() };
         while let Some(waker) = wait_wakers.pop_front() {
             waker.wake();

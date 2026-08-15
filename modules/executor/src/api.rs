@@ -73,7 +73,8 @@ where
         Box::pin(f()),
     )));
     // scheduler.lock().add_task(task.clone());
-    libvsched2::api::push_task_into_current(Arc::into_raw(task.clone()) as *const ());
+    let res = libvsched2::api::push_task_into_current(Arc::into_raw(task.clone()) as *const ());
+    assert!(res);
     debug!(
         "spawn task: {} @ {:#x}",
         name,

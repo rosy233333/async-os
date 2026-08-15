@@ -1,3 +1,4 @@
+use crate::current_task;
 use core::{
     future::Future,
     ops::Deref,
@@ -5,6 +6,7 @@ use core::{
     task::{Context, Poll},
 };
 use kernel_guard::{BaseGuard, NoPreemptIrqSave};
+use log::warn;
 use taskctx::TaskRef;
 
 pub struct JoinFuture {
@@ -48,6 +50,7 @@ impl Future for JoinFuture {
                     NoPreemptIrqSave::release(this._irq_state);
                     Poll::Ready(Some(this._task.get_exit_code() as i32))
                 } else {
+                    warn!("{} join {}", current_task().id_name(), this._task.id_name());
                     this._task.join(_cx.waker().clone());
                     drop(ManuallyDrop::into_inner(guard));
                     // this._irq_state = NoPreemptIrqSave::acquire();
