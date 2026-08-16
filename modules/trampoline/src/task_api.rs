@@ -446,9 +446,9 @@ pub fn thread_join(task: &TaskRef) -> Option<i32> {
 /// - 中断返回时，在恢复上下文的同时打开了中断。
 pub fn restore_from_stack_ctx(task: &TaskRef) {
     if let Some(StackCtx {
-        kstack,
+        ref kstack,
         trap_frame,
-        ctx_type,
+        ref ctx_type,
     }) = task.get_stack_ctx()
     {
         // log::info!("restore_from_stack_ctx: {:#x}", trap_frame as usize);
@@ -468,6 +468,7 @@ pub fn restore_from_stack_ctx(task: &TaskRef) {
         //     sip.ssoft(),
         //     sip.sext()
         // );
+        assert!(kstack.is_none());
         match ctx_type {
             CtxType::Thread => {
                 // let base = kstack.as_ref().unwrap().top().as_usize();
@@ -479,18 +480,22 @@ pub fn restore_from_stack_ctx(task: &TaskRef) {
             }
             // #[cfg(feature = "preempt")]
             CtxType::Interrupt => {
-                // let base = kstack.as_ref().unwrap().top().as_usize();
-                let tf = unsafe { &*trap_frame };
-                if check_trapframe(tf, true) == false {
-                    panic!("interrupt return trapframe invalid: trapframe {:#x?}", tf);
+                // slow_path_entry 将 TrapFrame 保存在堆上的 Box 中（通过 Box::into_raw 将裸指针
+                // 存入 StackCtx.trap_frame）。这里收回该 Box 的所有权，把帧拷贝到当前内核栈后
+                // 释放堆内存，再从栈上副本恢复到被打断的执行流，避免 Box 泄漏。
+                let tf_box = unsafe { Box::from_raw(trap_frame as *mut TrapFrame) };
+                if check_trapframe(&tf_box, true) == false {
+                    panic!(
+                        "interrupt return trapframe invalid: trapframe {:#x?}",
+                        tf_box
+                    );
                 }
-                tf.preempt_return()
+                let tf_stack = *tf_box; // TrapFrame: Copy，拷贝到当前内核栈上的局部变量
+                drop(tf_box); // 释放 slow_path_entry 分配的 Box<TrapFrame>
+                tf_stack.preempt_return()
             }
         }
-        panic!(
-            "task ctx restore failed, kstack: {:?}, trap_frame: {:?}, ctx_type: {:?}",
-            kstack, trap_frame, ctx_type
-        );
+        unreachable!("task ctx restore failed");
     } else {
         panic!("cannot get stack ctx!");
     }

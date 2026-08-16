@@ -649,6 +649,7 @@ impl Drop for TaskInner {
 // #[cfg(any(feature = "thread-api", feature = "preempt"))]
 #[derive(Debug)]
 #[repr(usize)]
+#[derive(PartialEq)]
 pub enum CtxType {
     /// 其中的 usize 是中断状态，在使用线程接口让权时，将当前的中断状态保存至此，并且关闭中断
     /// 在线程恢复执行后，需要恢复原来的中断状态
@@ -663,6 +664,21 @@ pub struct StackCtx {
     pub kstack: Option<Box<TaskStack>>,
     pub trap_frame: *const TrapFrame,
     pub ctx_type: CtxType,
+}
+
+impl Drop for StackCtx {
+    fn drop(&mut self) {
+        // 任务在未恢复中断上下文（CtxType::Interrupt）的情况下被销毁时，
+        // 回收 slow_path_entry 在堆上创建的 Box<TrapFrame>，避免内存泄漏。
+        // 恢复路径 restore_from_stack_ctx 会先通过 get_stack_ctx() 整体取走 StackCtx，
+        // 因此这里不会与之发生双重释放。
+        if self.ctx_type == CtxType::Interrupt && !self.trap_frame.is_null() {
+            unsafe {
+                drop(Box::from_raw(self.trap_frame as *mut TrapFrame));
+            }
+            self.trap_frame = core::ptr::null();
+        }
+    }
 }
 
 // #[cfg(any(feature = "thread-api", feature = "preempt"))]

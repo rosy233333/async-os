@@ -141,7 +141,8 @@ fn slow_path_entry(tf: &TrapFrame) -> ! {
         );
     }
     let tf_c = Box::new(tf.clone()); // 需要clone的原因是当前trapframe存储于内核栈上，该内核栈在出调度器时就会被回收。
-                                     // TODO: 任务释放时，`tf_c`释放不掉，会内存泄漏。先这么实现吧。
+                                     // 该 Box 的所有权以裸指针形式存入 StackCtx.trap_frame，
+                                     // 在 restore_from_stack_ctx 恢复中断上下文时收回并释放，不会泄漏。
 
     // warn!("slow_path_entry: before setting stack ctx");
     current_task().set_stack_ctx(Box::into_raw(tf_c), taskctx::CtxType::Interrupt);
