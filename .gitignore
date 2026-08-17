@@ -1,6 +1,7 @@
 target/
 *.lds
 qemu.log
+qemu_*.log
 *.asm
 modules/async-std
 *.img

@@ -323,7 +323,12 @@ impl CurrentTask {
     }
 
     pub fn waker(&self) -> Waker {
-        crate::waker::waker_from_task(current_task_ptr() as _)
+        // let task_ptr = current_task_ptr::<()>();
+        // if task_ptr.is_null() {
+        //     panic!("CurrentTask::waker: current task is null!");
+        // }
+        // crate::waker::waker_from_task(task_ptr as _)
+        crate::waker::waker_from_task(&**self.0)
     }
 }
 

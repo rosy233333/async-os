@@ -380,7 +380,7 @@ pub fn thread_join(task: &TaskRef) -> Option<i32> {
             drop(ManuallyDrop::into_inner(guard));
             return Some(task.get_exit_code() as i32);
         }
-        warn!("{} join {}", current_task().id_name(), task.id_name());
+        // warn!("{} join {}", current_task().id_name(), task.id_name());
         task.join(current_task().waker());
         drop(ManuallyDrop::into_inner(guard));
         // current_task().set_state(TaskState::Blocking);

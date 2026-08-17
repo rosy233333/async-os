@@ -476,7 +476,7 @@ impl TaskInner {
 /// Methods for task switch
 impl TaskInner {
     pub fn notify_waker_for_exit(&self) {
-        warn!("{}: notify waker for exit", self.id_name());
+        // warn!("{}: notify waker for exit", self.id_name());
         let wait_wakers = unsafe { &mut *self.wait_wakers.get() };
         while let Some(waker) = wait_wakers.pop_front() {
             waker.wake();

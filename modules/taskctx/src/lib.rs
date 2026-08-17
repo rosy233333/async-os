@@ -63,7 +63,7 @@ pub fn wakeup_task(task_ptr: *const Task) {
         // 任务准备让权，但没有让权，还在核上运行，但已经被其他核唤醒，此时只需要修改其状态即可
         // 后续的处理由正在核上运行的自己来决定
         TaskState::Blocking => {
-            warn!("wake {}: Blocking -> Waked", task.id_name());
+            // warn!("wake {}: Blocking -> Waked", task.id_name());
             **state = TaskState::Waked
         }
         // 任务不在运行，但其状态处于就绪状态，意味着任务已经在就绪队列中，不需要再向其中添加任务
@@ -71,7 +71,7 @@ pub fn wakeup_task(task_ptr: *const Task) {
         // 任务不在运行，已经让权结束，不在核上运行，就绪队列中也不存在，需要唤醒
         // 只有处于 Blocked 状态的任务才能被唤醒，这时候才会拿到任务的 Arc 指针
         TaskState::Blocked => {
-            warn!("wake {}: Blocked -> Runnable", task.id_name());
+            // warn!("wake {}: Blocked -> Runnable", task.id_name());
             **state = TaskState::Runable;
             // let task_ref = unsafe { Arc::from_raw(task_ptr) };
             // task.scheduler.lock().lock().add_task(task_ref);
