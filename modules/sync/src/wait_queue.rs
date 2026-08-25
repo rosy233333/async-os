@@ -49,6 +49,10 @@ impl WaitQueue {
     }
 
     /// 当前任务等待某个条件成功
+    ///
+    /// 为了避免丢失唤醒，需要两次检查条件。
+    ///
+    /// 具体逻辑见[此流程图](https://github.com/rosy233333/weekly-progress/blob/dev/26.7.13~26.7.19/%E4%BB%BB%E5%8A%A1%E5%8F%8A%E5%85%B6%E7%8A%B6%E6%80%81%E5%8F%98%E5%8C%96%E6%B5%81%E7%A8%8B%E5%9B%BE.png)。
     pub fn wait_until<'a, F>(&'a self, _condition: F) -> WaitUntilFuture<'a, F>
     where
         F: Fn() -> bool + Unpin,
@@ -63,6 +67,17 @@ impl WaitQueue {
                 }
                 let state = NoPreemptIrqSave::acquire();
                 self.queue.lock().prepare_to_wait(waker_node.clone());
+                if _condition() {
+                    if let Some(_) = self.queue.lock().remove(&waker_node) {
+                        current_task().set_state(task_api::TaskState::Running);
+                        NoPreemptIrqSave::release(state);
+                        return WaitUntilFuture {
+                            _wq: self,
+                            _condition,
+                            _irq_state: None,
+                        };
+                    }
+                }
                 block_current();
                 NoPreemptIrqSave::release(state);
             }
@@ -78,6 +93,8 @@ impl WaitQueue {
     /// 当前任务等待，直到 deadline
     /// 参数使用 deadline，如果使用 Duration，则会导致每次进入这个函数都会重新计算 deadline
     /// 从而导致一直无法唤醒
+    ///
+    /// 计时器队列不会丢失唤醒，即使注册的deadline早于当下，也会在下次时钟中断时唤醒。
     #[cfg(feature = "irq")]
     pub fn wait_timeout<'a>(&'a self, _deadline: TimeValue) -> WaitTimeoutFuture<'a> {
         #[cfg(feature = "thread-api")]
@@ -111,6 +128,10 @@ impl WaitQueue {
     }
 
     /// 当前任务等待条件满足或者到达deadline
+    ///     
+    /// 为了避免丢失唤醒，需要两次检查条件。
+    ///
+    /// 具体逻辑见[此流程图](https://github.com/rosy233333/weekly-progress/blob/dev/26.7.13~26.7.19/%E4%BB%BB%E5%8A%A1%E5%8F%8A%E5%85%B6%E7%8A%B6%E6%80%81%E5%8F%98%E5%8C%96%E6%B5%81%E7%A8%8B%E5%9B%BE.png)。
     #[cfg(feature = "irq")]
     pub fn wait_timeout_until<'a, F>(
         &'a self,
@@ -132,6 +153,27 @@ impl WaitQueue {
                 let state = NoPreemptIrqSave::acquire();
                 self.queue.lock().prepare_to_wait(waker_node.clone());
                 set_alarm_wakeup(_deadline, waker.clone());
+                if _condition() {
+                    if let Some(_) = self.queue.lock().remove(&waker_node) {
+                        current_task().set_state(task_api::TaskState::Running);
+                        NoPreemptIrqSave::release(state);
+
+                        cancel_alarm(&waker);
+                        if current_time() >= _deadline {
+                            timeout = true;
+                            break;
+                        }
+
+                        return WaitTimeoutUntilFuture {
+                            _wq: self,
+                            _deadline,
+                            _condition,
+                            res: Some(timeout),
+                            _irq_state: None,
+                        };
+                    }
+                }
+
                 block_current();
                 NoPreemptIrqSave::release(state);
 
@@ -217,6 +259,9 @@ pub struct WaitUntilFuture<'a, F> {
 impl<'a, F: Fn() -> bool + Unpin> Future for WaitUntilFuture<'a, F> {
     type Output = ();
 
+    /// 为了避免丢失唤醒，需要两次检查条件。
+    ///
+    /// 具体逻辑见[此流程图](https://github.com/rosy233333/weekly-progress/blob/dev/26.7.13~26.7.19/%E4%BB%BB%E5%8A%A1%E5%8F%8A%E5%85%B6%E7%8A%B6%E6%80%81%E5%8F%98%E5%8C%96%E6%B5%81%E7%A8%8B%E5%9B%BE.png)。
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         cfg_if::cfg_if! {
             if #[cfg(feature = "thread-api")] {
@@ -234,7 +279,13 @@ impl<'a, F: Fn() -> bool + Unpin> Future for WaitUntilFuture<'a, F> {
                     Poll::Ready(())
                 } else {
                     *_irq_state = Some(NoPreemptIrqSave::acquire());
-                    _wq.queue.lock().prepare_to_wait(waker_node);
+                    _wq.queue.lock().prepare_to_wait(waker_node.clone());
+                    if _condition() {
+                        if let Some(_) = _wq.queue.lock().remove(&waker_node) {
+                            NoPreemptIrqSave::release((*_irq_state).unwrap());
+                            return Poll::Ready(());
+                        }
+                    }
                     Poll::Pending
                 }
             }
@@ -304,6 +355,9 @@ pub struct WaitTimeoutUntilFuture<'a, F> {
 impl<'a, F: Fn() -> bool + Unpin> Future for WaitTimeoutUntilFuture<'a, F> {
     type Output = bool;
 
+    /// 为了避免丢失唤醒，需要两次检查条件。
+    ///
+    /// 具体逻辑见[此流程图](https://github.com/rosy233333/weekly-progress/blob/dev/26.7.13~26.7.19/%E4%BB%BB%E5%8A%A1%E5%8F%8A%E5%85%B6%E7%8A%B6%E6%80%81%E5%8F%98%E5%8C%96%E6%B5%81%E7%A8%8B%E5%9B%BE.png)。
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let Self {
             _wq,
@@ -327,24 +381,34 @@ impl<'a, F: Fn() -> bool + Unpin> Future for WaitTimeoutUntilFuture<'a, F> {
                         // 该分支有可能在阻塞前进入（开中断状态）或阻塞后进入（关中断状态），
                         // 因此需要判断是否阻塞过来决定是否开中断。
                         if let Some(state) = *_irq_state {
+                            // 阻塞后进入
                             NoPreemptIrqSave::release(state);
+                            cancel_alarm(_cx.waker());
+                            _wq.queue.lock().remove(&waker_node);
                         }
-                        _wq.queue.lock().remove(&waker_node);
                         Poll::Ready(current_time >= *_deadline)
                     } else {
                         if current_time >= *_deadline {
                             // 该分支有可能在阻塞前进入（开中断状态）或阻塞后进入（关中断状态），
                             // 因此需要判断是否阻塞过来决定是否开中断。
                             if let Some(state) = *_irq_state {
+                                // 阻塞后进入
                                 NoPreemptIrqSave::release(state);
+                                cancel_alarm(_cx.waker());
+                                _wq.queue.lock().remove(&waker_node);
                             }
-                            cancel_alarm(_cx.waker());
-                            _wq.queue.lock().remove(&waker_node);
                             Poll::Ready(true)
                         } else {
                             *_irq_state = Some(NoPreemptIrqSave::acquire());
-                            _wq.queue.lock().prepare_to_wait(waker_node);
+                            _wq.queue.lock().prepare_to_wait(waker_node.clone());
                             set_alarm_wakeup(*_deadline, _cx.waker().clone());
+                            if _condition() {
+                                if let Some(_) = _wq.queue.lock().remove(&waker_node) {
+                                    NoPreemptIrqSave::release((*_irq_state).unwrap());
+                                    cancel_alarm(_cx.waker());
+                                    return Poll::Ready(current_time >= *_deadline);
+                                }
+                            }
                             Poll::Pending
                         }
                     }
