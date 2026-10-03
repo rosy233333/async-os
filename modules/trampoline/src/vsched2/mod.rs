@@ -608,6 +608,13 @@ impl libvsched2::VSpace for VSpaceImpl {
     }
 }
 
+extern "C" {
+    fn _svvar();
+    fn _evvar();
+    fn _svdso();
+    fn _evdso();
+}
+
 struct UserDataImpl;
 
 impl libvsched2::UserData for UserDataImpl {
@@ -631,11 +638,52 @@ impl libvsched2::UserData for UserDataImpl {
         let memory_set = unsafe { &mut *(vspace as *mut Mutex<MemorySet>) };
         let vvar_base = memory_set.lock().vvar_base.as_usize();
         assert!(vvar_base != 0);
-        let kernel_vvar_base = unsafe { &VVAR as *const _ as usize };
+        let kernel_vvar_base = _svvar as usize;
         let vaddr = VirtAddr::from(pos + vvar_base - kernel_vvar_base);
         let paddr = memory_set.lock().query(vaddr).unwrap().0;
         let res = phys_to_virt(paddr).as_mut_ptr() as *mut ();
         log::debug!("Returned from UserData::get_user_data.");
+        res
+    }
+
+    #[doc = r" 获取内核地址在目标用户地址空间中的对应地址。"]
+    #[doc = r""]
+    #[doc = r" 该接口用于在内核态初始化用户调度器中的自引用和函数指针。`pos`可以是"]
+    #[doc = r" 内核vDSO中的地址A，也可以是内核访问用户共享对象时使用的地址C；返回"]
+    #[doc = r" 同一物理对象在目标用户地址空间中的地址B。"]
+    #[doc = r""]
+    #[doc = r" 也就是说，该接口支持`A -> B`和`C -> B`两种转换。"]
+    #[doc = r""]
+    #[doc = r" 事件源注册只在初始化或注册路径调用该接口，调度热路径使用已经保存的"]
+    #[doc = r" 用户态和内核态地址，不会重复执行地址转换。"]
+    #[doc = r""]
+    #[doc = r" 若无法确认整个`[pos, pos + len)`在目标地址空间中存在唯一且连续的对应"]
+    #[doc = r" 映射，则返回空指针。"]
+    fn get_user_addr(pos: usize, len: usize, vspace: Option<*mut ()>) -> *mut () {
+        log::debug!("Calling UserData::get_user_addr.");
+        let vspace = vspace.unwrap_or(libvsched2::current_vspace() as *mut ());
+        assert!(!vspace.is_null());
+        let memory_set = unsafe { &mut *(vspace as *mut Mutex<MemorySet>) };
+        let vvar_base = memory_set.lock().vvar_base.as_usize();
+        assert!(vvar_base != 0);
+        let kernel_vvar_base = _svvar as usize;
+        let size = (_evdso as usize) - kernel_vvar_base;
+        let offset = if pos - kernel_vvar_base < size {
+            pos - kernel_vvar_base
+        } else {
+            // 计算出用户vdso在内核空间（平移映射）中的虚拟地址
+            let base_paddr = memory_set
+                .lock()
+                .query(VirtAddr::from(vvar_base))
+                .unwrap()
+                .0;
+            let base_vaddr = phys_to_virt(base_paddr).as_usize();
+            let offset = pos - base_vaddr;
+            assert!(offset < size);
+            offset
+        };
+        let res = (vvar_base + offset) as *mut ();
+        log::debug!("Returned from UserData::get_user_addr.");
         res
     }
 }

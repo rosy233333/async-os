@@ -282,6 +282,8 @@ impl<'a, F: Fn() -> bool + Unpin> Future for WaitUntilFuture<'a, F> {
                     _wq.queue.lock().prepare_to_wait(waker_node.clone());
                     if _condition() {
                         if let Some(_) = _wq.queue.lock().remove(&waker_node) {
+                            // 此处暂时缺少了设置任务状态为Running的过程，会导致一些同步问题。
+                            // 修改调度器的边界后，就不会发生该问题了。
                             NoPreemptIrqSave::release((*_irq_state).unwrap());
                             return Poll::Ready(());
                         }
@@ -404,6 +406,8 @@ impl<'a, F: Fn() -> bool + Unpin> Future for WaitTimeoutUntilFuture<'a, F> {
                             set_alarm_wakeup(*_deadline, _cx.waker().clone());
                             if _condition() {
                                 if let Some(_) = _wq.queue.lock().remove(&waker_node) {
+                                    // 此处暂时缺少了设置任务状态为Running的过程，会导致一些同步问题。
+                                    // 修改调度器的边界后，就不会发生该问题了。
                                     NoPreemptIrqSave::release((*_irq_state).unwrap());
                                     cancel_alarm(_cx.waker());
                                     return Poll::Ready(current_time >= *_deadline);

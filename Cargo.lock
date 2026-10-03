@@ -1988,7 +1988,7 @@ dependencies = [
 [[package]]
 name = "vdso_helper"
 version = "0.1.0"
-source = "git+https://github.com/rosy233333/vdso_crate_template.git#3d5cd539449c778f8d7a7b22c72d9683ac342add"
+source = "git+https://github.com/rosy233333/vdso_crate_template.git?rev=ded14abb75651531b0c404fbf524391ae073e61b#ded14abb75651531b0c404fbf524391ae073e61b"
 dependencies = [
  "lazyinit",
  "log",
