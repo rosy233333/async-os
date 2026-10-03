@@ -2,6 +2,7 @@ use core::{
     alloc::Layout,
     future::Future,
     mem::ManuallyDrop,
+    sync::atomic::Ordering,
     task::{Context, Poll, Waker},
 };
 
@@ -12,7 +13,8 @@ use axhal::{
     mem::{phys_to_virt, VirtAddr},
 };
 use executor::{current_task, current_task_may_uninit, KERNEL_EXECUTOR};
-use kernel_guard::{BaseGuard, NoPreemptIrqSave};
+use kernel_guard::{BaseGuard, IrqSave, NoPreemptIrqSave};
+use libvsched2::SchedAction;
 use sync::Mutex;
 use taskctx::{TaskInner, TaskStack, TaskState, TrapFrame};
 use vdso::VVAR;
@@ -65,47 +67,47 @@ impl libvsched2::Task for Task {
         }
     }
 
-    #[doc = r" 根据任务当前的状态，修改任务状态为参数中的对应值。返回任务的旧状态。"]
-    #[doc = r""]
-    #[doc = r" 该接口对任务状态的所有比较和修改需要实现为一个原子操作，从而防止多核下任务阻塞和唤醒相关的同步问题。"]
-    fn match_set_state(
-        &self,
-        state_from_ready: libvsched2::TaskState,
-        state_from_running: libvsched2::TaskState,
-        state_from_blocked: libvsched2::TaskState,
-        state_from_exited: libvsched2::TaskState,
-        state_from_blocking: libvsched2::TaskState,
-    ) -> libvsched2::TaskState {
-        log::debug!("Calling Task::match_set_state.");
-        let mut guard = self.0.state_lock_manual();
-        let prev_state = **guard;
-        let state = match prev_state {
-            TaskState::Running => state_from_running,
-            TaskState::Runable => state_from_ready,
-            TaskState::Blocked => state_from_blocked,
-            TaskState::Exited => state_from_exited,
-            TaskState::Blocking => state_from_blocking,
-            TaskState::Waked => state_from_ready,
-        };
-        let curr_state = match state {
-            libvsched2::TaskState::Running => TaskState::Running,
-            libvsched2::TaskState::Ready => TaskState::Runable,
-            libvsched2::TaskState::Blocked => TaskState::Blocked,
-            libvsched2::TaskState::Exited => TaskState::Exited,
-            libvsched2::TaskState::Blocking => TaskState::Blocking,
-        };
-        **guard = curr_state;
-        drop(ManuallyDrop::into_inner(guard));
-        log::debug!("Returned from Task::set_state.");
-        match prev_state {
-            TaskState::Running => libvsched2::TaskState::Running,
-            TaskState::Runable => libvsched2::TaskState::Ready,
-            TaskState::Waked => libvsched2::TaskState::Ready,
-            TaskState::Blocked => libvsched2::TaskState::Blocked,
-            TaskState::Blocking => libvsched2::TaskState::Blocking,
-            TaskState::Exited => libvsched2::TaskState::Exited,
-        }
-    }
+    // #[doc = r" 根据任务当前的状态，修改任务状态为参数中的对应值。返回任务的旧状态。"]
+    // #[doc = r""]
+    // #[doc = r" 该接口对任务状态的所有比较和修改需要实现为一个原子操作，从而防止多核下任务阻塞和唤醒相关的同步问题。"]
+    // fn match_set_state(
+    //     &self,
+    //     state_from_ready: libvsched2::TaskState,
+    //     state_from_running: libvsched2::TaskState,
+    //     state_from_blocked: libvsched2::TaskState,
+    //     state_from_exited: libvsched2::TaskState,
+    //     state_from_blocking: libvsched2::TaskState,
+    // ) -> libvsched2::TaskState {
+    //     log::debug!("Calling Task::match_set_state.");
+    //     let mut guard = self.0.state_lock_manual();
+    //     let prev_state = **guard;
+    //     let state = match prev_state {
+    //         TaskState::Running => state_from_running,
+    //         TaskState::Runable => state_from_ready,
+    //         TaskState::Blocked => state_from_blocked,
+    //         TaskState::Exited => state_from_exited,
+    //         TaskState::Blocking => state_from_blocking,
+    //         TaskState::Waked => state_from_ready,
+    //     };
+    //     let curr_state = match state {
+    //         libvsched2::TaskState::Running => TaskState::Running,
+    //         libvsched2::TaskState::Ready => TaskState::Runable,
+    //         libvsched2::TaskState::Blocked => TaskState::Blocked,
+    //         libvsched2::TaskState::Exited => TaskState::Exited,
+    //         libvsched2::TaskState::Blocking => TaskState::Blocking,
+    //     };
+    //     **guard = curr_state;
+    //     drop(ManuallyDrop::into_inner(guard));
+    //     log::debug!("Returned from Task::set_state.");
+    //     match prev_state {
+    //         TaskState::Running => libvsched2::TaskState::Running,
+    //         TaskState::Runable => libvsched2::TaskState::Ready,
+    //         TaskState::Waked => libvsched2::TaskState::Ready,
+    //         TaskState::Blocked => libvsched2::TaskState::Blocked,
+    //         TaskState::Blocking => libvsched2::TaskState::Blocking,
+    //         TaskState::Exited => libvsched2::TaskState::Exited,
+    //     }
+    // }
     #[doc = r" 任务优先级"]
     fn priority(&self) -> isize {
         log::debug!("Calling and returned from Task::priority.");
@@ -272,6 +274,49 @@ impl libvsched2::Task for Task {
         to_drop.notify_waker_for_exit();
         drop(to_drop);
         log::debug!("Returned from Task::dealloc.");
+    }
+
+    #[doc = r" 将一个action存储在TCB中，返回旧的action"]
+    fn set_action(&self, action: SchedAction) -> SchedAction {
+        self.0
+            .action
+            .swap(action.into(), Ordering::AcqRel)
+            .try_into()
+            .unwrap()
+    }
+
+    #[doc = r" 获取任务状态锁"]
+    #[doc = r""]
+    #[doc = r" 返回的指针代表获取的guard，会且仅会传入同一个任务的`state_lock_release()`中。"]
+    #[doc = r""]
+    #[doc = r" 在持有锁期间，会获取和修改任务的`state`和`action`。"]
+    fn state_lock_acquire(&self) -> *const () {
+        Box::into_raw(Box::new(ManuallyDrop::into_inner(
+            self.0.state_lock_manual(),
+        ))) as *const ()
+    }
+
+    #[doc = r" 释放任务状态锁"]
+    fn state_lock_release(&self, lock: *const ()) {
+        unsafe { Box::from_raw(lock as *mut spinlock::SpinNoIrqGuard<TaskState>) };
+    }
+
+    #[doc = r" 设置中断状态"]
+    #[doc = r""]
+    #[doc = r" 用于在上下文保存时保存任务的中断状态并存储进任务中，在上下文恢复时恢复对应的中断状态。"]
+    #[doc = r""]
+    #[doc = r" 中断状态可以视为上下文的一部分。"]
+    fn set_irq_state(&self, state: <IrqSave as BaseGuard>::State) {
+        self.0.irq_state.store(state.into(), Ordering::Release);
+    }
+
+    #[doc = r" 获取中断状态"]
+    #[doc = r""]
+    #[doc = r" 用于在上下文保存时保存任务的中断状态并存储进任务中，在上下文恢复时恢复对应的中断状态。"]
+    #[doc = r""]
+    #[doc = r" 中断状态可以视为上下文的一部分。"]
+    fn get_irq_state(&self) -> <IrqSave as BaseGuard>::State {
+        self.0.irq_state.load(Ordering::Acquire).into()
     }
 }
 

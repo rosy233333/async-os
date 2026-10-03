@@ -155,6 +155,11 @@ pub struct TaskInner {
     /// The scheduler status of the task, which defines the scheduling policy and priority
     pub sched_status: UnsafeCell<SchedStatus>,
     pub cpu_set: AtomicU64,
+
+    /// 与任务状态相关的Action，详见共享调度器设计文档
+    pub action: AtomicU64,
+    /// 调度器要求中断状态也保存在TCB中
+    pub irq_state: AtomicUsize,
 }
 
 unsafe impl Send for TaskInner {}
@@ -250,6 +255,8 @@ impl TaskInner {
                 priority: 1,
             }),
             cpu_set: AtomicU64::new(0),
+            action: AtomicU64::new(0),
+            irq_state: AtomicUsize::new(0),
         };
         t.set_cpu_set((1 << axconfig::SMP) - 1, 1, axconfig::SMP);
         t
@@ -291,6 +298,8 @@ impl TaskInner {
                 priority: 1,
             }),
             cpu_set: AtomicU64::new(0),
+            action: AtomicU64::new(0),
+            irq_state: AtomicUsize::new(0),
         };
         t.set_cpu_set((1 << axconfig::SMP) - 1, 1, axconfig::SMP);
         t
