@@ -196,10 +196,10 @@ impl libvsched2::Task for Task {
     }
 
     #[doc = r" 恢复协程上下文，函数返回时自动保存了协程上下文"]
-    fn poll(&self) -> Poll<isize> {
+    fn poll(&self, cx: &mut core::task::Context<'_>) -> Poll<isize> {
         log::debug!("Calling Task::poll.");
-        let waker = taskctx::waker_from_task(&self.0 as *const _);
-        let cx = &mut Context::from_waker(&waker);
+        // let waker = taskctx::waker_from_task(&self.0 as *const _);
+        // let cx = &mut Context::from_waker(&waker);
         // let sip = riscv::register::sip::read();
         // log::info!(
         //     "poll: \nsip: timer: {}, software: {}, external: {}",

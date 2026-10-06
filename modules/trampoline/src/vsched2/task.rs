@@ -34,7 +34,7 @@ fn set_tf_fn(tf: &mut TrapFrame, ctx_type: taskctx::CtxType) {
     // warn!("before raw_thread_entry, state: {:?}", state);
     let raw_thread_entry = unsafe { libvsched2::VDSO_VTABLE.raw_thread_entry.as_ref().unwrap() };
     log::info!(
-        "into raw_thread_entry: 0x{:#x}",
+        "into raw_thread_entry: {:#x}",
         raw_thread_entry as *const _ as usize
     );
     raw_thread_entry();
